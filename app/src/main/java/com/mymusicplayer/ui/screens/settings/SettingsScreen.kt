@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -33,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -93,6 +94,17 @@ fun SettingsScreen(
                     onPathChange = { viewModel.setScanDirectoryPath(it) },
                     onClear = { viewModel.clearScanDirectoryPath() },
                     onBrowse = onNavigateToDirectoryPicker
+                )
+                HorizontalDivider()
+
+                ScanFilterSetting(
+                    minSize = state.scanMinFileSize / 1_000_000,
+                    maxSize = state.scanMaxFileSize / 1_000_000,
+                    minDuration = state.scanMinDuration / 60_000,
+                    maxDuration = state.scanMaxDuration / 60_000,
+                    onSetSize = { min, max -> viewModel.setScanFileSizeFilter(min, max) },
+                    onSetDuration = { min, max -> viewModel.setScanDurationFilter(min, max) },
+                    onClear = { viewModel.clearScanFilters() }
                 )
                 HorizontalDivider()
 
@@ -227,6 +239,109 @@ private fun ScanDirectorySetting(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text("Grant file access")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanFilterSetting(
+    minSize: Long,
+    maxSize: Long,
+    minDuration: Long,
+    maxDuration: Long,
+    onSetSize: (Long, Long) -> Unit,
+    onSetDuration: (Long, Long) -> Unit,
+    onClear: () -> Unit
+) {
+    var minSizeText by remember(minSize) { mutableStateOf(minSize.toString().takeIf { it != "0" } ?: "") }
+    var maxSizeText by remember(maxSize) { mutableStateOf(maxSize.toString().takeIf { it != "0" } ?: "") }
+    var minDurText by remember(minDuration) { mutableStateOf(minDuration.toString().takeIf { it != "0" } ?: "") }
+    var maxDurText by remember(maxDuration) { mutableStateOf(maxDuration.toString().takeIf { it != "0" } ?: "") }
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            text = "Scan Filters",
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Skip files outside these ranges during scan",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Text("File Size (MB)", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = minSizeText,
+                onValueChange = { minSizeText = it.filter { c -> c.isDigit() } },
+                label = { Text("Min") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = maxSizeText,
+                onValueChange = { maxSizeText = it.filter { c -> c.isDigit() } },
+                label = { Text("Max") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Text("Duration (minutes)", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = minDurText,
+                onValueChange = { minDurText = it.filter { c -> c.isDigit() } },
+                label = { Text("Min") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = maxDurText,
+                onValueChange = { maxDurText = it.filter { c -> c.isDigit() } },
+                label = { Text("Max") },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = {
+                minSizeText = ""; maxSizeText = ""; minDurText = ""; maxDurText = ""
+                onClear()
+            }) {
+                Text("Clear Filters")
+            }
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = {
+                val minS = minSizeText.toLongOrNull() ?: 0L
+                val maxS = maxSizeText.toLongOrNull() ?: 0L
+                val minD = minDurText.toLongOrNull() ?: 0L
+                val maxD = maxDurText.toLongOrNull() ?: 0L
+                onSetSize(minS, maxS)
+                onSetDuration(minD, maxD)
+            }) {
+                Text("Apply")
             }
         }
     }

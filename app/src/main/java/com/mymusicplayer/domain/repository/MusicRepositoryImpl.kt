@@ -136,9 +136,16 @@ class MusicRepositoryImpl constructor(
 
     override suspend fun rescanLibrary(
         excludedPaths: List<String>,
-        scanDirectoryPath: String?
+        scanDirectoryPath: String?,
+        minFileSize: Long,
+        maxFileSize: Long,
+        minDuration: Long,
+        maxDuration: Long
     ): Flow<ScanProgress> {
-        return scanRepository.scanLibrary(excludedPaths, scanDirectoryPath)
+        return scanRepository.scanLibrary(
+            excludedPaths, scanDirectoryPath,
+            minFileSize, maxFileSize, minDuration, maxDuration
+        )
     }
 
     override suspend fun editTrackMetadata(

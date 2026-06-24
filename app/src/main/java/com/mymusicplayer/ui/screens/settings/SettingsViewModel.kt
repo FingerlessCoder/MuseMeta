@@ -14,11 +14,13 @@ data class SettingsUiState(
     val sortMode: String = "name",
     val equalizerEnabled: Boolean = false,
     val equalizerPreset: String = "Normal",
-    val minFileSize: Long = 0,
-    val maxFileSize: Long = Long.MAX_VALUE,
     val volumeNormalization: Boolean = false,
     val sleepTimerMinutes: Int = 0,
-    val scanDirectoryPath: String = ""
+    val scanDirectoryPath: String = "",
+    val scanMinFileSize: Long = 0L,
+    val scanMaxFileSize: Long = 0L,
+    val scanMinDuration: Long = 0L,
+    val scanMaxDuration: Long = 0L
 )
 
 class SettingsViewModel constructor(
@@ -45,16 +47,6 @@ class SettingsViewModel constructor(
             }
         }
         viewModelScope.launch {
-            settingsDataStore.minFileSize.collect { min ->
-                _uiState.value = _uiState.value.copy(minFileSize = min)
-            }
-        }
-        viewModelScope.launch {
-            settingsDataStore.maxFileSize.collect { max ->
-                _uiState.value = _uiState.value.copy(maxFileSize = max)
-            }
-        }
-        viewModelScope.launch {
             settingsDataStore.volumeNormalization.collect { norm ->
                 _uiState.value = _uiState.value.copy(volumeNormalization = norm)
             }
@@ -67,6 +59,26 @@ class SettingsViewModel constructor(
         viewModelScope.launch {
             settingsDataStore.scanDirectoryPath.collect { path ->
                 _uiState.value = _uiState.value.copy(scanDirectoryPath = path ?: "")
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.scanMinFileSize.collect { min ->
+                _uiState.value = _uiState.value.copy(scanMinFileSize = min)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.scanMaxFileSize.collect { max ->
+                _uiState.value = _uiState.value.copy(scanMaxFileSize = max)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.scanMinDuration.collect { min ->
+                _uiState.value = _uiState.value.copy(scanMinDuration = min)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.scanMaxDuration.collect { max ->
+                _uiState.value = _uiState.value.copy(scanMaxDuration = max)
             }
         }
     }
@@ -99,6 +111,25 @@ class SettingsViewModel constructor(
     fun clearScanDirectoryPath() {
         viewModelScope.launch { settingsDataStore.setScanDirectoryPath(null) }
         _uiState.value = _uiState.value.copy(scanDirectoryPath = "")
+    }
+
+    fun setScanFileSizeFilter(minMB: Long, maxMB: Long) {
+        viewModelScope.launch {
+            settingsDataStore.setScanFileSizeFilter(minMB * 1_000_000, maxMB * 1_000_000)
+        }
+    }
+
+    fun setScanDurationFilter(minMin: Long, maxMin: Long) {
+        viewModelScope.launch {
+            settingsDataStore.setScanDurationFilter(minMin * 60_000, maxMin * 60_000)
+        }
+    }
+
+    fun clearScanFilters() {
+        viewModelScope.launch {
+            settingsDataStore.setScanFileSizeFilter(0L, 0L)
+            settingsDataStore.setScanDurationFilter(0L, 0L)
+        }
     }
 
     fun canManageExternalStorage(): Boolean {
