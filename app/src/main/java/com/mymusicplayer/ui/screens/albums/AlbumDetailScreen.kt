@@ -1,5 +1,6 @@
 package com.mymusicplayer.ui.screens.albums
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -145,7 +146,7 @@ fun AlbumDetailScreen(
                         track = track,
                         index = index,
                         onClick = { onNavigateToPlayer() },
-                        onArtistClick = { track.artists.firstOrNull()?.let { onNavigateToArtist(it.id) } }
+                        onArtistClick = { artistId -> onNavigateToArtist(artistId) }
                     )
                     HorizontalDivider()
                 }
@@ -159,7 +160,7 @@ private fun TrackInAlbumRow(
     track: Track,
     index: Int,
     onClick: () -> Unit,
-    onArtistClick: () -> Unit
+    onArtistClick: (Long) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -195,7 +196,8 @@ private fun TrackInAlbumRow(
                     Text(
                         text = artist.name,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable { onArtistClick(artist.id) }
                     )
                 }
                 if (track.artists.size > 2) {

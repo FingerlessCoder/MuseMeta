@@ -264,7 +264,7 @@ fun TrackListScreen(
                                     onNavigateToPlayer()
                                 },
                                 onAlbumClick = { track.album?.let { onNavigateToAlbum(it.id) } },
-                                onArtistClick = { track.artists.firstOrNull()?.let { onNavigateToArtist(it.id) } }
+                                onArtistClick = { artistId -> onNavigateToArtist(artistId) }
                             )
                             HorizontalDivider()
                         }
@@ -317,7 +317,7 @@ private fun TrackListItem(
     onLongClick: () -> Unit,
     onPlay: () -> Unit,
     onAlbumClick: () -> Unit,
-    onArtistClick: () -> Unit
+    onArtistClick: (Long) -> Unit
 ) {
     val context = LocalContext.current
 
@@ -385,7 +385,8 @@ private fun TrackListItem(
                         text = artist.name,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary,
-                        maxLines = 1
+                        maxLines = 1,
+                        modifier = Modifier.clickable { onArtistClick(artist.id) }
                     )
                 }
                 if (track.artists.size > 3) {
