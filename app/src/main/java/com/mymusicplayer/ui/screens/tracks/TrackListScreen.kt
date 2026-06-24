@@ -69,6 +69,9 @@ import org.koin.androidx.compose.koinViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mymusicplayer.domain.model.Track
+import com.mymusicplayer.ui.components.AlphabetIndexBar
+import com.mymusicplayer.ui.components.computeIndexLetters
+import com.mymusicplayer.ui.components.computeSectionIndices
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -223,18 +226,12 @@ fun TrackListScreen(
             } else {
                 val listState = rememberLazyListState()
                 val letters = remember(filteredTracks) {
-                    filteredTracks.map { it.title.firstOrNull()?.uppercase() ?: "#" }
-                        .distinct().sorted()
+                    computeIndexLetters(filteredTracks.map { it.title })
                 }
                 val sectionIndices = remember(filteredTracks) {
-                    letters.map { letter ->
-                        filteredTracks.indexOfFirst { track ->
-                            (track.title.firstOrNull()?.uppercase() ?: "#") == letter
-                        }.coerceAtLeast(0)
-                    }
+                    computeSectionIndices(filteredTracks.map { it.title }, letters)
                 }
 
-                val coroutineScope = rememberCoroutineScope()
                 Box(modifier = Modifier.fillMaxSize()) {
                     LazyColumn(
                         state = listState,
@@ -270,36 +267,12 @@ fun TrackListScreen(
                         }
                     }
 
-                    // Alphabet sidebar
-                    if (!state.isMultiSelectMode && letters.size > 1) {
-                        Column(
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .width(24.dp)
-                                .padding(vertical = 8.dp)
-                                .pointerInput(Unit) {
-                                    detectTapGestures { offset ->
-                                        val idx = (offset.y / size.height * letters.size)
-                                            .toInt().coerceIn(0, letters.size - 1)
-                                        val targetIndex = sectionIndices[idx]
-                                        coroutineScope.launch {
-                                            listState.animateScrollToItem(targetIndex)
-                                        }
-                                    }
-                                },
-                            verticalArrangement = Arrangement.SpaceEvenly,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            letters.forEach { letter ->
-                                Text(
-                                    text = letter,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1
-                                )
-                            }
-                        }
+                    if (!state.isMultiSelectMode) {
+                        AlphabetIndexBar(
+                            letters = letters,
+                            sectionIndices = sectionIndices,
+                            listState = listState
+                        )
                     }
                 }
             }

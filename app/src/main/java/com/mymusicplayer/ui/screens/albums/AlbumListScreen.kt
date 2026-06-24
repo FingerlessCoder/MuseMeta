@@ -3,6 +3,7 @@ package com.mymusicplayer.ui.screens.albums
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -48,6 +49,9 @@ import org.koin.androidx.compose.koinViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mymusicplayer.domain.model.Album
+import com.mymusicplayer.ui.components.AlphabetIndexBar
+import com.mymusicplayer.ui.components.computeIndexLetters
+import com.mymusicplayer.ui.components.computeSectionIndices
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -102,14 +106,33 @@ fun AlbumListScreen(
                     Text("No albums found", style = MaterialTheme.typography.bodyLarge)
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredAlbums, key = { it.id }) { album ->
-                        AlbumListItem(
-                            album = album,
-                            onClick = { onNavigateToAlbum(album.id) }
-                        )
-                        HorizontalDivider()
+                val listState = rememberLazyListState()
+                val letters = remember(filteredAlbums) {
+                    computeIndexLetters(filteredAlbums.map { it.title })
+                }
+                val sectionIndices = remember(filteredAlbums) {
+                    computeSectionIndices(filteredAlbums.map { it.title }, letters)
+                }
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(filteredAlbums, key = { it.id }) { album ->
+                            AlbumListItem(
+                                album = album,
+                                onClick = { onNavigateToAlbum(album.id) }
+                            )
+                            HorizontalDivider()
+                        }
                     }
+
+                    AlphabetIndexBar(
+                        letters = letters,
+                        sectionIndices = sectionIndices,
+                        listState = listState
+                    )
                 }
             }
         }

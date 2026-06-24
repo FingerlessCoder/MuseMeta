@@ -3,6 +3,7 @@ package com.mymusicplayer.ui.screens.artists
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -42,6 +43,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 import com.mymusicplayer.domain.model.Artist
+import com.mymusicplayer.ui.components.AlphabetIndexBar
+import com.mymusicplayer.ui.components.computeIndexLetters
+import com.mymusicplayer.ui.components.computeSectionIndices
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,14 +100,33 @@ fun ArtistListScreen(
                     Text("No artists found", style = MaterialTheme.typography.bodyLarge)
                 }
             } else {
-                LazyColumn(modifier = Modifier.fillMaxSize()) {
-                    items(filteredArtists, key = { it.id }) { artist ->
-                        ArtistListItem(
-                            artist = artist,
-                            onClick = { onNavigateToArtist(artist.id) }
-                        )
-                        HorizontalDivider()
+                val listState = rememberLazyListState()
+                val letters = remember(filteredArtists) {
+                    computeIndexLetters(filteredArtists.map { it.name })
+                }
+                val sectionIndices = remember(filteredArtists) {
+                    computeSectionIndices(filteredArtists.map { it.name }, letters)
+                }
+
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        items(filteredArtists, key = { it.id }) { artist ->
+                            ArtistListItem(
+                                artist = artist,
+                                onClick = { onNavigateToArtist(artist.id) }
+                            )
+                            HorizontalDivider()
+                        }
                     }
+
+                    AlphabetIndexBar(
+                        letters = letters,
+                        sectionIndices = sectionIndices,
+                        listState = listState
+                    )
                 }
             }
         }
