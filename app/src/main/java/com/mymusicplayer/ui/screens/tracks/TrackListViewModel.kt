@@ -63,11 +63,6 @@ class TrackListViewModel constructor(
                 )
                 if (trackList.isEmpty() && wasLoading && !autoScanTriggered) {
                     autoScanTriggered = true
-                    try {
-                        musicRepository.rescanLibrary().collect { }
-                    } catch (_: Exception) {
-                        // auto-scan failed (e.g., no permission yet)
-                    }
                 }
             }
         }
