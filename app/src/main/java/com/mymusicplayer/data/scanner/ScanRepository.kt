@@ -1,5 +1,6 @@
 package com.mymusicplayer.data.scanner
 
+import android.content.Context
 import android.os.Environment
 import android.util.Log
 import com.mymusicplayer.data.db.dao.AlbumDao
@@ -38,6 +39,7 @@ enum class ScanPhase {
 }
 
 class ScanRepository constructor(
+    private val context: Context,
     private val trackDao: TrackDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
@@ -149,6 +151,7 @@ class ScanRepository constructor(
         trackDao.deleteRemovedTracks(scannedPaths.toList())
 
         val albumCache = mutableMapOf<String, Long>()
+        val firstTrackPathPerAlbum = mutableMapOf<Long, String>()
         val validTracks = parsedResults.mapNotNull { (file, meta) ->
             meta ?: return@mapNotNull null
             if (minDuration > 0L && meta.duration < minDuration) return@mapNotNull null
@@ -194,11 +197,38 @@ class ScanRepository constructor(
                     )
                 }
                 artistDao.insertTrackArtistRelations(relations)
+
+                if (albumId != null && albumId !in firstTrackPathPerAlbum) {
+                    firstTrackPathPerAlbum[albumId] = file.path
+                }
             }
         }
 
         artistDao.deleteOrphanedArtists()
         mergeDuplicateAlbums()
+
+        extractAlbumArt(firstTrackPathPerAlbum)
+    }
+
+    private suspend fun extractAlbumArt(albumTrackMap: Map<Long, String>) {
+        val artDir = File(context.cacheDir, "album_art")
+        artDir.mkdirs()
+
+        for ((albumId, filePath) in albumTrackMap) {
+            if (albumId == 0L) continue
+            try {
+                val album = albumDao.getAlbumByIdOnce(albumId) ?: continue
+                if (album.artPath != null) continue
+
+                val meta = metadataParser.parse(filePath, extractAlbumArt = true) ?: continue
+                val bytes = meta.albumArtBytes ?: continue
+                val artFile = File(artDir, "${albumId}.jpg")
+                artFile.writeBytes(bytes)
+                albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to extract album art for album $albumId", e)
+            }
+        }
     }
 
     private suspend fun resolveAlbumId(

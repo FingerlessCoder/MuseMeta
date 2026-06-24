@@ -29,7 +29,7 @@ val appModule = module {
     single { MediaStoreScanner(get()) }
     single { FileSystemScanner() }
     single { MetadataParser() }
-    single { ScanRepository(get(), get(), get(), get(), get(), get()) }
+    single { ScanRepository(androidContext(), get(), get(), get(), get(), get(), get()) }
     single { SettingsDataStore(androidContext()) }
     factory { androidContext().contentResolver }
 
