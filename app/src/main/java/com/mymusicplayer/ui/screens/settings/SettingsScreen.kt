@@ -51,6 +51,8 @@ import org.koin.androidx.compose.koinViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
+    onNavigateToScan: () -> Unit = {},
+    onNavigateToDirectoryPicker: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -73,36 +75,24 @@ fun SettingsScreen(
             SettingCard {
                 SettingRow(
                     title = "Rescan Library",
-                    subtitle = state.scanMessage.ifBlank { "Scan for new and removed files" },
+                    subtitle = if (state.scanDirectoryPath.isNotBlank())
+                        "Custom directory" else "Scan for new and removed files",
                     trailing = {
-                        if (state.isScanning) {
-                            Column {
-                                LinearProgressIndicator(
-                                    progress = { state.scanProgress.coerceIn(0f, 1f) },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Text(
-                                    text = "${(state.scanProgress * 100).toInt()}%",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        } else {
-                            Icon(
-                                Icons.Default.Refresh,
-                                contentDescription = "Scan",
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Scan",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     },
-                    onClick = { viewModel.rescanLibrary() }
+                    onClick = { onNavigateToScan() }
                 )
                 HorizontalDivider()
 
                 ScanDirectorySetting(
                     path = state.scanDirectoryPath,
                     onPathChange = { viewModel.setScanDirectoryPath(it) },
-                    onClear = { viewModel.clearScanDirectoryPath() }
+                    onClear = { viewModel.clearScanDirectoryPath() },
+                    onBrowse = onNavigateToDirectoryPicker
                 )
                 HorizontalDivider()
 
@@ -186,66 +176,46 @@ fun SettingsScreen(
 private fun ScanDirectorySetting(
     path: String,
     onPathChange: (String) -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    onBrowse: () -> Unit = {}
 ) {
-    var editingPath by remember(path) { mutableStateOf(path) }
     val context = LocalContext.current
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Text(
-            text = "Scan Directory",
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Text(
-            text = "Leave empty to scan all MediaStore audio",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(Modifier.height(8.dp))
-
-        Row(verticalAlignment = Alignment.Top) {
-            OutlinedTextField(
-                value = editingPath,
-                onValueChange = { editingPath = it },
-                placeholder = { Text("/storage/emulated/0/Music/") },
-                modifier = Modifier.weight(1f),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Uri,
-                    imeAction = ImeAction.Done
-                ),
-                keyboardActions = KeyboardActions(
-                    onDone = { onPathChange(editingPath) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Scan Directory",
+                    style = MaterialTheme.typography.bodyLarge
                 )
-            )
-            Spacer(Modifier.width(8.dp))
-            OutlinedButton(onClick = { onPathChange(editingPath) }) {
-                Text("Set")
+                Text(
+                    text = if (path.isNotBlank()) path
+                    else "All MediaStore audio",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (path.isNotBlank()) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            OutlinedButton(onClick = onBrowse) {
+                Text("Browse")
             }
         }
-
-        Spacer(Modifier.height(4.dp))
 
         if (path.isNotBlank()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Current: $path",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = "Clear",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.clickable { onClear(); editingPath = "" }
-                )
-            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Clear",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.clickable { onClear() }
+            )
         }
 
-        Spacer(Modifier.height(4.dp))
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && path.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {

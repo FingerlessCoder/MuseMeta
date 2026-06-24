@@ -18,6 +18,8 @@ sealed class Screen(val route: String, val label: String, val icon: String) {
         fun createRoute(playlistId: Long) = "playlist/$playlistId"
     }
     data object SmartPlaylistEditor : Screen("smart_playlist_editor", "Smart Rule", "auto_awesome")
+    data object Scan : Screen("scan", "Scan", "refresh")
+    data object DirectoryPicker : Screen("directory_picker", "Directories", "folder")
 
     companion object {
         val bottomNavItems = listOf(Tracks, Albums, Artists, Playlists, Settings)

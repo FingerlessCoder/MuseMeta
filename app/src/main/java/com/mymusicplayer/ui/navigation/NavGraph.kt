@@ -14,6 +14,8 @@ import com.mymusicplayer.ui.screens.artists.ArtistListScreen
 import com.mymusicplayer.ui.screens.player.PlayerScreen
 import com.mymusicplayer.ui.screens.playlists.PlaylistDetailScreen
 import com.mymusicplayer.ui.screens.playlists.PlaylistListScreen
+import com.mymusicplayer.ui.screens.directory_picker.DirectoryPickerScreen
+import com.mymusicplayer.ui.screens.scan.ScanScreen
 import com.mymusicplayer.ui.screens.settings.SettingsScreen
 import com.mymusicplayer.ui.screens.tracks.TrackListScreen
 
@@ -106,7 +108,26 @@ fun NavGraph(
         }
 
         composable(Screen.Settings.route) {
-            SettingsScreen()
+            SettingsScreen(
+                onNavigateToScan = { navController.navigate(Screen.Scan.route) },
+                onNavigateToDirectoryPicker = { navController.navigate(Screen.DirectoryPicker.route) }
+            )
+        }
+
+        composable(Screen.Scan.route) {
+            ScanScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(Screen.DirectoryPicker.route) {
+            DirectoryPickerScreen(
+                onBack = { navController.popBackStack() },
+                onStartScan = {
+                    navController.popBackStack(Screen.Settings.route, false)
+                    navController.navigate(Screen.Scan.route)
+                }
+            )
         }
 
         composable(Screen.Player.route) {

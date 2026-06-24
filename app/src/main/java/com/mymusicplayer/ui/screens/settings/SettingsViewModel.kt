@@ -5,13 +5,9 @@ import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.preferences.SettingsDataStore
-import com.mymusicplayer.data.scanner.ScanPhase
-import com.mymusicplayer.data.scanner.ScanProgress
-import com.mymusicplayer.domain.repository.MusicRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -22,15 +18,11 @@ data class SettingsUiState(
     val maxFileSize: Long = Long.MAX_VALUE,
     val volumeNormalization: Boolean = false,
     val sleepTimerMinutes: Int = 0,
-    val isScanning: Boolean = false,
-    val scanMessage: String = "",
-    val scanProgress: Float = 0f,
     val scanDirectoryPath: String = ""
 )
 
 class SettingsViewModel constructor(
-    private val settingsDataStore: SettingsDataStore,
-    private val musicRepository: MusicRepository
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -113,29 +105,7 @@ class SettingsViewModel constructor(
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
-            true // Pre-Android 11, READ_EXTERNAL_STORAGE is sufficient
-        }
-    }
-
-    fun rescanLibrary() {
-        viewModelScope.launch {
-            val currentState = _uiState.value
-            _uiState.value = currentState.copy(
-                isScanning = true,
-                scanMessage = "Starting scan...",
-                scanProgress = 0f
-            )
-
-            val excludedDirs = settingsDataStore.excludedDirs.first()
-            val scanDir = settingsDataStore.scanDirectoryPath.first()
-
-            musicRepository.rescanLibrary(excludedDirs, scanDir).collect { progress ->
-                _uiState.value = _uiState.value.copy(
-                    isScanning = progress.phase != ScanPhase.COMPLETE && progress.phase != ScanPhase.ERROR,
-                    scanMessage = progress.message,
-                    scanProgress = progress.progress
-                )
-            }
+            true
         }
     }
 }

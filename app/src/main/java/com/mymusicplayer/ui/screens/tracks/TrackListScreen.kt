@@ -1,6 +1,7 @@
 package com.mymusicplayer.ui.screens.tracks
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.text.KeyboardOptions
@@ -110,8 +111,15 @@ fun TrackListScreen(
                         IconButton(onClick = { showSearchBar = !showSearchBar }) {
                             Icon(Icons.Default.Search, contentDescription = "Search")
                         }
+                        val hasActiveFilter = state.minSize != null || state.maxSize != null ||
+                            state.minDuration != null || state.maxDuration != null
                         IconButton(onClick = { viewModel.toggleFilter() }) {
-                            Icon(Icons.Default.FilterList, contentDescription = "Filter")
+                            Icon(
+                                Icons.Default.FilterList,
+                                contentDescription = "Filter",
+                                tint = if (hasActiveFilter) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                         Box {
                             IconButton(onClick = { showSortMenu = true }) {
@@ -168,6 +176,41 @@ fun TrackListScreen(
                     onApplyDuration = { min, max -> viewModel.setDurationFilter(min, max) },
                     onDismiss = { viewModel.toggleFilter() }
                 )
+            }
+
+            val hasFilter = state.minSize != null || state.maxSize != null ||
+                state.minDuration != null || state.maxDuration != null
+            if (hasFilter && !state.isShowingFilter) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Filtered",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = buildFilterLabel(state.minSize, state.maxSize, state.minDuration, state.maxDuration),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = "Clear",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable {
+                            viewModel.setSizeFilter(null, null)
+                            viewModel.setDurationFilter(null, null)
+                        }
+                    )
+                }
             }
 
             if (filteredTracks.isEmpty() && !state.isLoading) {
@@ -493,4 +536,24 @@ private fun formatDuration(ms: Long): String {
     val min = totalSec / 60
     val sec = totalSec % 60
     return "%d:%02d".format(min, sec)
+}
+
+private fun buildFilterLabel(
+    minSize: Long?,
+    maxSize: Long?,
+    minDuration: Long?,
+    maxDuration: Long?
+): String {
+    val parts = mutableListOf<String>()
+    if (minSize != null || maxSize != null) {
+        val min = minSize?.let { "${it / 1_000_000}MB" } ?: "0MB"
+        val max = maxSize?.let { "${it / 1_000_000}MB" } ?: "∞"
+        parts.add("Size: $min-$max")
+    }
+    if (minDuration != null || maxDuration != null) {
+        val min = minDuration?.let { "${it / 60_000}m" } ?: "0m"
+        val max = maxDuration?.let { "${it / 60_000}m" } ?: "∞"
+        parts.add("Duration: $min-$max")
+    }
+    return parts.joinToString(" | ")
 }
