@@ -443,6 +443,25 @@ private fun FilterBar(
     var minDurText by remember(minDuration) { mutableStateOf(minDuration?.let { (it / 60_000).toString() } ?: "") }
     var maxDurText by remember(maxDuration) { mutableStateOf(maxDuration?.let { (it / 60_000).toString() } ?: "") }
 
+    fun apply() {
+        val minS = minSizeText.toLongOrNull()?.let { it * 1_000_000 }
+        val maxS = maxSizeText.toLongOrNull()?.let { it * 1_000_000 }
+        val minD = minDurText.toLongOrNull()?.let { it * 60_000 }
+        val maxD = maxDurText.toLongOrNull()?.let { it * 60_000 }
+        onApplySize(minS, maxS)
+        onApplyDuration(minD, maxD)
+        onDismiss()
+    }
+
+    fun clearAll() {
+        minSizeText = ""
+        maxSizeText = ""
+        minDurText = ""
+        maxDurText = ""
+        onApplySize(null, null)
+        onApplyDuration(null, null)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -455,32 +474,39 @@ private fun FilterBar(
         ) {
             Text("Filter", style = MaterialTheme.typography.titleSmall)
             Row {
-                TextButton(onClick = {
-                    minSizeText = ""
-                    maxSizeText = ""
-                    minDurText = ""
-                    maxDurText = ""
-                    onApplySize(null, null)
-                    onApplyDuration(null, null)
-                }) {
+                TextButton(onClick = { clearAll() }) {
                     Text("Clear")
                 }
-                TextButton(onClick = {
-                    val minS = minSizeText.toLongOrNull()?.let { it * 1_000_000 }
-                    val maxS = maxSizeText.toLongOrNull()?.let { it * 1_000_000 }
-                    val minD = minDurText.toLongOrNull()?.let { it * 60_000 }
-                    val maxD = maxDurText.toLongOrNull()?.let { it * 60_000 }
-                    onApplySize(minS, maxS)
-                    onApplyDuration(minD, maxD)
-                    onDismiss()
-                }) {
+                TextButton(onClick = { apply() }) {
                     Text("Apply")
                 }
             }
         }
 
         Spacer(Modifier.height(8.dp))
-        Text("File Size (MB)", style = MaterialTheme.typography.labelMedium)
+        Text("File Size", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip("Any", isActive = minSize == null && maxSize == null) {
+                minSizeText = ""; maxSizeText = ""; minDurText = ""; maxDurText = ""
+                onApplySize(null, null); onApplyDuration(null, null); onDismiss()
+            }
+            FilterChip("Small", isActive = maxSize != null && maxSize <= 5_000_000) {
+                minSizeText = ""; maxSizeText = "5"
+                onApplySize(null, 5_000_000); onDismiss()
+            }
+            FilterChip("Medium", isActive = maxSize != null && maxSize in 5_000_001..20_000_000) {
+                minSizeText = ""; maxSizeText = "20"
+                onApplySize(null, 20_000_000); onDismiss()
+            }
+            FilterChip("Large", isActive = minSize != null && minSize >= 20_000_000) {
+                minSizeText = ""; maxSizeText = ""
+                onApplySize(20_000_000, null); onDismiss()
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -489,7 +515,7 @@ private fun FilterBar(
             OutlinedTextField(
                 value = minSizeText,
                 onValueChange = { minSizeText = it.filter { c -> c.isDigit() } },
-                label = { Text("Min") },
+                label = { Text("Min MB") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -497,7 +523,7 @@ private fun FilterBar(
             OutlinedTextField(
                 value = maxSizeText,
                 onValueChange = { maxSizeText = it.filter { c -> c.isDigit() } },
-                label = { Text("Max") },
+                label = { Text("Max MB") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -505,7 +531,29 @@ private fun FilterBar(
         }
 
         Spacer(Modifier.height(8.dp))
-        Text("Duration (minutes)", style = MaterialTheme.typography.labelMedium)
+        Text("Duration", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip("Any", isActive = minDuration == null && maxDuration == null) {
+                minDurText = ""; maxDurText = ""; minSizeText = ""; maxSizeText = ""
+                onApplyDuration(null, null); onApplySize(null, null); onDismiss()
+            }
+            FilterChip("Short", isActive = maxDuration != null && maxDuration <= 180_000) {
+                minDurText = ""; maxDurText = "3"
+                onApplyDuration(null, 180_000); onDismiss()
+            }
+            FilterChip("Medium", isActive = maxDuration != null && maxDuration in 180_001..480_000) {
+                minDurText = ""; maxDurText = "8"
+                onApplyDuration(null, 480_000); onDismiss()
+            }
+            FilterChip("Long", isActive = minDuration != null && minDuration >= 480_000) {
+                minDurText = ""; maxDurText = ""
+                onApplyDuration(480_000, null); onDismiss()
+            }
+        }
         Spacer(Modifier.height(4.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -514,7 +562,7 @@ private fun FilterBar(
             OutlinedTextField(
                 value = minDurText,
                 onValueChange = { minDurText = it.filter { c -> c.isDigit() } },
-                label = { Text("Min") },
+                label = { Text("Min min") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
@@ -522,13 +570,23 @@ private fun FilterBar(
             OutlinedTextField(
                 value = maxDurText,
                 onValueChange = { maxDurText = it.filter { c -> c.isDigit() } },
-                label = { Text("Max") },
+                label = { Text("Max min") },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
         }
     }
+}
+
+@Composable
+private fun FilterChip(label: String, isActive: Boolean, onClick: () -> Unit) {
+    val textColor = if (isActive) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.onSurfaceVariant
+    TextButton(
+        onClick = onClick,
+        content = { Text(label, style = MaterialTheme.typography.labelSmall, color = textColor) }
+    )
 }
 
 private fun formatDuration(ms: Long): String {
