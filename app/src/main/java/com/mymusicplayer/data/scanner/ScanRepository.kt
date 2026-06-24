@@ -59,9 +59,7 @@ class ScanRepository constructor(
         excludedPaths: List<String> = emptyList(),
         scanDirectoryPath: String? = null,
         minFileSize: Long = 0L,
-        maxFileSize: Long = 0L,
-        minDuration: Long = 0L,
-        maxDuration: Long = 0L
+        minDuration: Long = 0L
     ): Flow<ScanProgress> = callbackFlow {
         try {
             trySend(ScanProgress(ScanPhase.DISCOVERING, 0f, "Discovering audio files..."))
@@ -77,7 +75,6 @@ class ScanRepository constructor(
                 if (excludedPaths.isNotEmpty() && excludedPaths.any { file.path.startsWith(it, ignoreCase = true) }) {
                     return@filter false
                 }
-                if (maxFileSize > 0L && file.size > maxFileSize) return@filter false
                 if (minFileSize > 0L && file.size < minFileSize) return@filter false
                 true
             }
@@ -127,7 +124,7 @@ class ScanRepository constructor(
             trySend(ScanProgress(ScanPhase.DB_WRITE, 0.9f, "Writing to database..."))
 
             withContext(Dispatchers.IO) {
-                writeBatch(parsedResults, scannedPaths, minDuration, maxDuration)
+                writeBatch(parsedResults, scannedPaths, minDuration)
             }
 
             trySend(ScanProgress(
@@ -147,16 +144,13 @@ class ScanRepository constructor(
     private suspend fun writeBatch(
         parsedResults: List<Pair<MediaStoreAudioFile, ParsedMetadata?>>,
         scannedPaths: Set<String>,
-        minDuration: Long = 0L,
-        maxDuration: Long = 0L
+        minDuration: Long = 0L
     ) {
         trackDao.deleteRemovedTracks(scannedPaths.toList())
 
         val albumCache = mutableMapOf<String, Long>()
         val validTracks = parsedResults.mapNotNull { (file, meta) ->
             meta ?: return@mapNotNull null
-            // Apply duration filter after parsing
-            if (maxDuration > 0L && meta.duration > maxDuration) return@mapNotNull null
             if (minDuration > 0L && meta.duration < minDuration) return@mapNotNull null
             Triple(file, meta, resolveAlbumId(meta, albumCache))
         }

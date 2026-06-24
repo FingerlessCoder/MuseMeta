@@ -39,15 +39,13 @@ class ScanViewModel constructor(
             _uiState.value = ScanUiState(isScanning = true)
             val excludedDirs = settingsDataStore.excludedDirs.first()
             val scanDir = settingsDataStore.scanDirectoryPath.first()
-            val minFileSize = settingsDataStore.scanMinFileSize.first()
-            val maxFileSize = settingsDataStore.scanMaxFileSize.first()
-            val minDuration = settingsDataStore.scanMinDuration.first()
-            val maxDuration = settingsDataStore.scanMaxDuration.first()
+            val minFileSizeKb = settingsDataStore.scanMinFileSize.first()
+            val minDurationSec = settingsDataStore.scanMinDuration.first()
 
             try {
                 musicRepository.rescanLibrary(
                     excludedDirs, scanDir,
-                    minFileSize, maxFileSize, minDuration, maxDuration
+                    minFileSizeKb * 1024L, minDurationSec * 1000L
                 ).collect { progress ->
                     _uiState.value = ScanUiState(
                         phase = progress.phase,

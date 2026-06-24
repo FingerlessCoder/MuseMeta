@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
@@ -26,26 +25,28 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
+
+
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 
@@ -98,13 +99,10 @@ fun SettingsScreen(
                 HorizontalDivider()
 
                 ScanFilterSetting(
-                    minSize = state.scanMinFileSize / 1_000_000,
-                    maxSize = state.scanMaxFileSize / 1_000_000,
-                    minDuration = state.scanMinDuration / 60_000,
-                    maxDuration = state.scanMaxDuration / 60_000,
-                    onSetSize = { min, max -> viewModel.setScanFileSizeFilter(min, max) },
-                    onSetDuration = { min, max -> viewModel.setScanDurationFilter(min, max) },
-                    onClear = { viewModel.clearScanFilters() }
+                    minSizeKb = state.scanMinFileSizeKb,
+                    minDurationSec = state.scanMinDurationSec,
+                    onSetSize = { kb -> viewModel.setScanMinFileSize(kb) },
+                    onSetDuration = { sec -> viewModel.setScanMinDuration(sec) }
                 )
                 HorizontalDivider()
 
@@ -246,18 +244,13 @@ private fun ScanDirectorySetting(
 
 @Composable
 private fun ScanFilterSetting(
-    minSize: Long,
-    maxSize: Long,
-    minDuration: Long,
-    maxDuration: Long,
-    onSetSize: (Long, Long) -> Unit,
-    onSetDuration: (Long, Long) -> Unit,
-    onClear: () -> Unit
+    minSizeKb: Long,
+    minDurationSec: Long,
+    onSetSize: (Long) -> Unit,
+    onSetDuration: (Long) -> Unit
 ) {
-    var minSizeText by remember(minSize) { mutableStateOf(minSize.toString().takeIf { it != "0" } ?: "") }
-    var maxSizeText by remember(maxSize) { mutableStateOf(maxSize.toString().takeIf { it != "0" } ?: "") }
-    var minDurText by remember(minDuration) { mutableStateOf(minDuration.toString().takeIf { it != "0" } ?: "") }
-    var maxDurText by remember(maxDuration) { mutableStateOf(maxDuration.toString().takeIf { it != "0" } ?: "") }
+    var sliderSize by remember(minSizeKb) { mutableFloatStateOf(minSizeKb.toFloat()) }
+    var sliderDuration by remember(minDurationSec) { mutableFloatStateOf(minDurationSec.toFloat()) }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Text(
@@ -266,85 +259,45 @@ private fun ScanFilterSetting(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Skip files outside these ranges during scan",
+            text = "Skip files below these thresholds",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
-        Text("File Size (MB)", style = MaterialTheme.typography.labelMedium)
+        Text(
+            text = "Min file size: ${sliderSize.toInt()} KB",
+            style = MaterialTheme.typography.labelMedium
+        )
         Spacer(Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = minSizeText,
-                onValueChange = { minSizeText = it.filter { c -> c.isDigit() } },
-                label = { Text("Min") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-            OutlinedTextField(
-                value = maxSizeText,
-                onValueChange = { maxSizeText = it.filter { c -> c.isDigit() } },
-                label = { Text("Max") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-        }
+        Slider(
+            value = sliderSize,
+            onValueChange = { sliderSize = it },
+            onValueChangeFinished = { onSetSize(sliderSize.toLong()) },
+            valueRange = 0f..2048f,
+            steps = 0
+        )
 
-        Spacer(Modifier.height(8.dp))
-        Text("Duration (minutes)", style = MaterialTheme.typography.labelMedium)
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "Min duration: ${formatDurationSec(sliderDuration.toLong())}",
+            style = MaterialTheme.typography.labelMedium
+        )
         Spacer(Modifier.height(4.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OutlinedTextField(
-                value = minDurText,
-                onValueChange = { minDurText = it.filter { c -> c.isDigit() } },
-                label = { Text("Min") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-            OutlinedTextField(
-                value = maxDurText,
-                onValueChange = { maxDurText = it.filter { c -> c.isDigit() } },
-                label = { Text("Max") },
-                singleLine = true,
-                modifier = Modifier.weight(1f),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            TextButton(onClick = {
-                minSizeText = ""; maxSizeText = ""; minDurText = ""; maxDurText = ""
-                onClear()
-            }) {
-                Text("Clear Filters")
-            }
-            Spacer(Modifier.width(8.dp))
-            Button(onClick = {
-                val minS = minSizeText.toLongOrNull() ?: 0L
-                val maxS = maxSizeText.toLongOrNull() ?: 0L
-                val minD = minDurText.toLongOrNull() ?: 0L
-                val maxD = maxDurText.toLongOrNull() ?: 0L
-                onSetSize(minS, maxS)
-                onSetDuration(minD, maxD)
-            }) {
-                Text("Apply")
-            }
-        }
+        Slider(
+            value = sliderDuration,
+            onValueChange = { sliderDuration = it },
+            onValueChangeFinished = { onSetDuration(sliderDuration.toLong()) },
+            valueRange = 0f..300f,
+            steps = 0
+        )
     }
+}
+
+private fun formatDurationSec(sec: Long): String {
+    val m = sec / 60
+    val s = sec % 60
+    return if (m > 0) "${m}m ${s}s" else "${s}s"
 }
 
 @Composable

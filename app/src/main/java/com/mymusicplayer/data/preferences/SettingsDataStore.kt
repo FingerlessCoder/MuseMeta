@@ -28,10 +28,8 @@ class SettingsDataStore(private val context: Context) {
         val LAST_PLAYED_POSITION = longPreferencesKey("last_played_position")
         val EXCLUDED_DIRS = stringPreferencesKey("excluded_dirs")
         val SCAN_DIRECTORY_PATH = stringPreferencesKey("scan_directory_path")
-        val SCAN_MIN_FILE_SIZE = longPreferencesKey("scan_min_file_size")
-        val SCAN_MAX_FILE_SIZE = longPreferencesKey("scan_max_file_size")
-        val SCAN_MIN_DURATION = longPreferencesKey("scan_min_duration")
-        val SCAN_MAX_DURATION = longPreferencesKey("scan_max_duration")
+        val SCAN_MIN_FILE_SIZE = longPreferencesKey("scan_min_file_size_kb")
+        val SCAN_MIN_DURATION = longPreferencesKey("scan_min_duration_sec")
     }
 
     val sleepTimerDuration: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -110,32 +108,22 @@ class SettingsDataStore(private val context: Context) {
     }
 
     val scanMinFileSize: Flow<Long> = context.dataStore.data.map { prefs ->
-        prefs[SCAN_MIN_FILE_SIZE] ?: 0L
-    }
-
-    val scanMaxFileSize: Flow<Long> = context.dataStore.data.map { prefs ->
-        prefs[SCAN_MAX_FILE_SIZE] ?: 0L
+        prefs[SCAN_MIN_FILE_SIZE] ?: 2048L
     }
 
     val scanMinDuration: Flow<Long> = context.dataStore.data.map { prefs ->
-        prefs[SCAN_MIN_DURATION] ?: 0L
+        prefs[SCAN_MIN_DURATION] ?: 40L
     }
 
-    val scanMaxDuration: Flow<Long> = context.dataStore.data.map { prefs ->
-        prefs[SCAN_MAX_DURATION] ?: 0L
-    }
-
-    suspend fun setScanFileSizeFilter(min: Long, max: Long) {
+    suspend fun setScanFileSizeFilter(minKb: Long) {
         context.dataStore.edit { prefs ->
-            prefs[SCAN_MIN_FILE_SIZE] = min
-            prefs[SCAN_MAX_FILE_SIZE] = max
+            prefs[SCAN_MIN_FILE_SIZE] = minKb
         }
     }
 
-    suspend fun setScanDurationFilter(min: Long, max: Long) {
+    suspend fun setScanDurationFilter(minSec: Long) {
         context.dataStore.edit { prefs ->
-            prefs[SCAN_MIN_DURATION] = min
-            prefs[SCAN_MAX_DURATION] = max
+            prefs[SCAN_MIN_DURATION] = minSec
         }
     }
 

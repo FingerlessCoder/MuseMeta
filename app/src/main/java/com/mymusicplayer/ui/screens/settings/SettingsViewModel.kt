@@ -17,10 +17,8 @@ data class SettingsUiState(
     val volumeNormalization: Boolean = false,
     val sleepTimerMinutes: Int = 0,
     val scanDirectoryPath: String = "",
-    val scanMinFileSize: Long = 0L,
-    val scanMaxFileSize: Long = 0L,
-    val scanMinDuration: Long = 0L,
-    val scanMaxDuration: Long = 0L
+    val scanMinFileSizeKb: Long = 2048L,
+    val scanMinDurationSec: Long = 40L
 )
 
 class SettingsViewModel constructor(
@@ -62,23 +60,13 @@ class SettingsViewModel constructor(
             }
         }
         viewModelScope.launch {
-            settingsDataStore.scanMinFileSize.collect { min ->
-                _uiState.value = _uiState.value.copy(scanMinFileSize = min)
+            settingsDataStore.scanMinFileSize.collect { kb ->
+                _uiState.value = _uiState.value.copy(scanMinFileSizeKb = kb)
             }
         }
         viewModelScope.launch {
-            settingsDataStore.scanMaxFileSize.collect { max ->
-                _uiState.value = _uiState.value.copy(scanMaxFileSize = max)
-            }
-        }
-        viewModelScope.launch {
-            settingsDataStore.scanMinDuration.collect { min ->
-                _uiState.value = _uiState.value.copy(scanMinDuration = min)
-            }
-        }
-        viewModelScope.launch {
-            settingsDataStore.scanMaxDuration.collect { max ->
-                _uiState.value = _uiState.value.copy(scanMaxDuration = max)
+            settingsDataStore.scanMinDuration.collect { sec ->
+                _uiState.value = _uiState.value.copy(scanMinDurationSec = sec)
             }
         }
     }
@@ -113,22 +101,15 @@ class SettingsViewModel constructor(
         _uiState.value = _uiState.value.copy(scanDirectoryPath = "")
     }
 
-    fun setScanFileSizeFilter(minMB: Long, maxMB: Long) {
+    fun setScanMinFileSize(kb: Long) {
         viewModelScope.launch {
-            settingsDataStore.setScanFileSizeFilter(minMB * 1_000_000, maxMB * 1_000_000)
+            settingsDataStore.setScanFileSizeFilter(kb.coerceIn(0L, 2048L))
         }
     }
 
-    fun setScanDurationFilter(minMin: Long, maxMin: Long) {
+    fun setScanMinDuration(sec: Long) {
         viewModelScope.launch {
-            settingsDataStore.setScanDurationFilter(minMin * 60_000, maxMin * 60_000)
-        }
-    }
-
-    fun clearScanFilters() {
-        viewModelScope.launch {
-            settingsDataStore.setScanFileSizeFilter(0L, 0L)
-            settingsDataStore.setScanDurationFilter(0L, 0L)
+            settingsDataStore.setScanDurationFilter(sec.coerceIn(0L, 300L))
         }
     }
 

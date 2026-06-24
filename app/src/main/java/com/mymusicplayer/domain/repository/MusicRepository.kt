@@ -25,9 +25,7 @@ interface MusicRepository {
         excludedPaths: List<String> = emptyList(),
         scanDirectoryPath: String? = null,
         minFileSize: Long = 0L,
-        maxFileSize: Long = 0L,
-        minDuration: Long = 0L,
-        maxDuration: Long = 0L
+        minDuration: Long = 0L
     ): Flow<ScanProgress>
     suspend fun editTrackMetadata(
         trackId: Long,

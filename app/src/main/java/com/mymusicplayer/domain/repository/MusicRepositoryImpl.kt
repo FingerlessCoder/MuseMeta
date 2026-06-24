@@ -138,13 +138,10 @@ class MusicRepositoryImpl constructor(
         excludedPaths: List<String>,
         scanDirectoryPath: String?,
         minFileSize: Long,
-        maxFileSize: Long,
-        minDuration: Long,
-        maxDuration: Long
+        minDuration: Long
     ): Flow<ScanProgress> {
         return scanRepository.scanLibrary(
-            excludedPaths, scanDirectoryPath,
-            minFileSize, maxFileSize, minDuration, maxDuration
+            excludedPaths, scanDirectoryPath, minFileSize, minDuration
         )
     }
 
