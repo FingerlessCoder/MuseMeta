@@ -19,7 +19,8 @@ data class ScanUiState(
     val message: String = "Starting scan...",
     val isComplete: Boolean = false,
     val isError: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isScanning: Boolean = false
 )
 
 class ScanViewModel constructor(
@@ -32,14 +33,10 @@ class ScanViewModel constructor(
 
     private var scanJob: Job? = null
 
-    init {
-        startScan()
-    }
-
     fun startScan() {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
-            _uiState.value = ScanUiState()
+            _uiState.value = ScanUiState(isScanning = true)
             val excludedDirs = settingsDataStore.excludedDirs.first()
             val scanDir = settingsDataStore.scanDirectoryPath.first()
 
@@ -51,7 +48,8 @@ class ScanViewModel constructor(
                         message = progress.message,
                         isComplete = progress.phase == ScanPhase.COMPLETE,
                         isError = progress.phase == ScanPhase.ERROR,
-                        errorMessage = if (progress.phase == ScanPhase.ERROR) progress.message else null
+                        errorMessage = if (progress.phase == ScanPhase.ERROR) progress.message else null,
+                        isScanning = progress.phase != ScanPhase.COMPLETE && progress.phase != ScanPhase.ERROR
                     )
                 }
             } catch (e: Exception) {
@@ -59,7 +57,8 @@ class ScanViewModel constructor(
                     _uiState.value = ScanUiState(
                         phase = ScanPhase.ERROR,
                         isError = true,
-                        errorMessage = e.message ?: "Unknown error"
+                        errorMessage = e.message ?: "Unknown error",
+                        isScanning = false
                     )
                 }
             }
