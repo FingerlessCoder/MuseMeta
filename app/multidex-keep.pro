@@ -1,0 +1,2 @@
+-keep class com.mymusicplayer.MusicPlayerApp { *; }
+-keep class com.mymusicplayer.MainActivity { *; }

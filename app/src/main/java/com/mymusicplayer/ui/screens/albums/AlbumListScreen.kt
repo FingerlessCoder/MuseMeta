@@ -44,7 +44,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mymusicplayer.domain.model.Album
@@ -53,7 +53,7 @@ import com.mymusicplayer.domain.model.Album
 @Composable
 fun AlbumListScreen(
     onNavigateToAlbum: (Long) -> Unit = {},
-    viewModel: AlbumViewModel = hiltViewModel()
+    viewModel: AlbumViewModel = koinViewModel()
 ) {
     val state by viewModel.listState.collectAsState()
     val filteredAlbums = viewModel.getFilteredAlbums()

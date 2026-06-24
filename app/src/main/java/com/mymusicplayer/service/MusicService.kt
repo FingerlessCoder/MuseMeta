@@ -4,14 +4,12 @@ import android.content.Intent
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import com.mymusicplayer.data.audio.MusicPlayerController
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
-@AndroidEntryPoint
-class MusicService : MediaSessionService() {
+class MusicService : MediaSessionService(), KoinComponent {
 
-    @Inject
-    lateinit var playerController: MusicPlayerController
+    private val playerController: MusicPlayerController by inject()
 
     private var mediaSession: MediaSession? = null
 

@@ -11,3 +11,6 @@ local.properties
 *.aab
 output-metadata.json
 *.log
+.sisyphus/
+.vscode/
+test_mp3/

@@ -34,7 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.mymusicplayer.domain.model.Track
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,7 +43,7 @@ fun PlaylistDetailScreen(
     playlistId: Long,
     onNavigateToPlayer: () -> Unit = {},
     onBack: () -> Unit = {},
-    viewModel: PlaylistViewModel = hiltViewModel()
+    viewModel: PlaylistViewModel = koinViewModel()
 ) {
     val state by viewModel.detailState.collectAsState()
 

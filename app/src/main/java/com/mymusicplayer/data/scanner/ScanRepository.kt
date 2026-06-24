@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.inject.Inject
 
 data class ScanProgress(
     val phase: ScanPhase,
@@ -31,7 +30,7 @@ enum class ScanPhase {
     ERROR
 }
 
-class ScanRepository @Inject constructor(
+class ScanRepository constructor(
     private val trackDao: TrackDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,

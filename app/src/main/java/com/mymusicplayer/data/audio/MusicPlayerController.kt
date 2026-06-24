@@ -7,12 +7,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.mymusicplayer.data.db.dao.TrackDao
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import javax.inject.Inject
-import javax.inject.Singleton
 
 data class PlaybackState(
     val isPlaying: Boolean = false,
@@ -25,9 +22,8 @@ data class PlaybackState(
     val repeatMode: Int = Player.REPEAT_MODE_OFF
 )
 
-@Singleton
-class MusicPlayerController @Inject constructor(
-    @ApplicationContext private val context: Context,
+class MusicPlayerController constructor(
+    private val context: Context,
     private val trackDao: TrackDao
 ) {
 

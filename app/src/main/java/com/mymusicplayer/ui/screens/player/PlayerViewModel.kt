@@ -5,14 +5,11 @@ import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
-
 data class PlayerUiState(
     val currentTrack: Track? = null,
     val isPlaying: Boolean = false,
@@ -28,8 +25,7 @@ data class PlayerUiState(
     val queueTracks: List<Track> = emptyList()
 )
 
-@HiltViewModel
-class PlayerViewModel @Inject constructor(
+class PlayerViewModel constructor(
     private val musicPlayerController: MusicPlayerController,
     private val musicRepository: MusicRepository
 ) : ViewModel() {

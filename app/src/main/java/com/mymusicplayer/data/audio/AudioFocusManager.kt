@@ -5,13 +5,9 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.util.Log
-import dagger.hilt.android.qualifiers.ApplicationContext
-import javax.inject.Inject
-import javax.inject.Singleton
 
-@Singleton
-class AudioFocusManager @Inject constructor(
-    @ApplicationContext private val context: Context
+class AudioFocusManager constructor(
+    private val context: Context
 ) {
 
     companion object {

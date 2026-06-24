@@ -7,12 +7,10 @@ import com.mymusicplayer.data.scanner.ScanPhase
 import com.mymusicplayer.data.scanner.ScanProgress
 import com.mymusicplayer.domain.repository.MusicRepository
 import kotlinx.coroutines.flow.first
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class SettingsUiState(
     val sortMode: String = "name",
@@ -27,8 +25,7 @@ data class SettingsUiState(
     val scanProgress: Float = 0f
 )
 
-@HiltViewModel
-class SettingsViewModel @Inject constructor(
+class SettingsViewModel constructor(
     private val settingsDataStore: SettingsDataStore,
     private val musicRepository: MusicRepository
 ) : ViewModel() {

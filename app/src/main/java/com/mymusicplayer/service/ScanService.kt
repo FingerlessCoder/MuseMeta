@@ -13,20 +13,18 @@ import com.mymusicplayer.MainActivity
 import com.mymusicplayer.R
 import com.mymusicplayer.data.scanner.ScanPhase
 import com.mymusicplayer.data.scanner.ScanRepository
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
-import javax.inject.Inject
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
-@AndroidEntryPoint
-class ScanService : Service() {
+class ScanService : Service(), KoinComponent {
 
-    @Inject
-    lateinit var scanRepository: ScanRepository
+    private val scanRepository: ScanRepository by inject()
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private var scanJob: Job? = null

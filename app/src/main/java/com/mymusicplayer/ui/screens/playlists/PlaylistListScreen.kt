@@ -46,14 +46,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.mymusicplayer.domain.model.Playlist
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistListScreen(
     onNavigateToPlaylist: (Long) -> Unit = {},
-    viewModel: PlaylistViewModel = hiltViewModel()
+    viewModel: PlaylistViewModel = koinViewModel()
 ) {
     val state by viewModel.listState.collectAsState()
     val filteredPlaylists = viewModel.getFilteredPlaylists()

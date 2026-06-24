@@ -2,7 +2,6 @@ package com.mymusicplayer.data.scanner
 
 import android.util.Log
 import org.jaudiotagger.audio.AudioFile
-import javax.inject.Inject
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.audio.exceptions.CannotReadException
 import org.jaudiotagger.tag.FieldKey
@@ -41,7 +40,7 @@ data class ParsedMetadata(
     }
 }
 
-class MetadataParser @Inject constructor() {
+class MetadataParser constructor() {
 
     companion object {
         private const val TAG = "MetadataParser"

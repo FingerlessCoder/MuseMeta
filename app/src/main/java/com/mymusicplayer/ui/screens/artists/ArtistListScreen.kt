@@ -40,14 +40,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.mymusicplayer.domain.model.Artist
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ArtistListScreen(
     onNavigateToArtist: (Long) -> Unit = {},
-    viewModel: ArtistViewModel = hiltViewModel()
+    viewModel: ArtistViewModel = koinViewModel()
 ) {
     val state by viewModel.listState.collectAsState()
     val filteredArtists = viewModel.getFilteredArtists()

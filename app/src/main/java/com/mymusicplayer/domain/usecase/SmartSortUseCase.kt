@@ -3,9 +3,8 @@ package com.mymusicplayer.domain.usecase
 import com.mymusicplayer.data.db.dao.TrackDao
 import com.mymusicplayer.data.db.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
 
-class SmartSortUseCase @Inject constructor(
+class SmartSortUseCase constructor(
     private val trackDao: TrackDao
 ) {
     operator fun invoke(): Flow<List<TrackEntity>> {

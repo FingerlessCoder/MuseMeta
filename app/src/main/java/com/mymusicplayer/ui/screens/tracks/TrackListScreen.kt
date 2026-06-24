@@ -64,7 +64,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.mymusicplayer.domain.model.Track
@@ -75,7 +75,7 @@ fun TrackListScreen(
     onNavigateToPlayer: () -> Unit = {},
     onNavigateToAlbum: (Long) -> Unit = {},
     onNavigateToArtist: (Long) -> Unit = {},
-    viewModel: TrackListViewModel = hiltViewModel()
+    viewModel: TrackListViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
     val filteredTracks = viewModel.getFilteredTracks()

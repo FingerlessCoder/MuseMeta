@@ -5,7 +5,6 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import java.io.File
-import javax.inject.Inject
 
 data class MediaStoreAudioFile(
     val uri: Uri,
@@ -14,7 +13,7 @@ data class MediaStoreAudioFile(
     val dateModified: Long
 )
 
-class MediaStoreScanner @Inject constructor(
+class MediaStoreScanner constructor(
     private val contentResolver: ContentResolver
 ) {
 

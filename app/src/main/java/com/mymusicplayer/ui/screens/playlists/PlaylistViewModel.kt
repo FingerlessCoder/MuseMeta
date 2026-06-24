@@ -8,7 +8,6 @@ import com.mymusicplayer.data.db.entity.PlaylistEntryEntity
 import com.mymusicplayer.domain.model.Playlist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class PlaylistListUiState(
     val playlists: List<Playlist> = emptyList(),
@@ -31,8 +29,7 @@ data class PlaylistDetailUiState(
     val isLoading: Boolean = true
 )
 
-@HiltViewModel
-class PlaylistViewModel @Inject constructor(
+class PlaylistViewModel constructor(
     private val playlistDao: PlaylistDao,
     private val musicRepository: MusicRepository
 ) : ViewModel() {

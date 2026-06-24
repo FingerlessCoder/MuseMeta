@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -16,7 +15,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class TrackListUiState(
     val tracks: List<Track> = emptyList(),
@@ -33,8 +31,7 @@ data class TrackListUiState(
     val maxDuration: Long? = null
 )
 
-@HiltViewModel
-class TrackListViewModel @Inject constructor(
+class TrackListViewModel constructor(
     private val musicRepository: MusicRepository,
     private val musicPlayerController: MusicPlayerController
 ) : ViewModel() {

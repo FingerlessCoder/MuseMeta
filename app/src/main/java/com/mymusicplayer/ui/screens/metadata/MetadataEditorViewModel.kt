@@ -4,12 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class MetadataEditorState(
     val isVisible: Boolean = false,
@@ -25,8 +23,7 @@ data class MetadataEditorState(
     val saveSuccess: Boolean? = null
 )
 
-@HiltViewModel
-class MetadataEditorViewModel @Inject constructor(
+class MetadataEditorViewModel constructor(
     private val musicRepository: MusicRepository
 ) : ViewModel() {
 

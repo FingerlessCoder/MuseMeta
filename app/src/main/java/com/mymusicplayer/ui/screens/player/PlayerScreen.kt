@@ -51,7 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import androidx.media3.common.Player
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +59,7 @@ import androidx.media3.common.Player
 fun PlayerScreen(
     onBack: () -> Unit = {},
     onNavigateToArtist: (Long) -> Unit = {},
-    viewModel: PlayerViewModel = hiltViewModel()
+    viewModel: PlayerViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
 

@@ -5,14 +5,12 @@ import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
-import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 data class ArtistListUiState(
     val artists: List<Artist> = emptyList(),
@@ -27,8 +25,7 @@ data class ArtistDetailUiState(
     val isLoading: Boolean = true
 )
 
-@HiltViewModel
-class ArtistViewModel @Inject constructor(
+class ArtistViewModel constructor(
     private val musicRepository: MusicRepository
 ) : ViewModel() {
 

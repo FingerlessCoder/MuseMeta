@@ -39,7 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import androidx.hilt.navigation.compose.hiltViewModel
+import org.koin.androidx.compose.koinViewModel
 import com.mymusicplayer.domain.model.Track
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,7 +49,7 @@ fun AlbumDetailScreen(
     onNavigateToPlayer: () -> Unit = {},
     onNavigateToArtist: (Long) -> Unit = {},
     onBack: () -> Unit = {},
-    viewModel: AlbumViewModel = hiltViewModel()
+    viewModel: AlbumViewModel = koinViewModel()
 ) {
     val state by viewModel.detailState.collectAsState()
 

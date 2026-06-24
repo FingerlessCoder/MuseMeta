@@ -1,10 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.ksp)
-    alias(libs.plugins.hilt)
     alias(libs.plugins.kotlin.serialization)
 }
 
@@ -20,7 +17,8 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        multiDexEnabled = false
+        multiDexEnabled = true
+        multiDexKeepProguard = file("multidex-keep.pro")
     }
 
     buildTypes {
@@ -81,15 +79,18 @@ dependencies {
     // DataStore
     implementation(libs.datastore.preferences)
 
+    // Multidex
+    implementation(libs.multidex)
+
     // Room
     implementation(libs.room.runtime)
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
 
-    // Hilt
-    implementation(libs.hilt.android)
-    kapt(libs.hilt.compiler)
-    implementation(libs.hilt.navigation.compose)
+    // Koin
+    implementation(libs.koin.core)
+    implementation(libs.koin.android)
+    implementation(libs.koin.compose)
 
     // Media3
     implementation(libs.media3.exoplayer)
