@@ -63,7 +63,8 @@ class ScanRepository constructor(
             trySend(ScanProgress(ScanPhase.DISCOVERING, 0f, "Discovering audio files..."))
 
             val allFiles = if (scanDirectoryPath != null) {
-                fileSystemScanner.scanDirectory(scanDirectoryPath)
+                val paths = scanDirectoryPath.split("|").filter { it.isNotBlank() }
+                paths.flatMap { path -> fileSystemScanner.scanDirectory(path) }
             } else {
                 mediaStoreScanner.scanAll()
             }

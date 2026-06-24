@@ -40,6 +40,6 @@ val appModule = module {
     viewModel { PlaylistViewModel(get(), get()) }
     viewModel { SettingsViewModel(get()) }
     viewModel { ScanViewModel(get(), get()) }
-    viewModel { DirectoryPickerViewModel(get()) }
+    viewModel { DirectoryPickerViewModel(get(), get()) }
     viewModel { MetadataEditorViewModel(get()) }
 }

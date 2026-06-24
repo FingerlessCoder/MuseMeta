@@ -182,37 +182,38 @@ private fun ScanDirectorySetting(
     val context = LocalContext.current
 
     Column(modifier = Modifier.padding(16.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Scan Directory",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-                Text(
-                    text = if (path.isNotBlank()) path
-                    else "All MediaStore audio",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (path.isNotBlank()) MaterialTheme.colorScheme.primary
-                    else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            OutlinedButton(onClick = onBrowse) {
-                Text("Browse")
-            }
-        }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Scan Directory",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        val dirCount = path.split("|").count { it.isNotBlank() }
+                        Text(
+                            text = if (dirCount > 0) "$dirCount director${if (dirCount > 1) "ies" else "y"} selected"
+                            else "All MediaStore audio",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (dirCount > 0) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    OutlinedButton(onClick = onBrowse) {
+                        Text("Browse")
+                    }
+                }
 
-        if (path.isNotBlank()) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Clear",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.clickable { onClear() }
-            )
-        }
+                if (path.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Clear",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable { onClear() }
+                    )
+                }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && path.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
