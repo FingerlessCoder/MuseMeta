@@ -138,6 +138,8 @@ class MusicPlayerController constructor(
         return exoPlayer?.mediaItemCount ?: 0
     }
 
+    fun getCurrentTrackIds(): List<Long> = currentTrackIds
+
     fun getPlayer(): ExoPlayer? = exoPlayer
 
     fun release() {

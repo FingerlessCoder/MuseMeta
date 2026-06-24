@@ -34,6 +34,7 @@ class PlayerViewModel constructor(
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
     private var playbackUpdateJob: kotlinx.coroutines.Job? = null
+    private var loadedQueueIds: List<Long> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -44,6 +45,19 @@ class PlayerViewModel constructor(
                 } else {
                     _uiState.value.currentTrack
                 }
+
+                val ids = musicPlayerController.getCurrentTrackIds()
+                val queueTracks = if (ids != loadedQueueIds) {
+                    loadedQueueIds = ids
+                    if (ids.isNotEmpty()) {
+                        ids.mapNotNull { id -> musicRepository.getTrackById(id).first() }
+                    } else {
+                        emptyList()
+                    }
+                } else {
+                    _uiState.value.queueTracks
+                }
+
                 _uiState.value = _uiState.value.copy(
                     currentTrack = currentTrack,
                     isPlaying = state.isPlaying,
@@ -52,7 +66,8 @@ class PlayerViewModel constructor(
                     queueSize = state.queueSize,
                     queueIndex = state.queueIndex,
                     shuffleMode = state.shuffleMode,
-                    repeatMode = state.repeatMode
+                    repeatMode = state.repeatMode,
+                    queueTracks = queueTracks
                 )
             }
         }
