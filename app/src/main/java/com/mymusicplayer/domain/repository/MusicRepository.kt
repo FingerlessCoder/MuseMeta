@@ -21,7 +21,10 @@ interface MusicRepository {
     fun getFavoriteTracks(): Flow<List<Track>>
     suspend fun updateTrackRating(trackId: Long, rating: Int)
     suspend fun incrementPlayCount(trackId: Long)
-    suspend fun rescanLibrary(excludedPaths: List<String> = emptyList()): Flow<ScanProgress>
+    suspend fun rescanLibrary(
+        excludedPaths: List<String> = emptyList(),
+        scanDirectoryPath: String? = null
+    ): Flow<ScanProgress>
     suspend fun editTrackMetadata(
         trackId: Long,
         title: String?,

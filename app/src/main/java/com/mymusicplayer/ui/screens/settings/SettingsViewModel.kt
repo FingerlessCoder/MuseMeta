@@ -1,15 +1,17 @@
 package com.mymusicplayer.ui.screens.settings
 
+import android.os.Build
+import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.data.scanner.ScanPhase
 import com.mymusicplayer.data.scanner.ScanProgress
 import com.mymusicplayer.domain.repository.MusicRepository
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -22,7 +24,8 @@ data class SettingsUiState(
     val sleepTimerMinutes: Int = 0,
     val isScanning: Boolean = false,
     val scanMessage: String = "",
-    val scanProgress: Float = 0f
+    val scanProgress: Float = 0f,
+    val scanDirectoryPath: String = ""
 )
 
 class SettingsViewModel constructor(
@@ -69,6 +72,11 @@ class SettingsViewModel constructor(
                 _uiState.value = _uiState.value.copy(sleepTimerMinutes = dur)
             }
         }
+        viewModelScope.launch {
+            settingsDataStore.scanDirectoryPath.collect { path ->
+                _uiState.value = _uiState.value.copy(scanDirectoryPath = path ?: "")
+            }
+        }
     }
 
     fun setSortMode(sort: String) {
@@ -91,11 +99,37 @@ class SettingsViewModel constructor(
         viewModelScope.launch { settingsDataStore.setSleepTimerDuration(minutes) }
     }
 
+    fun setScanDirectoryPath(path: String) {
+        viewModelScope.launch { settingsDataStore.setScanDirectoryPath(path) }
+        _uiState.value = _uiState.value.copy(scanDirectoryPath = path)
+    }
+
+    fun clearScanDirectoryPath() {
+        viewModelScope.launch { settingsDataStore.setScanDirectoryPath(null) }
+        _uiState.value = _uiState.value.copy(scanDirectoryPath = "")
+    }
+
+    fun canManageExternalStorage(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Environment.isExternalStorageManager()
+        } else {
+            true // Pre-Android 11, READ_EXTERNAL_STORAGE is sufficient
+        }
+    }
+
     fun rescanLibrary() {
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isScanning = true, scanMessage = "Starting scan...", scanProgress = 0f)
+            val currentState = _uiState.value
+            _uiState.value = currentState.copy(
+                isScanning = true,
+                scanMessage = "Starting scan...",
+                scanProgress = 0f
+            )
+
             val excludedDirs = settingsDataStore.excludedDirs.first()
-            musicRepository.rescanLibrary(excludedDirs).collect { progress ->
+            val scanDir = settingsDataStore.scanDirectoryPath.first()
+
+            musicRepository.rescanLibrary(excludedDirs, scanDir).collect { progress ->
                 _uiState.value = _uiState.value.copy(
                     isScanning = progress.phase != ScanPhase.COMPLETE && progress.phase != ScanPhase.ERROR,
                     scanMessage = progress.message,

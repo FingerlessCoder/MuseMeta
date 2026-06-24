@@ -3,6 +3,7 @@ package com.mymusicplayer.di
 import com.mymusicplayer.data.audio.AudioFocusManager
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.preferences.SettingsDataStore
+import com.mymusicplayer.data.scanner.FileSystemScanner
 import com.mymusicplayer.data.scanner.MediaStoreScanner
 import com.mymusicplayer.data.scanner.MetadataParser
 import com.mymusicplayer.data.scanner.ScanRepository
@@ -24,8 +25,9 @@ val appModule = module {
     single { MusicPlayerController(androidContext(), get()) }
     single { AudioFocusManager(androidContext()) }
     single { MediaStoreScanner(get()) }
+    single { FileSystemScanner() }
     single { MetadataParser() }
-    single { ScanRepository(get(), get(), get(), get(), get()) }
+    single { ScanRepository(get(), get(), get(), get(), get(), get()) }
     single { SettingsDataStore(androidContext()) }
     factory { androidContext().contentResolver }
 

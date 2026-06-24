@@ -134,8 +134,11 @@ class MusicRepositoryImpl constructor(
         trackDao.incrementPlayCount(trackId)
     }
 
-    override suspend fun rescanLibrary(excludedPaths: List<String>): Flow<ScanProgress> {
-        return scanRepository.scanLibrary(excludedPaths)
+    override suspend fun rescanLibrary(
+        excludedPaths: List<String>,
+        scanDirectoryPath: String?
+    ): Flow<ScanProgress> {
+        return scanRepository.scanLibrary(excludedPaths, scanDirectoryPath)
     }
 
     override suspend fun editTrackMetadata(

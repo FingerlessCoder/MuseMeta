@@ -10,11 +10,18 @@ import com.mymusicplayer.data.db.entity.ArtistEntity
 import com.mymusicplayer.data.db.entity.TrackArtistEntity
 import com.mymusicplayer.data.db.entity.TrackEntity
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.Channel.Factory.CONFLATED
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import kotlin.math.min
 
 data class ScanProgress(
     val phase: ScanPhase,
@@ -35,121 +42,160 @@ class ScanRepository constructor(
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
     private val mediaStoreScanner: MediaStoreScanner,
-    private val metadataParser: MetadataParser
+    private val metadataParser: MetadataParser,
+    private val fileSystemScanner: FileSystemScanner
 ) {
 
     companion object {
         private const val TAG = "ScanRepository"
+        private const val PARALLEL_PARSERS = 4
+        private const val PROGRESS_INTERVAL_MS = 150L
         private val EXCLUDED_DIRS = setOf(
             "Notifications", "Ringtones", "Alarms", "podcasts"
         )
     }
 
-    fun scanLibrary(excludedPaths: List<String> = emptyList()): Flow<ScanProgress> = flow {
-        emit(ScanProgress(ScanPhase.DISCOVERING, 0f, "Discovering audio files..."))
+    fun scanLibrary(
+        excludedPaths: List<String> = emptyList(),
+        scanDirectoryPath: String? = null
+    ): Flow<ScanProgress> = callbackFlow {
+        try {
+            trySend(ScanProgress(ScanPhase.DISCOVERING, 0f, "Discovering audio files..."))
 
-        val allFiles = mediaStoreScanner.scanAll()
-        val audioFiles = if (excludedPaths.isEmpty()) {
-            allFiles
-        } else {
-            allFiles.filter { file ->
-                excludedPaths.none { excluded ->
-                    file.path.startsWith(excluded, ignoreCase = true)
+            val allFiles = if (scanDirectoryPath != null) {
+                fileSystemScanner.scanDirectory(scanDirectoryPath)
+            } else {
+                mediaStoreScanner.scanAll()
+            }
+
+            val audioFiles = if (excludedPaths.isEmpty()) {
+                allFiles
+            } else {
+                allFiles.filter { file ->
+                    excludedPaths.none { excluded ->
+                        file.path.startsWith(excluded, ignoreCase = true)
+                    }
                 }
             }
+
+            if (audioFiles.isEmpty()) {
+                trySend(ScanProgress(ScanPhase.COMPLETE, 1f, "No audio files found"))
+                close()
+                return@callbackFlow
+            }
+
+            trySend(ScanProgress(
+                ScanPhase.DISCOVERING, 0.3f,
+                "Found ${audioFiles.size} audio files"
+            ))
+
+            val existingPaths = trackDao.getAllFilePaths()
+            val scannedPaths = audioFiles.map { it.path }.toSet()
+            val totalFiles = audioFiles.size
+
+            val parsedResults = mutableListOf<Pair<MediaStoreAudioFile, ParsedMetadata?>>()
+            var lastEmitMs = System.currentTimeMillis()
+
+            audioFiles.chunked(PARALLEL_PARSERS).forEachIndexed { batchIndex, batch ->
+                val deferred = batch.map { file ->
+                    async(Dispatchers.IO) {
+                        file to metadataParser.parse(file.path, extractAlbumArt = false)
+                    }
+                }
+                val batchResults = deferred.awaitAll()
+                parsedResults.addAll(batchResults)
+
+                val processed = min((batchIndex + 1) * PARALLEL_PARSERS, totalFiles)
+                val now = System.currentTimeMillis()
+                if (now - lastEmitMs >= PROGRESS_INTERVAL_MS || processed == totalFiles) {
+                    val progress = 0.3f + (processed.toFloat() / totalFiles) * 0.5f
+                    val fileName = batchResults.lastOrNull()?.first?.let {
+                        File(it.path).name
+                    } ?: ""
+                    trySend(ScanProgress(
+                        ScanPhase.PARSING, progress,
+                        "Parsing $processed/$totalFiles — $fileName"
+                    ))
+                    lastEmitMs = now
+                }
+            }
+
+            trySend(ScanProgress(ScanPhase.DB_WRITE, 0.9f, "Writing to database..."))
+
+            withContext(Dispatchers.IO) {
+                writeBatch(parsedResults, scannedPaths)
+            }
+
+            trySend(ScanProgress(
+                ScanPhase.COMPLETE, 1f,
+                "Scan complete: ${parsedResults.count { it.second != null }} tracks"
+            ))
+        } catch (e: Exception) {
+            Log.e(TAG, "Scan failed", e)
+            trySend(ScanProgress(ScanPhase.ERROR, 0f, "Scan failed: ${e.message}"))
+        } finally {
+            close()
         }
-        if (audioFiles.isEmpty()) {
-            emit(ScanProgress(ScanPhase.COMPLETE, 1f, "No audio files found"))
-            return@flow
-        }
 
-        emit(ScanProgress(ScanPhase.DISCOVERING, 0.3f, "Found ${audioFiles.size} files"))
+        awaitClose { }
+    }
 
-        val existingPaths = trackDao.getAllFilePaths()
-        val scannedPaths = audioFiles.map { it.path }.toSet()
+    private suspend fun writeBatch(
+        parsedResults: List<Pair<MediaStoreAudioFile, ParsedMetadata?>>,
+        scannedPaths: Set<String>
+    ) {
+        trackDao.deleteRemovedTracks(scannedPaths.toList())
 
-        val parsedTracks = mutableListOf<TrackEntity>()
-        val allRelations = mutableListOf<TrackArtistEntity>()
         val albumCache = mutableMapOf<String, Long>()
-
-        val totalFiles = audioFiles.size
-        audioFiles.forEachIndexed { index, audioFile ->
-            val progress = 0.3f + (index.toFloat() / totalFiles) * 0.5f
-            val fileName = File(audioFile.path).name
-            emit(ScanProgress(ScanPhase.PARSING, progress, "Parsing: $fileName"))
-
-            val metadata = metadataParser.parse(audioFile.path) ?: return@forEachIndexed
-
-            val albumId = resolveAlbumId(metadata, albumCache)
-
-            val trackEntity = TrackEntity(
-                title = metadata.title,
-                albumId = albumId,
-                duration = metadata.duration,
-                trackNumber = metadata.trackNumber,
-                discNumber = metadata.discNumber,
-                year = metadata.year,
-                genre = metadata.genre,
-                comment = metadata.comment,
-                filePath = audioFile.path,
-                fileSize = audioFile.size,
-                bitrate = metadata.bitrate,
-                sampleRate = metadata.sampleRate,
-                format = metadata.format,
-                dateAdded = System.currentTimeMillis(),
-                rawArtistTag = metadata.artists.joinToString(" / ")
-            )
-
-            parsedTracks.add(trackEntity)
-
-            metadata.albumArtBytes?.let { bytes ->
-                albumId?.let { id -> saveAlbumArt(id, bytes) }
-            }
-
-            for (artistName in metadata.artists) {
-                val artistId = resolveArtistId(artistName)
-                allRelations.add(
-                    TrackArtistEntity(
-                        trackId = 0,
-                        artistId = artistId,
-                        role = "ARTIST"
-                    )
-                )
-            }
+        val validTracks = parsedResults.mapNotNull { (file, meta) ->
+            meta ?: return@mapNotNull null
+            Triple(file, meta, resolveAlbumId(meta, albumCache))
         }
 
-        emit(ScanProgress(ScanPhase.DB_WRITE, 0.9f, "Writing to database..."))
+        validTracks.chunked(50).forEach { chunk ->
+            for ((file, metadata, albumId) in chunk) {
+                val existingId = trackDao.getTrackIdByPath(file.path)
+                val trackEntity = TrackEntity(
+                    title = metadata.title,
+                    albumId = albumId,
+                    duration = metadata.duration,
+                    trackNumber = metadata.trackNumber,
+                    discNumber = metadata.discNumber,
+                    year = metadata.year,
+                    genre = metadata.genre,
+                    comment = metadata.comment,
+                    filePath = file.path,
+                    fileSize = file.size,
+                    bitrate = metadata.bitrate,
+                    sampleRate = metadata.sampleRate,
+                    format = metadata.format,
+                    dateAdded = System.currentTimeMillis(),
+                    rawArtistTag = metadata.artists.joinToString(" / ")
+                )
 
-        withContext(Dispatchers.IO) {
-            trackDao.deleteRemovedTracks(scannedPaths.toList())
-
-            parsedTracks.forEachIndexed { idx, track ->
-                val existingId = trackDao.getTrackIdByPath(track.filePath)
                 val trackId: Long
-
                 if (existingId != null) {
-                    trackDao.updateTrack(track.copy(id = existingId))
+                    trackDao.updateTrack(trackEntity.copy(id = existingId))
                     trackId = existingId
                 } else {
-                    trackId = trackDao.insertTrack(track)
+                    trackId = trackDao.insertTrack(trackEntity)
                 }
 
                 artistDao.deleteArtistsForTrack(trackId)
-
-                val relationRef = allRelations[idx]
-                val relation = TrackArtistEntity(
-                    trackId = trackId,
-                    artistId = relationRef.artistId,
-                    role = relationRef.role
-                )
-                artistDao.insertTrackArtistRelation(relation)
+                val relations = metadata.artists.map { artistName ->
+                    val artistId = resolveArtistId(artistName)
+                    TrackArtistEntity(
+                        trackId = trackId,
+                        artistId = artistId,
+                        role = "ARTIST"
+                    )
+                }
+                artistDao.insertTrackArtistRelations(relations)
             }
-
-            artistDao.deleteOrphanedArtists()
-            mergeDuplicateAlbums()
         }
 
-        emit(ScanProgress(ScanPhase.COMPLETE, 1f, "Scan complete: ${parsedTracks.size} tracks"))
+        artistDao.deleteOrphanedArtists()
+        mergeDuplicateAlbums()
     }
 
     private suspend fun resolveAlbumId(
@@ -164,9 +210,6 @@ class ScanRepository constructor(
         val existing = albumDao.getAlbumByTitleNormalized(albumTitle)
         if (existing != null) {
             albumCache[cacheKey] = existing.id
-            if (existing.artPath == null && metadata.albumArtBytes != null) {
-                saveAlbumArt(existing.id, metadata.albumArtBytes)
-            }
             return existing.id
         }
 
@@ -208,19 +251,4 @@ class ScanRepository constructor(
         }
     }
 
-    private suspend fun saveAlbumArt(albumId: Long, bytes: ByteArray) {
-        val albumArtDir = File(
-            Environment.getExternalStorageDirectory(),
-            "Android/data/com.mymusicplayer.musemeta/cache/album_art"
-        )
-        albumArtDir.mkdirs()
-
-        val artFile = File(albumArtDir, "${albumId}.jpg")
-        try {
-            artFile.writeBytes(bytes)
-            albumDao.updateAlbumArt(albumId, artFile.absolutePath)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to save album art for album $albumId: ${e.message}")
-        }
-    }
 }

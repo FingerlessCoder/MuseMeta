@@ -27,6 +27,7 @@ class SettingsDataStore(private val context: Context) {
         val LAST_PLAYED_TRACK_ID = longPreferencesKey("last_played_track_id")
         val LAST_PLAYED_POSITION = longPreferencesKey("last_played_position")
         val EXCLUDED_DIRS = stringPreferencesKey("excluded_dirs")
+        val SCAN_DIRECTORY_PATH = stringPreferencesKey("scan_directory_path")
     }
 
     val sleepTimerDuration: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -98,6 +99,20 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setExcludedDirs(dirs: List<String>) {
         context.dataStore.edit { prefs -> prefs[EXCLUDED_DIRS] = dirs.joinToString("|") }
+    }
+
+    val scanDirectoryPath: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[SCAN_DIRECTORY_PATH]?.takeIf { it.isNotBlank() }
+    }
+
+    suspend fun setScanDirectoryPath(path: String?) {
+        context.dataStore.edit { prefs ->
+            if (path.isNullOrBlank()) {
+                prefs.remove(SCAN_DIRECTORY_PATH)
+            } else {
+                prefs[SCAN_DIRECTORY_PATH] = path
+            }
+        }
     }
 
     suspend fun savePlaybackState(trackId: Long, position: Long) {

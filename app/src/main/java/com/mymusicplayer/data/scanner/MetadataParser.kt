@@ -53,7 +53,7 @@ class MetadataParser constructor() {
         )
     }
 
-    fun parse(filePath: String): ParsedMetadata? {
+    fun parse(filePath: String, extractAlbumArt: Boolean = true): ParsedMetadata? {
         return try {
             val file = File(filePath)
             if (!file.exists() || !file.canRead()) {
@@ -79,7 +79,7 @@ class MetadataParser constructor() {
             val bitrate = audioHeader.bitRateAsNumber.toInt()
             val sampleRate = audioHeader.sampleRateAsNumber.toInt()
             val format = audioHeader.format
-            val albumArt = extractAlbumArt(tag)
+            val albumArt = if (extractAlbumArt) extractAlbumArt(tag) else null
 
             ParsedMetadata(
                 title = title,

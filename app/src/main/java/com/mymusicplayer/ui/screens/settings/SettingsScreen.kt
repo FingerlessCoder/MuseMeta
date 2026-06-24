@@ -1,5 +1,8 @@
 package com.mymusicplayer.ui.screens.settings
 
+import android.content.Intent
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -8,10 +11,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -21,6 +28,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -33,6 +42,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 
@@ -43,6 +55,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -56,7 +69,6 @@ fun SettingsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Library section
             SectionHeader("Library")
             SettingCard {
                 SettingRow(
@@ -86,6 +98,14 @@ fun SettingsScreen(
                     onClick = { viewModel.rescanLibrary() }
                 )
                 HorizontalDivider()
+
+                ScanDirectorySetting(
+                    path = state.scanDirectoryPath,
+                    onPathChange = { viewModel.setScanDirectoryPath(it) },
+                    onClear = { viewModel.clearScanDirectoryPath() }
+                )
+                HorizontalDivider()
+
                 SettingRow(
                     title = "Default Sort",
                     subtitle = state.sortMode.replace("_", " ").replaceFirstChar { it.uppercase() },
@@ -109,7 +129,6 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Audio section
             SectionHeader("Audio")
             SettingCard {
                 SettingRow(
@@ -139,7 +158,6 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // Playback section
             SectionHeader("Playback")
             SettingCard {
                 SleepTimerSetting(
@@ -150,7 +168,6 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(16.dp))
 
-            // About section
             SectionHeader("About")
             SettingCard {
                 SettingRow(
@@ -161,6 +178,85 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun ScanDirectorySetting(
+    path: String,
+    onPathChange: (String) -> Unit,
+    onClear: () -> Unit
+) {
+    var editingPath by remember(path) { mutableStateOf(path) }
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text(
+            text = "Scan Directory",
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            text = "Leave empty to scan all MediaStore audio",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Row(verticalAlignment = Alignment.Top) {
+            OutlinedTextField(
+                value = editingPath,
+                onValueChange = { editingPath = it },
+                placeholder = { Text("/storage/emulated/0/Music/") },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Uri,
+                    imeAction = ImeAction.Done
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { onPathChange(editingPath) }
+                )
+            )
+            Spacer(Modifier.width(8.dp))
+            OutlinedButton(onClick = { onPathChange(editingPath) }) {
+                Text("Set")
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        if (path.isNotBlank()) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "Current: $path",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Clear",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.clickable { onClear(); editingPath = "" }
+                )
+            }
+        }
+
+        Spacer(Modifier.height(4.dp))
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && path.isNotBlank()) {
+            Button(
+                onClick = {
+                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Grant file access")
+            }
         }
     }
 }
