@@ -1,5 +1,6 @@
 package com.mymusicplayer
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -7,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.mymusicplayer.ui.components.MiniPlayerBar
 import com.mymusicplayer.ui.navigation.BottomNavBar
 import com.mymusicplayer.ui.navigation.NavGraph
 import com.mymusicplayer.ui.navigation.Screen
@@ -33,16 +35,23 @@ fun MainScreen() {
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                BottomNavBar(
-                    currentRoute = currentRoute,
-                    onNavigate = { screen ->
-                        navController.navigate(screen.route) {
-                            popUpTo(Screen.Home.route) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
+                Column {
+                    if (currentRoute !in listOf(Screen.Player.route, Screen.NowPlaying.route)) {
+                        MiniPlayerBar(
+                            onOpenPlayer = { navController.navigate(Screen.Player.route) }
+                        )
                     }
-                )
+                    BottomNavBar(
+                        currentRoute = currentRoute,
+                        onNavigate = { screen ->
+                            navController.navigate(screen.route) {
+                                popUpTo(Screen.Home.route) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
             }
         }
     ) { innerPadding ->
