@@ -218,15 +218,24 @@ class ScanRepository constructor(
             if (albumId == 0L) continue
             try {
                 val album = albumDao.getAlbumByIdOnce(albumId) ?: continue
-                if (album.artPath != null) continue
 
-                val meta = metadataParser.parse(filePath, extractAlbumArt = true) ?: continue
-                val bytes = meta.albumArtBytes ?: continue
-                val artFile = File(artDir, "${albumId}.jpg")
-                artFile.writeBytes(bytes)
-                albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+                if (album.albumArtist == null) {
+                    val meta = metadataParser.parse(filePath, extractAlbumArt = false) ?: continue
+                    val firstArtist = meta.artists.firstOrNull()
+                    if (firstArtist != null) {
+                        albumDao.updateAlbumArtist(albumId, firstArtist)
+                    }
+                }
+
+                if (album.artPath == null) {
+                    val meta = metadataParser.parse(filePath, extractAlbumArt = true) ?: continue
+                    val bytes = meta.albumArtBytes ?: continue
+                    val artFile = File(artDir, "${albumId}.jpg")
+                    artFile.writeBytes(bytes)
+                    albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+                }
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to extract album art for album $albumId", e)
+                Log.w(TAG, "Failed to extract for album $albumId", e)
             }
         }
     }

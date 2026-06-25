@@ -1,6 +1,11 @@
 package com.mymusicplayer.ui.navigation
 
 sealed class Screen(val route: String, val label: String, val icon: String) {
+    data object Home : Screen("home", "Home", "home")
+    data object Library : Screen("library", "Library", "library_music")
+    data object NowPlaying : Screen("now_playing", "Player", "play_circle")
+    data object Organize : Screen("organize", "Organize", "auto_awesome")
+
     data object Tracks : Screen("tracks", "Tracks", "music_note")
     data object Albums : Screen("albums", "Albums", "album")
     data object Artists : Screen("artists", "Artists", "people")
@@ -22,6 +27,6 @@ sealed class Screen(val route: String, val label: String, val icon: String) {
     data object DirectoryPicker : Screen("directory_picker", "Directories", "folder")
 
     companion object {
-        val bottomNavItems = listOf(Tracks, Albums, Artists, Playlists, Settings)
+        val bottomNavItems = listOf(Home, Library, NowPlaying, Organize)
     }
 }

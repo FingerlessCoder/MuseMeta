@@ -71,7 +71,7 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE id = :trackId")
     suspend fun getTrackByIdOnce(trackId: Long): TrackEntity?
 
-    @Query("SELECT * FROM tracks WHERE album_id = :albumId ORDER BY disc_number, track_number")
+    @Query("SELECT * FROM tracks WHERE album_id = :albumId ORDER BY COALESCE(disc_number, 1), COALESCE(track_number, 9999)")
     fun getTracksByAlbum(albumId: Long): Flow<List<TrackEntity>>
 
     @Query("""

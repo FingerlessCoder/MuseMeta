@@ -1,11 +1,11 @@
 package com.mymusicplayer.ui.navigation
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
-import androidx.compose.material.icons.filled.People
-import androidx.compose.material.icons.filled.QueueMusic
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -19,11 +19,10 @@ data class NavItem(
 )
 
 val navItems = listOf(
-    NavItem(Screen.Tracks, Icons.Default.MusicNote),
-    NavItem(Screen.Albums, Icons.Default.Album),
-    NavItem(Screen.Artists, Icons.Default.People),
-    NavItem(Screen.Playlists, Icons.Default.QueueMusic),
-    NavItem(Screen.Settings, Icons.Default.Settings)
+    NavItem(Screen.Home, Icons.Default.Home),
+    NavItem(Screen.Library, Icons.Default.LibraryMusic),
+    NavItem(Screen.NowPlaying, Icons.Default.PlayCircle),
+    NavItem(Screen.Organize, Icons.Default.AutoAwesome)
 )
 
 @Composable
@@ -33,7 +32,23 @@ fun BottomNavBar(
 ) {
     NavigationBar {
         navItems.forEach { item ->
-            val selected = currentRoute?.startsWith(item.screen.route) == true
+            val selected = when (item.screen) {
+                Screen.Library -> currentRoute in listOf(
+                    Screen.Library.route,
+                    Screen.Tracks.route,
+                    Screen.Albums.route,
+                    Screen.Artists.route,
+                    Screen.Playlists.route
+                )
+                Screen.NowPlaying -> currentRoute in listOf(Screen.NowPlaying.route, Screen.Player.route)
+                Screen.Organize -> currentRoute in listOf(
+                    Screen.Organize.route,
+                    Screen.Scan.route,
+                    Screen.DirectoryPicker.route,
+                    Screen.Settings.route
+                )
+                else -> currentRoute?.startsWith(item.screen.route) == true
+            }
             NavigationBarItem(
                 selected = selected,
                 onClick = { onNavigate(item.screen) },

@@ -18,6 +18,11 @@ fun MainScreen() {
     val currentRoute = navBackStackEntry?.destination?.route
 
     val showBottomBar = currentRoute in listOf(
+        Screen.Home.route,
+        Screen.Library.route,
+        Screen.NowPlaying.route,
+        Screen.Organize.route,
+        Screen.Player.route,
         Screen.Tracks.route,
         Screen.Albums.route,
         Screen.Artists.route,
@@ -32,7 +37,7 @@ fun MainScreen() {
                     currentRoute = currentRoute,
                     onNavigate = { screen ->
                         navController.navigate(screen.route) {
-                            popUpTo(Screen.Tracks.route) { saveState = true }
+                            popUpTo(Screen.Home.route) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }

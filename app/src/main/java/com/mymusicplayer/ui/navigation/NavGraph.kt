@@ -11,6 +11,9 @@ import com.mymusicplayer.ui.screens.albums.AlbumDetailScreen
 import com.mymusicplayer.ui.screens.albums.AlbumListScreen
 import com.mymusicplayer.ui.screens.artists.ArtistDetailScreen
 import com.mymusicplayer.ui.screens.artists.ArtistListScreen
+import com.mymusicplayer.ui.screens.home.HomeScreen
+import com.mymusicplayer.ui.screens.library.LibraryScreen
+import com.mymusicplayer.ui.screens.organize.OrganizeScreen
 import com.mymusicplayer.ui.screens.player.PlayerScreen
 import com.mymusicplayer.ui.screens.playlists.PlaylistDetailScreen
 import com.mymusicplayer.ui.screens.playlists.PlaylistListScreen
@@ -26,9 +29,52 @@ fun NavGraph(
 ) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Tracks.route,
+        startDestination = Screen.Home.route,
         modifier = modifier
     ) {
+        composable(Screen.Home.route) {
+            HomeScreen(
+                onNavigateToLibrary = { navController.navigate(Screen.Library.route) },
+                onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
+                onNavigateToOrganize = { navController.navigate(Screen.Organize.route) },
+                onNavigateToTrack = {
+                    navController.navigate(Screen.Player.route)
+                }
+            )
+        }
+
+        composable(Screen.Library.route) {
+            LibraryScreen(
+                onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
+                onNavigateToAlbum = { albumId ->
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistId ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                },
+                onNavigateToPlaylist = { playlistId ->
+                    navController.navigate(Screen.PlaylistDetail.createRoute(playlistId))
+                }
+            )
+        }
+
+        composable(Screen.NowPlaying.route) {
+            PlayerScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToArtist = { artistId ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                }
+            )
+        }
+
+        composable(Screen.Organize.route) {
+            OrganizeScreen(
+                onNavigateToScan = { navController.navigate(Screen.Scan.route) },
+                onNavigateToDirectoryPicker = { navController.navigate(Screen.DirectoryPicker.route) },
+                onNavigateToSettings = { navController.navigate(Screen.Settings.route) }
+            )
+        }
+
         composable(Screen.Tracks.route) {
             TrackListScreen(
                 onNavigateToPlayer = { navController.navigate(Screen.Player.route) },
@@ -124,7 +170,7 @@ fun NavGraph(
             DirectoryPickerScreen(
                 onBack = { navController.popBackStack() },
                 onStartScan = {
-                    navController.popBackStack(Screen.Settings.route, false)
+                    navController.popBackStack(Screen.Organize.route, false)
                     navController.navigate(Screen.Scan.route)
                 }
             )

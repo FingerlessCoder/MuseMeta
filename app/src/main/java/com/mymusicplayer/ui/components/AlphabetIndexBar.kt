@@ -60,7 +60,7 @@ fun AlphabetIndexBar(
                         .toInt().coerceIn(0, letters.size - 1)
                     val targetIndex = sectionIndices[idx]
                     coroutineScope.launch {
-                        listState.animateScrollToItem(targetIndex)
+                        listState.scrollToItem(targetIndex)
                     }
                 }
             },

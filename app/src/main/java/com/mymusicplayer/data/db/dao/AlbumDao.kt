@@ -45,6 +45,9 @@ interface AlbumDao {
     @Query("UPDATE albums SET art_path = :artPath WHERE id = :albumId")
     suspend fun updateAlbumArt(albumId: Long, artPath: String?)
 
+    @Query("UPDATE albums SET album_artist = :artist WHERE id = :albumId")
+    suspend fun updateAlbumArtist(albumId: Long, artist: String)
+
     @Query("SELECT COUNT(*) FROM tracks WHERE album_id = :albumId")
     fun getTrackCountForAlbum(albumId: Long): Flow<Int>
 

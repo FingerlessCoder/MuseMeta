@@ -41,7 +41,11 @@ class PlayerViewModel constructor(
             musicPlayerController.playbackState.collect { state ->
                 val currentTrack = if (state.currentTrackId != null &&
                     state.currentTrackId != _uiState.value.currentTrack?.id) {
-                    musicRepository.getTrackById(state.currentTrackId).first()
+                    musicRepository.getTrackById(state.currentTrackId).first().also { track ->
+                        if (track != null) {
+                            _uiState.value = _uiState.value.copy(isFavorite = track.rating >= 4)
+                        }
+                    }
                 } else {
                     _uiState.value.currentTrack
                 }
@@ -119,7 +123,12 @@ class PlayerViewModel constructor(
 
     fun toggleFavorite() {
         val current = _uiState.value
-        _uiState.value = current.copy(isFavorite = !current.isFavorite)
+        val trackId = current.currentTrack?.id ?: return
+        val newFav = !current.isFavorite
+        _uiState.value = current.copy(isFavorite = newFav)
+        viewModelScope.launch {
+            musicRepository.updateTrackRating(trackId, if (newFav) 5 else 0)
+        }
     }
 
     fun selectTab(index: Int) {

@@ -358,7 +358,7 @@ private fun PlayerTab(
                     contentDescription = "Favorite",
                     tint = if (state.isFavorite) MaterialTheme.colorScheme.error
                         else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(32.dp)
                 )
             }
 

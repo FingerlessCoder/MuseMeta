@@ -12,6 +12,7 @@ import com.mymusicplayer.domain.repository.MusicRepositoryImpl
 import com.mymusicplayer.ui.screens.albums.AlbumViewModel
 import com.mymusicplayer.ui.screens.artists.ArtistViewModel
 import com.mymusicplayer.ui.screens.directory_picker.DirectoryPickerViewModel
+import com.mymusicplayer.ui.screens.home.HomeViewModel
 import com.mymusicplayer.ui.screens.metadata.MetadataEditorViewModel
 import com.mymusicplayer.ui.screens.player.PlayerViewModel
 import com.mymusicplayer.ui.screens.playlists.PlaylistViewModel
@@ -34,6 +35,7 @@ val appModule = module {
     factory { androidContext().contentResolver }
 
     viewModel { TrackListViewModel(get(), get()) }
+    viewModel { HomeViewModel(get(), get()) }
     viewModel { AlbumViewModel(get()) }
     viewModel { ArtistViewModel(get()) }
     viewModel { PlayerViewModel(get(), get()) }
