@@ -48,8 +48,8 @@ class MetadataParser constructor() {
         private val ARTIST_DELIMITERS = listOf(
             " feat. ", " ft. ", " featuring ",
             " & ", " and ",
-            " / ", " \\ ",
-            ", ", "; "
+            " / ", " \\ ", "/",
+            ", ", "; ", ";"
         )
     }
 

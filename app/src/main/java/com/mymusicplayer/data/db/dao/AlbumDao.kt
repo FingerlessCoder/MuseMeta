@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface AlbumDao {
 
-    @Query("SELECT * FROM albums ORDER BY year DESC, title ASC")
+    @Query("SELECT * FROM albums ORDER BY title COLLATE NOCASE ASC")
     fun getAllAlbums(): Flow<List<AlbumEntity>>
 
     @Query("SELECT * FROM albums WHERE id = :albumId")

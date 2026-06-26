@@ -111,3 +111,7 @@ With AGP 9.x and `minSdk = 29`, D8 may produce multiple dex files even with `mul
 - `-keep class org.jaudiotagger.** { *; }`
 - `-dontwarn java.awt.**`, `javax.imageio.**`, `javax.swing.**` (jAudiotagger)
 - R8 debug minification avoided (kept `isMinifyEnabled = false` for debug)
+
+## No Subagents
+- user did not subscript any provider
+- unusable

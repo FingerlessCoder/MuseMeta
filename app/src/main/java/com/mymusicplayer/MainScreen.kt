@@ -1,15 +1,14 @@
 package com.mymusicplayer
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.mymusicplayer.ui.components.MiniPlayerBar
-import com.mymusicplayer.ui.navigation.BottomNavBar
 import com.mymusicplayer.ui.navigation.NavGraph
 import com.mymusicplayer.ui.navigation.Screen
 
@@ -19,39 +18,19 @@ fun MainScreen() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
-    val showBottomBar = currentRoute in listOf(
-        Screen.Home.route,
-        Screen.Library.route,
-        Screen.NowPlaying.route,
-        Screen.Organize.route,
-        Screen.Player.route,
-        Screen.Tracks.route,
-        Screen.Albums.route,
-        Screen.Artists.route,
-        Screen.Playlists.route,
-        Screen.Settings.route
-    )
-
     Scaffold(
         bottomBar = {
-            if (showBottomBar) {
-                Column {
-                    if (currentRoute !in listOf(Screen.Player.route, Screen.NowPlaying.route)) {
-                        MiniPlayerBar(
-                            onOpenPlayer = { navController.navigate(Screen.Player.route) }
+            if (currentRoute != Screen.NowPlaying.route) {
+                MiniPlayerBar(
+                    modifier = Modifier
+                        .windowInsetsPadding(
+                            WindowInsets.navigationBars
+                                .union(WindowInsets.systemGestures)
+                                .only(WindowInsetsSides.Bottom)
                         )
-                    }
-                    BottomNavBar(
-                        currentRoute = currentRoute,
-                        onNavigate = { screen ->
-                            navController.navigate(screen.route) {
-                                popUpTo(Screen.Home.route) { saveState = true }
-                                launchSingleTop = true
-                                restoreState = true
-                            }
-                        }
-                    )
-                }
+                        .padding(bottom = 4.dp),
+                    onOpenPlayer = { navController.navigate(Screen.NowPlaying.route) }
+                )
             }
         }
     ) { innerPadding ->

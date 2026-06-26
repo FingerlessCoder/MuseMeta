@@ -3,50 +3,25 @@ package com.mymusicplayer.ui.screens.settings
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Slider
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-
-
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.koin.androidx.compose.koinViewModel
 
@@ -63,118 +38,64 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(title = { Text("Settings") })
-        }
+            TopAppBar(
+                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Column(
-            modifier = Modifier
-                .padding(padding)
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+            modifier = Modifier.padding(padding).fillMaxSize()
+                .verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SectionHeader("Library")
             SettingCard {
-                SettingRow(
-                    title = "Rescan Library",
-                    subtitle = if (state.scanDirectoryPath.isNotBlank())
-                        "Custom directory" else "Scan for new and removed files",
-                    trailing = {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Scan",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    onClick = { onNavigateToScan() }
-                )
-                HorizontalDivider()
-
-                ScanDirectorySetting(
-                    path = state.scanDirectoryPath,
-                    onPathChange = { viewModel.setScanDirectoryPath(it) },
-                    onClear = { viewModel.clearScanDirectoryPath() },
-                    onBrowse = onNavigateToDirectoryPicker
-                )
-                HorizontalDivider()
-
-                ScanFilterSetting(
-                    minSizeKb = state.scanMinFileSizeKb,
-                    minDurationSec = state.scanMinDurationSec,
-                    onSetSize = { kb -> viewModel.setScanMinFileSize(kb) },
-                    onSetDuration = { sec -> viewModel.setScanMinDuration(sec) }
-                )
-                HorizontalDivider()
-
-                SettingRow(
-                    title = "Default Sort",
-                    subtitle = state.sortMode.replace("_", " ").replaceFirstChar { it.uppercase() },
-                    onClick = { showSortMenu = true }
-                )
-                DropdownMenu(
-                    expanded = showSortMenu,
-                    onDismissRequest = { showSortMenu = false }
-                ) {
+                SettingRow(Icons.Default.Refresh, "Rescan Library",
+                    if (state.scanDirectoryPath.isNotBlank()) "Custom directory" else "Scan for new and removed files",
+                    onClick = onNavigateToScan)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                ScanDirectorySetting(state.scanDirectoryPath, { viewModel.setScanDirectoryPath(it) },
+                    { viewModel.clearScanDirectoryPath() }, onNavigateToDirectoryPicker)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                ScanFilterSetting(state.scanMinFileSizeKb, state.scanMinDurationSec,
+                    { viewModel.setScanMinFileSize(it) }, { viewModel.setScanMinDuration(it) })
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingRow(Icons.AutoMirrored.Filled.Sort, "Default Sort",
+                    state.sortMode.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    onClick = { showSortMenu = true })
+                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
                     listOf("name", "date_added", "play_count", "rating", "duration").forEach { mode ->
-                        DropdownMenuItem(
-                            text = { Text(mode.replace("_", " ").replaceFirstChar { it.uppercase() }) },
-                            onClick = {
-                                viewModel.setSortMode(mode)
-                                showSortMenu = false
-                            }
-                        )
+                        DropdownMenuItem(text = { Text(mode.replace("_", " ").replaceFirstChar { it.uppercase() }) },
+                            onClick = { viewModel.setSortMode(mode); showSortMenu = false })
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-
             SectionHeader("Audio")
             SettingCard {
-                SettingRow(
-                    title = "Equalizer",
-                    subtitle = if (state.equalizerEnabled) "Enabled (${state.equalizerPreset})" else "Disabled",
+                SettingRow(Icons.Default.Tune, "Equalizer",
+                    if (state.equalizerEnabled) "Enabled (${state.equalizerPreset})" else "Disabled",
                     trailing = {
-                        Switch(
-                            checked = state.equalizerEnabled,
-                            onCheckedChange = { viewModel.setEqualizerEnabled(it) }
-                        )
-                    },
-                    onClick = {}
-                )
-                HorizontalDivider()
-                SettingRow(
-                    title = "Volume Normalization",
-                    subtitle = if (state.volumeNormalization) "On" else "Off",
+                        Switch(checked = state.equalizerEnabled, onCheckedChange = { viewModel.setEqualizerEnabled(it) })
+                    })
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingRow(Icons.AutoMirrored.Filled.VolumeUp, "Volume Normalization",
+                    if (state.volumeNormalization) "On" else "Off",
                     trailing = {
-                        Switch(
-                            checked = state.volumeNormalization,
-                            onCheckedChange = { viewModel.setVolumeNormalization(it) }
-                        )
-                    },
-                    onClick = {}
-                )
+                        Switch(checked = state.volumeNormalization, onCheckedChange = { viewModel.setVolumeNormalization(it) })
+                    })
             }
-
-            Spacer(Modifier.height(16.dp))
 
             SectionHeader("Playback")
             SettingCard {
-                SleepTimerSetting(
-                    currentMinutes = state.sleepTimerMinutes,
-                    onSelect = { viewModel.setSleepTimer(it) }
-                )
+                SleepTimerSetting(state.sleepTimerMinutes, { viewModel.setSleepTimer(it) })
             }
-
-            Spacer(Modifier.height(16.dp))
 
             SectionHeader("About")
             SettingCard {
-                SettingRow(
-                    title = "MuseMeta",
-                    subtitle = "Version 1.0.0",
-                    onClick = {}
-                )
+                SettingRow(Icons.Default.Info, "MuseMeta", "Version 1.0.0")
             }
 
             Spacer(Modifier.height(32.dp))
@@ -183,59 +104,33 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun ScanDirectorySetting(
-    path: String,
-    onPathChange: (String) -> Unit,
-    onClear: () -> Unit,
-    onBrowse: () -> Unit = {}
-) {
+private fun ScanDirectorySetting(path: String, onPathChange: (String) -> Unit, onClear: () -> Unit, onBrowse: () -> Unit) {
     val context = LocalContext.current
-
-    Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Scan Directory",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        val dirCount = path.split("|").count { it.isNotBlank() }
-                        Text(
-                            text = if (dirCount > 0) "$dirCount director${if (dirCount > 1) "ies" else "y"} selected"
-                            else "All MediaStore audio",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (dirCount > 0) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    OutlinedButton(onClick = onBrowse) {
-                        Text("Browse")
-                    }
-                }
-
-                if (path.isNotBlank()) {
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "Clear",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.clickable { onClear() }
-                    )
-                }
-
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Scan Directory", style = MaterialTheme.typography.bodyLarge)
+                val dirCount = path.split("|").count { it.isNotBlank() }
+                Text(if (dirCount > 0) "$dirCount director${if (dirCount > 1) "ies" else "y"} selected"
+                    else "All MediaStore audio",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (dirCount > 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            OutlinedButton(onClick = onBrowse, shape = RoundedCornerShape(10.dp)) { Text("Browse") }
+        }
+        if (path.isNotBlank()) {
+            Spacer(Modifier.height(4.dp))
+            Text("Clear", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.clickable { onClear() })
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && path.isNotBlank()) {
             Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                        data = android.net.Uri.parse("package:${context.packageName}")
-                    }
-                    context.startActivity(intent)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Button(onClick = {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                    data = android.net.Uri.parse("package:${context.packageName}")
+                }
+                context.startActivity(intent)
+            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
                 Text("Grant file access")
             }
         }
@@ -243,147 +138,73 @@ private fun ScanDirectorySetting(
 }
 
 @Composable
-private fun ScanFilterSetting(
-    minSizeKb: Long,
-    minDurationSec: Long,
-    onSetSize: (Long) -> Unit,
-    onSetDuration: (Long) -> Unit
-) {
+private fun ScanFilterSetting(minSizeKb: Long, minDurationSec: Long, onSetSize: (Long) -> Unit, onSetDuration: (Long) -> Unit) {
     var sliderSize by remember(minSizeKb) { mutableFloatStateOf(minSizeKb.toFloat()) }
     var sliderDuration by remember(minDurationSec) { mutableFloatStateOf(minDurationSec.toFloat()) }
-
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text(
-            text = "Scan Filters",
-            style = MaterialTheme.typography.bodyLarge
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Skip files below these thresholds",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text("Scan Filters", style = MaterialTheme.typography.bodyLarge)
+        Spacer(Modifier.height(2.dp))
+        Text("Skip files below these thresholds", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
-
-        Text(
-            text = "Min file size: ${sliderSize.toInt()} KB",
-            style = MaterialTheme.typography.labelMedium
-        )
-        Spacer(Modifier.height(4.dp))
-        Slider(
-            value = sliderSize,
-            onValueChange = { sliderSize = it },
-            onValueChangeFinished = { onSetSize(sliderSize.toLong()) },
-            valueRange = 0f..2048f,
-            steps = 0
-        )
-
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Min duration: ${formatDurationSec(sliderDuration.toLong())}",
-            style = MaterialTheme.typography.labelMedium
-        )
-        Spacer(Modifier.height(4.dp))
-        Slider(
-            value = sliderDuration,
-            onValueChange = { sliderDuration = it },
-            onValueChangeFinished = { onSetDuration(sliderDuration.toLong()) },
-            valueRange = 0f..300f,
-            steps = 0
-        )
+        Text("Min file size: ${sliderSize.toInt()} KB", style = MaterialTheme.typography.labelMedium)
+        Slider(value = sliderSize, onValueChange = { sliderSize = it },
+            onValueChangeFinished = { onSetSize(sliderSize.toLong()) }, valueRange = 0f..2048f)
+        Spacer(Modifier.height(8.dp))
+        Text("Min duration: ${formatDurationSec(sliderDuration.toLong())}", style = MaterialTheme.typography.labelMedium)
+        Slider(value = sliderDuration, onValueChange = { sliderDuration = it },
+            onValueChangeFinished = { onSetDuration(sliderDuration.toLong()) }, valueRange = 0f..300f)
     }
 }
 
-private fun formatDurationSec(sec: Long): String {
-    val m = sec / 60
-    val s = sec % 60
-    return if (m > 0) "${m}m ${s}s" else "${s}s"
+@Composable
+private fun SleepTimerSetting(currentMinutes: Int, onSelect: (Int) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf(0 to "Off", 15 to "15 minutes", 30 to "30 minutes", 45 to "45 minutes", 60 to "1 hour")
+    val label = options.find { it.first == currentMinutes }?.second ?: "Off"
+    SettingRow(Icons.Default.Schedule, "Sleep Timer", label, onClick = { expanded = true })
+    DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        options.forEach { (minutes, label) ->
+            DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(minutes); expanded = false })
+        }
+    }
 }
 
 @Composable
 private fun SectionHeader(title: String) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(vertical = 8.dp)
-    )
+    Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp))
 }
 
 @Composable
 private fun SettingCard(content: @Composable () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
-        )
-    ) {
-        content()
-    }
+    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) { content() }
 }
 
 @Composable
 private fun SettingRow(
+    icon: ImageVector? = null,
     title: String,
     subtitle: String? = null,
     trailing: @Composable (() -> Unit)? = null,
-    onClick: () -> Unit
+    onClick: () -> Unit = {}
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(16.dp))
+        }
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyLarge
-            )
-            subtitle?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         trailing?.invoke()
     }
 }
 
-@Composable
-private fun SleepTimerSetting(
-    currentMinutes: Int,
-    onSelect: (Int) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val options = listOf(
-        0 to "Off",
-        15 to "15 minutes",
-        30 to "30 minutes",
-        45 to "45 minutes",
-        60 to "1 hour"
-    )
-
-    val label = options.find { it.first == currentMinutes }?.second ?: "Off"
-
-    SettingRow(
-        title = "Sleep Timer",
-        subtitle = label,
-        onClick = { expanded = true }
-    )
-
-    DropdownMenu(
-        expanded = expanded,
-        onDismissRequest = { expanded = false }
-    ) {
-        options.forEach { (minutes, label) ->
-            DropdownMenuItem(
-                text = { Text(label) },
-                onClick = { onSelect(minutes); expanded = false }
-            )
-        }
-    }
+private fun formatDurationSec(sec: Long): String {
+    val m = sec / 60; val s = sec % 60
+    return if (m > 0) "${m}m ${s}s" else "${s}s"
 }

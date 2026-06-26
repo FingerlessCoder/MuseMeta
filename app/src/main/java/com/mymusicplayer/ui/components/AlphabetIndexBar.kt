@@ -43,14 +43,15 @@ fun computeSectionIndices(items: List<String>, letters: List<String>): List<Int>
 fun AlphabetIndexBar(
     letters: List<String>,
     sectionIndices: List<Int>,
-    listState: LazyListState
+    listState: LazyListState,
+    modifier: Modifier = Modifier
 ) {
     if (letters.size <= 1) return
 
     val coroutineScope = rememberCoroutineScope()
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(24.dp)
             .fillMaxHeight()
             .padding(vertical = 8.dp)

@@ -1,9 +1,11 @@
 package com.mymusicplayer.data.audio
 
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.mymusicplayer.data.db.dao.TrackDao
@@ -62,23 +64,60 @@ class MusicPlayerController constructor(
         }
     }
 
-    fun play(trackPath: String, trackId: Long? = null) {
-        playFromQueue(listOf(trackPath), 0, trackId?.let { listOf(it) })
+    fun play(
+        trackPath: String,
+        trackId: Long? = null,
+        title: String? = null,
+        artist: String? = null,
+        albumArtPath: String? = null
+    ) {
+        playFromQueue(
+            listOf(trackPath), 0,
+            trackId?.let { listOf(it) },
+            titles = title?.let { listOf(it) },
+            artists = artist?.let { listOf(it) },
+            albumArtPaths = albumArtPath?.let { listOf(it) }
+        )
     }
 
-    fun playFromQueue(trackPaths: List<String>, startIndex: Int, trackIds: List<Long>? = null) {
+    fun playFromQueue(
+        trackPaths: List<String>,
+        startIndex: Int,
+        trackIds: List<Long>? = null,
+        titles: List<String?>? = null,
+        artists: List<String?>? = null,
+        albumArtPaths: List<String?>? = null
+    ) {
         val player = exoPlayer ?: return
 
         currentTrackPaths = trackPaths
         currentTrackIds = trackIds ?: trackPaths.indices.map { it.toLong() }
 
-        val mediaItems = trackPaths.map { path ->
-            MediaItem.fromUri(Uri.parse("file://$path"))
+        val mediaItems = trackPaths.mapIndexed { index, path ->
+            val uri = Uri.parse("file://$path")
+            val metadata = MediaMetadata.Builder()
+                .setTitle(titles?.getOrNull(index))
+                .setArtist(artists?.getOrNull(index))
+                .apply {
+                    albumArtPaths?.getOrNull(index)?.let { artPath ->
+                        setArtworkUri(Uri.parse("file://$artPath"))
+                    }
+                }
+                .build()
+
+            MediaItem.Builder()
+                .setUri(uri)
+                .setMediaMetadata(metadata)
+                .build()
         }
 
         player.setMediaItems(mediaItems, startIndex, 0L)
         player.prepare()
         player.play()
+
+        context.startForegroundService(
+            Intent(context, com.mymusicplayer.service.MusicService::class.java)
+        )
 
         updateState()
     }
@@ -141,6 +180,84 @@ class MusicPlayerController constructor(
     fun getCurrentTrackIds(): List<Long> = currentTrackIds
 
     fun getPlayer(): ExoPlayer? = exoPlayer
+
+    fun addTrack(
+        filePath: String,
+        trackId: Long,
+        title: String? = null,
+        artist: String? = null,
+        albumArtPath: String? = null
+    ) {
+        val player = exoPlayer ?: return
+        val mediaItem = buildMediaItem(filePath, trackId, title, artist, albumArtPath)
+        player.addMediaItem(mediaItem)
+        player.prepare()
+        currentTrackIds = currentTrackIds + trackId
+        currentTrackPaths = currentTrackPaths + filePath
+        updateState()
+    }
+
+    fun addTrackAt(
+        index: Int,
+        filePath: String,
+        trackId: Long,
+        title: String? = null,
+        artist: String? = null,
+        albumArtPath: String? = null
+    ) {
+        val player = exoPlayer ?: return
+        val mediaItem = buildMediaItem(filePath, trackId, title, artist, albumArtPath)
+        player.addMediaItem(index, mediaItem)
+        player.prepare()
+        currentTrackIds = currentTrackIds.toMutableList().apply { add(index.coerceAtMost(size), trackId) }
+        currentTrackPaths = currentTrackPaths.toMutableList().apply { add(index.coerceAtMost(size), filePath) }
+        updateState()
+    }
+
+    private fun buildMediaItem(
+        filePath: String,
+        trackId: Long,
+        title: String?,
+        artist: String?,
+        albumArtPath: String?
+    ): MediaItem {
+        val uri = Uri.parse(filePath)
+        val builder = MediaItem.Builder()
+            .setUri(uri)
+            .setMediaId(trackId.toString())
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(title)
+                    .setArtist(artist)
+                    .setArtworkUri(albumArtPath?.let { Uri.parse("file://$it") })
+                    .build()
+            )
+        return builder.build()
+    }
+
+    fun removeTrack(index: Int) {
+        val player = exoPlayer ?: return
+        if (index < 0 || index >= player.mediaItemCount) return
+        val wasCurrent = index == player.currentMediaItemIndex
+
+        player.removeMediaItem(index)
+        if (index in currentTrackIds.indices) {
+            currentTrackIds = currentTrackIds.toMutableList().apply { removeAt(index) }
+        }
+        if (index in currentTrackPaths.indices) {
+            currentTrackPaths = currentTrackPaths.toMutableList().apply { removeAt(index) }
+        }
+        updateState()
+    }
+
+    fun clearQueue() {
+        val player = exoPlayer ?: return
+        player.stop()
+        player.clearMediaItems()
+        currentTrackIds = emptyList()
+        currentTrackPaths = emptyList()
+        updateState()
+    }
 
     fun release() {
         exoPlayer?.release()

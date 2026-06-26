@@ -1,0 +1,12 @@
+1.top nav margin top too much
+2.when start playing did not auto make a queue playlist
+3.in now playing, buttons and icons too small.
+4. os dynamic island did not detect the media
+5.in library,the subtab results like tracks albums artists did not load in first click
+6. the showing result area of library too short, not enough height
+7. alphebetical fast index should be at right side
+8.albums tab the results is not fully sorted
+9.track subtab i said remove the filter button, that already implemented in settings scan filters
+10.remove music note icon if the track or albums has image
+11.search function is weird, did not dynamic switch in its tab, i forced to switch to other subtab and return back
+12.i want artists can be detected multiple artists because windows can do it by checking identifier ';' to separate

@@ -22,7 +22,8 @@ data class PlayerUiState(
     val isFavorite: Boolean = false,
     val selectedTab: Int = 0,
     val lyricsText: String? = null,
-    val queueTracks: List<Track> = emptyList()
+    val queueTracks: List<Track> = emptyList(),
+    val sleepTimerMinutes: Int = 0
 )
 
 class PlayerViewModel constructor(
@@ -71,7 +72,8 @@ class PlayerViewModel constructor(
                     queueIndex = state.queueIndex,
                     shuffleMode = state.shuffleMode,
                     repeatMode = state.repeatMode,
-                    queueTracks = queueTracks
+                    queueTracks = queueTracks,
+                    sleepTimerMinutes = _uiState.value.sleepTimerMinutes
                 )
             }
         }
@@ -133,6 +135,35 @@ class PlayerViewModel constructor(
 
     fun selectTab(index: Int) {
         _uiState.value = _uiState.value.copy(selectedTab = index)
+    }
+
+    fun setSleepTimer(minutes: Int) {
+        _uiState.value = _uiState.value.copy(sleepTimerMinutes = minutes)
+        if (minutes > 0) {
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(minutes * 60_000L)
+                musicPlayerController.togglePlayPause()
+                _uiState.value = _uiState.value.copy(sleepTimerMinutes = 0)
+            }
+        }
+    }
+
+    fun removeCurrentTrackFromQueue() {
+        val index = _uiState.value.queueIndex
+        if (index >= 0) {
+            if (index > 0) {
+                musicPlayerController.skipToPrevious()
+            }
+            musicPlayerController.removeTrack(index)
+        }
+    }
+
+    fun removeTrackFromQueue(index: Int) {
+        musicPlayerController.removeTrack(index)
+    }
+
+    fun clearQueue() {
+        musicPlayerController.clearQueue()
     }
 
     override fun onCleared() {
