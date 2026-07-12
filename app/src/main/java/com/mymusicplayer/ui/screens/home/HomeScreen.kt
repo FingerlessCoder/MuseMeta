@@ -285,15 +285,65 @@ fun HomeScreen(
                         val titles = tracks.map { it.title }
                         val letters = computeIndexLetters(titles)
                         val sectionIndices = computeSectionIndices(titles, letters).map { it + 2 }
-                        AlphabetIndexBar(
-                            letters = letters,
-                            sectionIndices = sectionIndices,
-                            listState = listState,
+
+                        val activeLetter by remember(listState, letters, sectionIndices) {
+                            derivedStateOf {
+                                if (letters.isEmpty()) null
+                                else {
+                                    val firstVisible = listState.firstVisibleItemIndex
+                                    var bestIdx = -1
+                                    for (i in sectionIndices.indices) {
+                                        if (sectionIndices[i] <= firstVisible) bestIdx = i
+                                    }
+                                    if (bestIdx >= 0) letters[bestIdx] else null
+                                }
+                            }
+                        }
+
+                        var draggedLetter by remember { mutableStateOf<String?>(null) }
+
+                        Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .offset(y = topDp)
                                 .height(heightDp)
-                        )
+                                .width(26.dp)
+                        ) {
+                            AlphabetIndexBar(
+                                letters = letters,
+                                sectionIndices = sectionIndices,
+                                listState = listState,
+                                activeLetter = activeLetter,
+                                onDragLetterChanged = { draggedLetter = it },
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            draggedLetter?.let { letter ->
+                                val letterIdx = letters.indexOf(letter)
+                                if (letterIdx >= 0) {
+                                    val itemHeight = heightDp / letters.size
+                                    val bubbleY = itemHeight * (letterIdx + 0.5f) - 20.dp
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .offset(x = (-48).dp, y = bubbleY)
+                                            .size(40.dp),
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shadowElevation = 6.dp
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = letter,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

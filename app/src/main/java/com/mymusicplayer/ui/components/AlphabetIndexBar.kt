@@ -2,7 +2,7 @@ package com.mymusicplayer.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
@@ -47,6 +48,8 @@ fun AlphabetIndexBar(
     letters: List<String>,
     sectionIndices: List<Int>,
     listState: LazyListState,
+    activeLetter: String? = null,
+    onDragLetterChanged: ((String?) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (letters.size <= 1) return
@@ -68,23 +71,47 @@ fun AlphabetIndexBar(
             )
             .padding(vertical = 8.dp, horizontal = 2.dp)
             .pointerInput(Unit) {
-                detectTapGestures { offset ->
-                    val idx = (offset.y / size.height * letters.size)
-                        .toInt().coerceIn(0, letters.size - 1)
-                    val targetIndex = sectionIndices[idx]
-                    coroutineScope.launch {
-                        listState.scrollToItem(targetIndex)
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        val idx = (offset.y / size.height * letters.size)
+                            .toInt().coerceIn(0, letters.size - 1)
+                        val letter = letters[idx]
+                        val targetIndex = sectionIndices[idx]
+                        onDragLetterChanged?.invoke(letter)
+                        coroutineScope.launch {
+                            listState.scrollToItem(targetIndex)
+                        }
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        val idx = (change.position.y / size.height * letters.size)
+                            .toInt().coerceIn(0, letters.size - 1)
+                        val letter = letters[idx]
+                        val targetIndex = sectionIndices[idx]
+                        onDragLetterChanged?.invoke(letter)
+                        coroutineScope.launch {
+                            listState.scrollToItem(targetIndex)
+                        }
+                    },
+                    onDragEnd = {
+                        onDragLetterChanged?.invoke(null)
+                    },
+                    onDragCancel = {
+                        onDragLetterChanged?.invoke(null)
                     }
-                }
+                )
             },
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         letters.forEach { letter ->
+            val isActive = letter == activeLetter
             Text(
                 text = letter,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                color = if (isActive) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.8f),
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                 maxLines = 1
             )
         }
