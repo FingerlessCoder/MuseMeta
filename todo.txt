@@ -19,6 +19,7 @@ TODO
    - Same fix applied (File(artPath))
 
 
-index bar highlight -1
-track image //solved
-some times crash,idk probably some lifespan violation or codec error in the middle of process
+index bar highlight -1 //fixed
+track image //fixed
+some times crash,idk probably some lifespan violation or codec error in the middle of process //fixed not fully, when the moment i want git, then it crashed
+select directory content row height //fixed

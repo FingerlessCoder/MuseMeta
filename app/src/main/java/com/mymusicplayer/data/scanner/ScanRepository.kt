@@ -329,23 +329,32 @@ class ScanRepository constructor(
     }
 
     private fun extractArtWithMediaRetriever(filePath: String, fileUri: Uri): ByteArray? {
-        val retriever = MediaMetadataRetriever()
+        // Each attempt gets its own retriever — sharing one across setDataSource calls
+        // can cause native crashes (SIGSEGV) on corrupt files since the first partial
+        // failure leaves internal native resources in an undefined state.
         try {
-            // Try content URI first (works with scoped storage on Android 10+)
-            retriever.setDataSource(context, fileUri)
-            val art = retriever.embeddedPicture
-            if (art != null) return art
+            val r = MediaMetadataRetriever()
+            try {
+                r.setDataSource(context, fileUri)
+                val art = r.embeddedPicture
+                if (art != null) return art
+            } finally {
+                try { r.release() } catch (_: Exception) {}
+            }
         } catch (_: Exception) {
             // URI approach failed — fall through to direct file path
         }
         try {
-            retriever.setDataSource(filePath)
-            return retriever.embeddedPicture
+            val r = MediaMetadataRetriever()
+            try {
+                r.setDataSource(filePath)
+                return r.embeddedPicture
+            } finally {
+                try { r.release() } catch (_: Exception) {}
+            }
         } catch (e: Exception) {
             Log.w(TAG, "MediaMetadataRetriever failed for $filePath", e)
             return null
-        } finally {
-            try { retriever.release() } catch (_: Exception) {}
         }
     }
 
