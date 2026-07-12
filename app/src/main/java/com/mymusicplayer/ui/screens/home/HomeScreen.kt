@@ -1,11 +1,10 @@
 package com.mymusicplayer.ui.screens.home
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,6 +33,7 @@ import com.mymusicplayer.ui.components.computeIndexLetters
 import com.mymusicplayer.ui.components.computeSectionIndices
 import org.koin.androidx.compose.koinViewModel
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     onNavigateToPlayer: () -> Unit = {},
@@ -79,82 +79,6 @@ fun HomeScreen(
                 CircularProgressIndicator()
             }
         } else {
-            // mini card
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                CompactMiniCard(
-                    label = "Favorites", count = state.favoriteCount,
-                    artPath = favoriteArt,
-                    modifier = Modifier.weight(1f)
-                )
-                CompactMiniCard(
-                    label = "My Playlists", count = state.playlistCount,
-                    artPath = playlistArt,
-                    modifier = Modifier.weight(1f)
-                )
-                CompactMiniCard(
-                    label = "Recently Played", count = state.recentlyPlayedCount,
-                    artPath = recentArt,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            // tab
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                HomeTab.entries.forEach { tab ->
-                    val selected = state.selectedTab == tab
-                    FilterChip(
-                        selected = selected,
-                        onClick = { viewModel.selectTab(tab) },
-                        label = {
-                            Text(tab.name, fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                modifier = Modifier.padding(horizontal = 4.dp))
-                        },
-                        shape = RoundedCornerShape(8.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            // filter chip
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = { viewModel.playRandom() }) {
-                    Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Random Play", style = MaterialTheme.typography.labelLarge)
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    IconButton(onClick = {
-                        val sorts = listOf("name", "date_added", "duration")
-                        val current = sorts.indexOf(state.sortMode)
-                        viewModel.setSortMode(sorts[(current + 1) % sorts.size])
-                    }, modifier = Modifier.size(36.dp)) {
-                        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort", modifier = Modifier.size(20.dp))
-                    }
-                    IconButton(onClick = { viewModel.toggleMultiSelect() },
-                        modifier = Modifier.size(36.dp)) {
-                        Icon(
-                            if (state.multiSelectEnabled) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
-                            contentDescription = "Multi-select",
-                            tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-            }
-
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 val listState = rememberLazyListState()
                 val tracks = state.filteredTracks
@@ -164,83 +88,185 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                when (state.selectedTab) {
-                HomeTab.Tracks -> {
-                    val tracks = state.filteredTracks
-                    if (tracks.isEmpty()) {
-                        item { EmptyPlaceholder("No tracks found") }
-                    } else {
-                        items(tracks, key = { it.id }) { track ->
-                            TrackContentRow(track = track,
-                                isMultiSelect = state.multiSelectEnabled,
-                                isSelected = track.id in state.selectedTrackIds,
-                                onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                context = context)
+                    // Mini cards — scroll away on scroll
+                    item(key = "mini_cards") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CompactMiniCard(
+                                label = "Favorites", count = state.favoriteCount,
+                                artPath = favoriteArt,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactMiniCard(
+                                label = "My Playlists", count = state.playlistCount,
+                                artPath = playlistArt,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactMiniCard(
+                                label = "Recently Played", count = state.recentlyPlayedCount,
+                                artPath = recentArt,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
-                }
-                HomeTab.Albums -> {
-                    val albums = state.filteredAlbums
-                    if (albums.isEmpty()) {
-                        item { EmptyPlaceholder("No albums found") }
-                    } else {
-                        albums.chunked(2).forEach { row ->
-                            item {
+
+                    // Sticky header: tabs + filter controls pinned on scroll
+                    stickyHeader(key = "tab_bar") {
+                        Surface(
+                            color = MaterialTheme.colorScheme.background,
+                            tonalElevation = 0.dp
+                        ) {
+                            Column {
+                                // tab chips
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    row.forEach { album ->
-                                        AlbumGridItem(album = album,
-                                            onClick = { viewModel.playAlbum(album); onNavigateToPlayer() },
-                                            modifier = Modifier.weight(1f), context = context)
+                                    HomeTab.entries.forEach { tab ->
+                                        val selected = state.selectedTab == tab
+                                        FilterChip(
+                                            selected = selected,
+                                            onClick = { viewModel.selectTab(tab) },
+                                            label = {
+                                                Text(tab.name,
+                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    modifier = Modifier.padding(horizontal = 4.dp))
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
                                     }
-                                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                                }
+                                // filter controls
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    TextButton(onClick = { viewModel.playRandom() }) {
+                                        Icon(Icons.Default.Shuffle, contentDescription = null,
+                                            modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        IconButton(onClick = {
+                                            val sorts = listOf("name", "date_added", "duration")
+                                            val current = sorts.indexOf(state.sortMode)
+                                            viewModel.setSortMode(sorts[(current + 1) % sorts.size])
+                                        }, modifier = Modifier.size(36.dp)) {
+                                            Icon(Icons.AutoMirrored.Filled.Sort,
+                                                contentDescription = "Sort",
+                                                modifier = Modifier.size(20.dp))
+                                        }
+                                        IconButton(onClick = { viewModel.toggleMultiSelect() },
+                                            modifier = Modifier.size(36.dp)) {
+                                            Icon(
+                                                if (state.multiSelectEnabled) Icons.Default.CheckBox
+                                                else Icons.Default.CheckBoxOutlineBlank,
+                                                contentDescription = "Multi-select",
+                                                tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Content based on selected tab
+                    when (state.selectedTab) {
+                        HomeTab.Tracks -> {
+                            if (tracks.isEmpty()) {
+                                item(key = "empty_tracks") {
+                                    EmptyPlaceholder("No tracks found")
+                                }
+                            } else {
+                                items(tracks, key = { it.id }) { track ->
+                                    TrackContentRow(track = track,
+                                        isMultiSelect = state.multiSelectEnabled,
+                                        isSelected = track.id in state.selectedTrackIds,
+                                        onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
+                                        onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                        context = context)
+                                }
+                            }
+                        }
+                        HomeTab.Albums -> {
+                            val albums = state.filteredAlbums
+                            if (albums.isEmpty()) {
+                                item(key = "empty_albums") {
+                                    EmptyPlaceholder("No albums found")
+                                }
+                            } else {
+                                albums.chunked(2).forEachIndexed { i, row ->
+                                    item(key = "album_row_$i") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            row.forEach { album ->
+                                                AlbumGridItem(album = album,
+                                                    onClick = { viewModel.playAlbum(album); onNavigateToPlayer() },
+                                                    modifier = Modifier.weight(1f), context = context)
+                                            }
+                                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        HomeTab.Artists -> {
+                            val artists = state.filteredArtists
+                            if (artists.isEmpty()) {
+                                item(key = "empty_artists") {
+                                    EmptyPlaceholder("No artists found")
+                                }
+                            } else {
+                                artists.chunked(4).forEachIndexed { i, row ->
+                                    item(key = "artist_row_$i") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                            horizontalArrangement = Arrangement.SpaceEvenly
+                                        ) {
+                                            row.forEach { artist ->
+                                                ArtistGridItem(artist = artist,
+                                                    onClick = { viewModel.playArtistTracks(artist); onNavigateToPlayer() },
+                                                    modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-                HomeTab.Artists -> {
-                    val artists = state.filteredArtists
-                    if (artists.isEmpty()) {
-                        item { EmptyPlaceholder("No artists found") }
-                    } else {
-                        val chunked = artists.chunked(4)
-                        chunked.forEach { row ->
-                            item {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
-                                ) {
-                                    row.forEach { artist ->
-                                        ArtistGridItem(artist = artist,
-                                            onClick = { viewModel.playArtistTracks(artist); onNavigateToPlayer() },
-                                            modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
+
+                // AlphabetIndexBar overlay (Tracks tab only, name sort)
+                if (state.selectedTab == HomeTab.Tracks && state.sortMode == "name" && tracks.isNotEmpty()) {
+                    val titles = tracks.map { it.title }
+                    val letters = computeIndexLetters(titles)
+                    val sectionIndices = computeSectionIndices(titles, letters).map { it + 2 }
+                    AlphabetIndexBar(
+                        letters = letters,
+                        sectionIndices = sectionIndices,
+                        listState = listState,
+                        modifier = Modifier.align(Alignment.CenterEnd)
+                    )
                 }
             }
         }
-        }
-
-        if (state.selectedTab == HomeTab.Tracks && state.sortMode == "name" && tracks.isNotEmpty()) {
-            val titles = tracks.map { it.title }
-            val letters = computeIndexLetters(titles)
-            val sectionIndices = computeSectionIndices(titles, letters).map { it + 3 }
-            AlphabetIndexBar(
-                letters = letters,
-                sectionIndices = sectionIndices,
-                listState = listState,
-                modifier = Modifier.align(Alignment.CenterEnd)
-            )
-        }
     }
-}
-}
 }
 
 @Composable
