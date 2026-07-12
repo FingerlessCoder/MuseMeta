@@ -27,14 +27,14 @@ class FileSystemScanner {
         private const val MIN_FILE_SIZE_BYTES = 10_000L
     }
 
-    fun scanDirectory(directoryPath: String): List<MediaStoreAudioFile> {
+    fun scanDirectory(directoryPath: String): List<ScannedAudioFile> {
         val dir = File(directoryPath)
         if (!dir.exists() || !dir.isDirectory) {
             Log.w(TAG, "Directory does not exist or is not a directory: $directoryPath")
             return emptyList()
         }
 
-        val results = mutableListOf<MediaStoreAudioFile>()
+        val results = mutableListOf<ScannedAudioFile>()
         walkDirectory(dir, results)
         Log.d(TAG, "Found ${results.size} audio files in $directoryPath")
         return results
@@ -85,7 +85,7 @@ class FileSystemScanner {
         }
     }
 
-    private fun walkDirectory(dir: File, results: MutableList<MediaStoreAudioFile>) {
+    private fun walkDirectory(dir: File, results: MutableList<ScannedAudioFile>) {
         val files = dir.listFiles() ?: return
         for (file in files) {
             if (file.isDirectory) {
@@ -96,15 +96,27 @@ class FileSystemScanner {
                 val ext = file.extension.lowercase()
                 if (ext in AUDIO_EXTENSIONS) {
                     results.add(
-                        MediaStoreAudioFile(
+                        ScannedAudioFile(
                             uri = Uri.fromFile(file),
                             path = file.absolutePath,
                             size = file.length(),
-                            dateModified = file.lastModified() / 1000
+                            dateModified = file.lastModified() / 1000,
+                            mimeType = extToMimeType(ext)
                         )
                     )
                 }
             }
         }
+    }
+
+    private fun extToMimeType(ext: String): String = when (ext) {
+        "mp3" -> "audio/mpeg"
+        "flac", "alac" -> "audio/flac"
+        "m4a", "aac" -> "audio/mp4"
+        "ogg", "opus" -> "audio/ogg"
+        "wav", "wave" -> "audio/wav"
+        "wma" -> "audio/x-ms-wma"
+        "aiff" -> "audio/x-aiff"
+        else -> "audio/$ext"
     }
 }

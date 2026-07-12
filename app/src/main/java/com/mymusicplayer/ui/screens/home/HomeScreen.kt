@@ -79,6 +79,7 @@ fun HomeScreen(
                 CircularProgressIndicator()
             }
         } else {
+            // mini card
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -99,7 +100,7 @@ fun HomeScreen(
                     modifier = Modifier.weight(1f)
                 )
             }
-
+            // tab
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -122,7 +123,7 @@ fun HomeScreen(
                     )
                 }
             }
-
+            // filter chip
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,

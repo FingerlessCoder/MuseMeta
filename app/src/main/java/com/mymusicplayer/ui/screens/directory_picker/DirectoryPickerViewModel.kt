@@ -1,11 +1,10 @@
 package com.mymusicplayer.ui.screens.directory_picker
 
-import android.os.Environment
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.preferences.SettingsDataStore
-import com.mymusicplayer.data.scanner.FileSystemScanner
+import com.mymusicplayer.data.scanner.MediaStoreScanner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +29,7 @@ data class DirectoryPickerUiState(
 
 class DirectoryPickerViewModel constructor(
     private val settingsDataStore: SettingsDataStore,
-    private val fileSystemScanner: FileSystemScanner
+    private val mediaStoreScanner: MediaStoreScanner
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DirectoryPickerUiState())
@@ -42,9 +41,8 @@ class DirectoryPickerViewModel constructor(
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, errorMessage = null)
             try {
-                val rootPath = Environment.getExternalStorageDirectory().absolutePath
                 val dirs = withContext(Dispatchers.IO) {
-                    fileSystemScanner.findDirectoriesWithAudio(rootPath)
+                    mediaStoreScanner.findDirectoriesWithAudio()
                 }
 
                 selectedPaths.clear()

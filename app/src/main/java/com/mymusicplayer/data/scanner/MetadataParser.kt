@@ -146,7 +146,7 @@ class MetadataParser constructor() {
         }
     }
 
-    internal fun parseArtists(rawArtist: String): List<String> {
+    fun parseArtists(rawArtist: String): List<String> {
         val normalized = rawArtist.trim()
         val result = mutableListOf<String>()
         var remaining = normalized

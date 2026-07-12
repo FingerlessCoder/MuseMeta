@@ -68,7 +68,18 @@ class ScanRepository constructor(
 
             val allFiles = if (scanDirectoryPath != null) {
                 val paths = scanDirectoryPath.split("|").filter { it.isNotBlank() }
-                paths.flatMap { path -> fileSystemScanner.scanDirectory(path) }
+                // Fast path: query MediaStore for files in these directories (instant, with metadata)
+                val msFiles = mediaStoreScanner.scanByPaths(paths)
+                val msPaths = msFiles.map { it.path }.toMutableSet()
+                // Supplement: filesystem scan for anything MediaStore missed (rare but thorough)
+                val fsFiles = paths.flatMap { path ->
+                    fileSystemScanner.scanDirectory(path).filter { it.path !in msPaths }
+                }
+                if (fsFiles.isNotEmpty()) {
+                    Log.d(TAG, "MediaStore returned ${msFiles.size} files; " +
+                            "filesystem supplement found ${fsFiles.size} more")
+                }
+                msFiles + fsFiles
             } else {
                 mediaStoreScanner.scanAll()
             }
@@ -96,13 +107,43 @@ class ScanRepository constructor(
             val scannedPaths = audioFiles.map { it.path }.toSet()
             val totalFiles = audioFiles.size
 
-            val parsedResults = mutableListOf<Pair<MediaStoreAudioFile, ParsedMetadata?>>()
+            val parsedResults = mutableListOf<Pair<ScannedAudioFile, ParsedMetadata?>>()
             var lastEmitMs = System.currentTimeMillis()
+
+            // Count files that need actual file I/O (filesystem-scanned) vs. MediaStore files
+            val mediaStoreCount = audioFiles.count { it.hasEmbeddedMetadata }
+            val fileSystemCount = totalFiles - mediaStoreCount
+            if (mediaStoreCount > 0) {
+                Log.d(TAG, "Using embedded MediaStore metadata for $mediaStoreCount files " +
+                        "(skipping jAudiotagger); $fileSystemCount files need filesystem parsing")
+            }
 
             audioFiles.chunked(PARALLEL_PARSERS).forEachIndexed { batchIndex, batch ->
                 val deferred = batch.map { file ->
                     async(Dispatchers.IO) {
-                        file to metadataParser.parse(file.path, extractAlbumArt = false)
+                        val meta = if (file.hasEmbeddedMetadata) {
+                            // MediaStore already indexed this file — construct metadata
+                            // from the system database, no file I/O needed.
+                            ParsedMetadata(
+                                title = file.title ?: File(file.path).nameWithoutExtension,
+                                artists = metadataParser.parseArtists(file.artist ?: "Unknown Artist"),
+                                albumTitle = file.album,
+                                albumArtist = file.albumArtist,
+                                year = file.year,
+                                trackNumber = file.trackNumber,
+                                discNumber = null,
+                                genre = file.genre,
+                                comment = null,
+                                duration = file.duration ?: 0L,
+                                bitrate = file.bitrate,
+                                sampleRate = null,
+                                format = file.mimeType,
+                                albumArtBytes = null
+                            )
+                        } else {
+                            metadataParser.parse(file.path, extractAlbumArt = false)
+                        }
+                        file to meta
                     }
                 }
                 val batchResults = deferred.awaitAll()
@@ -144,7 +185,7 @@ class ScanRepository constructor(
     }
 
     private suspend fun writeBatch(
-        parsedResults: List<Pair<MediaStoreAudioFile, ParsedMetadata?>>,
+        parsedResults: List<Pair<ScannedAudioFile, ParsedMetadata?>>,
         scannedPaths: Set<String>,
         minDuration: Long = 0L
     ) {
