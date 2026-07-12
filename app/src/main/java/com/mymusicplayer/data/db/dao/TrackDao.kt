@@ -16,7 +16,13 @@ interface TrackDao {
     @Query("""
         SELECT t.* FROM tracks t
         ORDER BY 
-            CASE WHEN :sort = 'name' THEN t.title END ASC,
+            CASE WHEN :sort = 'name' 
+                THEN CASE WHEN SUBSTR(t.title, 1, 1) BETWEEN 'A' AND 'Z' THEN 0
+                          WHEN SUBSTR(t.title, 1, 1) BETWEEN 'a' AND 'z' THEN 0
+                          ELSE 1
+                     END
+            END ASC,
+            CASE WHEN :sort = 'name' THEN t.title END COLLATE NOCASE ASC,
             CASE WHEN :sort = 'date_added' THEN t.date_added END DESC,
             CASE WHEN :sort = 'play_count' THEN t.play_count END DESC,
             CASE WHEN :sort = 'duration' THEN t.duration END ASC,

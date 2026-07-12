@@ -3,6 +3,7 @@ package com.mymusicplayer.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
@@ -70,16 +71,35 @@ fun AlphabetIndexBar(
                 shape = capsuleShape
             )
             .padding(vertical = 8.dp, horizontal = 2.dp)
-            .pointerInput(Unit) {
+            .pointerInput(letters, sectionIndices) {
+                fun stickyOffset() = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == 1 }?.size ?: 0
+
+                detectTapGestures { offset ->
+                    val idx = (offset.y / size.height * letters.size)
+                        .toInt().coerceIn(0, letters.size - 1)
+                    val targetIndex = sectionIndices[idx]
+                    onDragLetterChanged?.invoke(letters[idx])
+                    coroutineScope.launch {
+                        listState.scrollToItem(targetIndex, scrollOffset = -stickyOffset())
+                    }
+                    onDragLetterChanged?.invoke(null)
+                }
+            }
+            .pointerInput(letters, sectionIndices) {
+                fun stickyOffset() = listState.layoutInfo.visibleItemsInfo
+                    .firstOrNull { it.index == 1 }?.size ?: 0
+
+                var lastLetter: String? = null
                 detectDragGestures(
                     onDragStart = { offset ->
+                        lastLetter = null
                         val idx = (offset.y / size.height * letters.size)
                             .toInt().coerceIn(0, letters.size - 1)
-                        val letter = letters[idx]
-                        val targetIndex = sectionIndices[idx]
-                        onDragLetterChanged?.invoke(letter)
+                        lastLetter = letters[idx]
+                        onDragLetterChanged?.invoke(lastLetter)
                         coroutineScope.launch {
-                            listState.scrollToItem(targetIndex)
+                            listState.scrollToItem(sectionIndices[idx], scrollOffset = -stickyOffset())
                         }
                     },
                     onDrag = { change, _ ->
@@ -87,16 +107,20 @@ fun AlphabetIndexBar(
                         val idx = (change.position.y / size.height * letters.size)
                             .toInt().coerceIn(0, letters.size - 1)
                         val letter = letters[idx]
-                        val targetIndex = sectionIndices[idx]
-                        onDragLetterChanged?.invoke(letter)
+                        if (letter != lastLetter) {
+                            lastLetter = letter
+                            onDragLetterChanged?.invoke(letter)
+                        }
                         coroutineScope.launch {
-                            listState.scrollToItem(targetIndex)
+                            listState.scrollToItem(sectionIndices[idx], scrollOffset = -stickyOffset())
                         }
                     },
                     onDragEnd = {
+                        lastLetter = null
                         onDragLetterChanged?.invoke(null)
                     },
                     onDragCancel = {
+                        lastLetter = null
                         onDragLetterChanged?.invoke(null)
                     }
                 )

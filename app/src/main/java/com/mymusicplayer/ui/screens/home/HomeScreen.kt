@@ -25,16 +25,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.AlphabetIndexBar
-import com.mymusicplayer.ui.components.computeIndexLetters
-import com.mymusicplayer.ui.components.computeSectionIndices
 import org.koin.androidx.compose.koinViewModel
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToPlayer: () -> Unit = {},
@@ -44,6 +43,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    var showSortSheet by remember { mutableStateOf(false) }
 
     val favoriteArt = state.favoriteTracks.firstOrNull()?.album?.artPath
     val playlistArt = state.tracks.firstOrNull()?.album?.artPath
@@ -83,6 +83,20 @@ fun HomeScreen(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 val listState = rememberLazyListState()
                 val tracks = state.filteredTracks
+
+                val groupedTracks = remember(tracks, state.sortMode) {
+                    if (state.sortMode != "name") return@remember null
+                    val groups = mutableMapOf<String, MutableList<Track>>()
+                    for (track in tracks) {
+                        val c = track.title.firstOrNull()?.uppercase() ?: "#"
+                        val letter = if (c.length == 1 && c[0] in 'A'..'Z') c else "#"
+                        groups.getOrPut(letter) { mutableListOf() }.add(track)
+                    }
+                    val sorted = linkedMapOf<String, List<Track>>()
+                    groups.keys.filter { it != "#" }.sorted().forEach { sorted[it] = groups[it]!! }
+                    if ("#" in groups) sorted["#"] = groups["#"]!!
+                    sorted
+                }
 
                 data class BarLayoutInfo(val topOffsetPx: Int, val heightPx: Int)
 
@@ -181,12 +195,9 @@ fun HomeScreen(
                                         Text("Random Play", style = MaterialTheme.typography.labelLarge)
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        IconButton(onClick = {
-                                            val sorts = listOf("name", "date_added", "duration")
-                                            val current = sorts.indexOf(state.sortMode)
-                                            viewModel.setSortMode(sorts[(current + 1) % sorts.size])
-                                        }, modifier = Modifier.size(36.dp)) {
-                                            Icon(Icons.AutoMirrored.Filled.Sort,
+                                        IconButton(onClick = { showSortSheet = true },
+                                            modifier = Modifier.size(36.dp)) {
+                                            Icon(Icons.Default.ImportExport,
                                                 contentDescription = "Sort",
                                                 modifier = Modifier.size(20.dp))
                                         }
@@ -213,6 +224,21 @@ fun HomeScreen(
                             if (tracks.isEmpty()) {
                                 item(key = "empty_tracks") {
                                     EmptyPlaceholder("No tracks found")
+                                }
+                            } else if (groupedTracks != null) {
+                                groupedTracks.forEach { (letter, group) ->
+                                    item(key = "section_$letter") {
+                                        SectionHeaderRow(letter = letter)
+                                    }
+                                    items(group, key = { it.id }) { track ->
+                                        TrackContentRow(track = track,
+                                            isMultiSelect = state.multiSelectEnabled,
+                                            isSelected = track.id in state.selectedTrackIds,
+                                            onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
+                                            onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                            showIndexBar = barLayout != null,
+                                            context = context)
+                                    }
                                 }
                             } else {
                                 items(tracks, key = { it.id }) { track ->
@@ -282,9 +308,17 @@ fun HomeScreen(
                         val density = LocalDensity.current
                         val topDp = with(density) { layout.topOffsetPx.toDp() }
                         val heightDp = with(density) { layout.heightPx.toDp() }
-                        val titles = tracks.map { it.title }
-                        val letters = computeIndexLetters(titles)
-                        val sectionIndices = computeSectionIndices(titles, letters).map { it + 2 }
+                        val letters = groupedTracks?.keys?.toList() ?: emptyList()
+                        val sectionIndices = remember(groupedTracks) {
+                            if (groupedTracks == null) return@remember emptyList()
+                            val indices = mutableListOf<Int>()
+                            var cumIdx = 2
+                            for ((_, group) in groupedTracks) {
+                                indices.add(cumIdx)
+                                cumIdx += 1 + group.size
+                            }
+                            indices
+                        }
 
                         val activeLetter by remember(listState, letters, sectionIndices) {
                             derivedStateOf {
@@ -348,6 +382,73 @@ fun HomeScreen(
                 }
             }
         }
+
+        if (showSortSheet) {
+            SortBottomSheet(
+                currentSort = state.sortMode,
+                onSelect = { sort ->
+                    viewModel.setSortMode(sort)
+                    showSortSheet = false
+                },
+                onDismiss = { showSortSheet = false }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortBottomSheet(
+    currentSort: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val sortOptions = listOf(
+        Triple("By Name", "name", "Sort tracks alphabetically"),
+        Triple("Date Added", "date_added", "Sort by when tracks were added"),
+        Triple("Play Frequency", "play_count", "Sort by most played")
+    )
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(modifier = Modifier.padding(bottom = 32.dp)) {
+            Text(
+                "Sort by",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+            )
+            sortOptions.forEach { (label, value, description) ->
+                val isSelected = currentSort == value
+                Surface(
+                    onClick = { onSelect(value) },
+                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            else Color.Transparent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                label,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                            Text(
+                                description,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (isSelected) {
+                            Icon(Icons.Default.Check, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -401,6 +502,23 @@ private fun EmptyPlaceholder(text: String) {
 }
 
 @Composable
+private fun SectionHeaderRow(letter: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = letter,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
 private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Boolean,
                             onPlay: () -> Unit, onToggleSelect: () -> Unit,
                             showIndexBar: Boolean = false, context: android.content.Context) {
@@ -416,8 +534,16 @@ private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Bo
         Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
             if (track.album?.artPath != null) {
-                AsyncImage(model = ImageRequest.Builder(context).data("file://${track.album.artPath}").crossfade(true).build(),
-                    contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(context).data("file://${track.album.artPath}").crossfade(true).build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    error = {
+                        Icon(Icons.Default.MusicNote, contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                    }
+                )
             } else {
                 Icon(Icons.Default.MusicNote, contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
