@@ -34,7 +34,7 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get(), get<PlaylistDao>()) }
     viewModel { PlayerViewModel(get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
-    viewModel { SettingsViewModel(get()) }
+    viewModel { SettingsViewModel(get(), get()) }
     viewModel { ScanViewModel(get(), get()) }
     viewModel { DirectoryPickerViewModel(get(), get()) }
 }

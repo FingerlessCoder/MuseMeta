@@ -8,6 +8,7 @@ import com.mymusicplayer.domain.repository.MusicRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 data class PlayerUiState(
@@ -23,7 +24,8 @@ data class PlayerUiState(
     val selectedTab: Int = 0,
     val lyricsText: String? = null,
     val queueTracks: List<Track> = emptyList(),
-    val sleepTimerMinutes: Int = 0
+    val sleepTimerMinutes: Int = 0,
+    val sleepTimerRemainingSeconds: Int = 0
 )
 
 class PlayerViewModel constructor(
@@ -79,6 +81,12 @@ class PlayerViewModel constructor(
         }
 
         startPositionUpdates()
+
+        viewModelScope.launch {
+            musicPlayerController.sleepTimerRemainingSeconds.collectLatest { remaining ->
+                _uiState.value = _uiState.value.copy(sleepTimerRemainingSeconds = remaining)
+            }
+        }
     }
 
     private fun startPositionUpdates() {
@@ -139,13 +147,12 @@ class PlayerViewModel constructor(
 
     fun setSleepTimer(minutes: Int) {
         _uiState.value = _uiState.value.copy(sleepTimerMinutes = minutes)
-        if (minutes > 0) {
-            viewModelScope.launch {
-                kotlinx.coroutines.delay(minutes * 60_000L)
-                musicPlayerController.togglePlayPause()
-                _uiState.value = _uiState.value.copy(sleepTimerMinutes = 0)
-            }
-        }
+        musicPlayerController.startSleepTimer(minutes)
+    }
+
+    fun cancelSleepTimer() {
+        _uiState.value = _uiState.value.copy(sleepTimerMinutes = 0)
+        musicPlayerController.cancelSleepTimer()
     }
 
     fun removeCurrentTrackFromQueue() {

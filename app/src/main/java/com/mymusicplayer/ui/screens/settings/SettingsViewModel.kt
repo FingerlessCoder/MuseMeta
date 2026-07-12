@@ -4,10 +4,12 @@ import android.os.Build
 import android.os.Environment
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 data class SettingsUiState(
@@ -16,19 +18,26 @@ data class SettingsUiState(
     val equalizerPreset: String = "Normal",
     val volumeNormalization: Boolean = false,
     val sleepTimerMinutes: Int = 0,
+    val sleepTimerRemainingSeconds: Int = 0,
     val scanDirectoryPath: String = "",
     val scanMinFileSizeKb: Long = 2048L,
     val scanMinDurationSec: Long = 40L
 )
 
 class SettingsViewModel constructor(
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val musicPlayerController: MusicPlayerController
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
     init {
+        viewModelScope.launch {
+            musicPlayerController.sleepTimerRemainingSeconds.collectLatest { remaining ->
+                _uiState.value = _uiState.value.copy(sleepTimerRemainingSeconds = remaining)
+            }
+        }
         viewModelScope.launch {
             settingsDataStore.defaultSort.collect { sort ->
                 _uiState.value = _uiState.value.copy(sortMode = sort)

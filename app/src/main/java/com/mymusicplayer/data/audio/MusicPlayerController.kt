@@ -9,9 +9,15 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.mymusicplayer.data.db.dao.TrackDao
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class PlaybackState(
     val isPlaying: Boolean = false,
@@ -37,6 +43,34 @@ class MusicPlayerController constructor(
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
+
+    private val timerScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    private val _sleepTimerRemainingSeconds = MutableStateFlow(0)
+    val sleepTimerRemainingSeconds: StateFlow<Int> = _sleepTimerRemainingSeconds.asStateFlow()
+    private var sleepTimerJob: Job? = null
+
+    fun startSleepTimer(minutes: Int) {
+        sleepTimerJob?.cancel()
+        if (minutes <= 0) {
+            _sleepTimerRemainingSeconds.value = 0
+            return
+        }
+        _sleepTimerRemainingSeconds.value = minutes * 60
+        sleepTimerJob = timerScope.launch {
+            while (_sleepTimerRemainingSeconds.value > 0) {
+                delay(1000L)
+                _sleepTimerRemainingSeconds.value =
+                    (_sleepTimerRemainingSeconds.value - 1).coerceAtLeast(0)
+            }
+            togglePlayPause()
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        _sleepTimerRemainingSeconds.value = 0
+    }
 
     private var currentTrackPaths: List<String> = emptyList()
     private var currentTrackIds: List<Long> = emptyList()
@@ -260,6 +294,7 @@ class MusicPlayerController constructor(
     }
 
     fun release() {
+        cancelSleepTimer()
         exoPlayer?.release()
         exoPlayer = null
     }

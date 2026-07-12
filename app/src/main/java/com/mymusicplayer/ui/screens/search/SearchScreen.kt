@@ -46,28 +46,7 @@ fun SearchScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    TextField(
-                        value = state.query,
-                        onValueChange = { viewModel.onQueryChanged(it) },
-                        placeholder = { Text("Search tracks, albums, artists...") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        trailingIcon = {
-                            if (state.query.isNotBlank()) {
-                                IconButton(onClick = { viewModel.clearSearch() }) {
-                                    Icon(Icons.Default.Close, contentDescription = "Clear")
-                                }
-                            }
-                        }
-                    )
-                },
+                title = { Text("Search") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -78,65 +57,95 @@ fun SearchScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        if (state.query.isBlank()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Search, contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                    Spacer(Modifier.height(12.dp))
-                    Text("Search your music", style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else if (state.isSearching) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
-        } else if (!state.hasResults) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.SearchOff, contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
-                    Spacer(Modifier.height(12.dp))
-                    Text("No results found", style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(bottom = 16.dp)
+        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+            // Search bar in content area (avoids TopAppBar title clipping)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (state.tracks.isNotEmpty()) {
-                    item {
-                        SectionHeader("Tracks", state.tracks.size)
-                    }
-                    items(state.tracks, key = { it.id }) { track ->
-                        SearchTrackRow(track = track, onClick = {
-                            viewModel.playTrack(track); onNavigateToPlayer()
-                        })
-                    }
-                }
-
-                if (state.albums.isNotEmpty()) {
-                    item {
-                        SectionHeader("Albums", state.albums.size)
-                    }
-                    items(state.albums, key = { it.id }) { album ->
-                        SearchAlbumRow(album = album, onClick = {
-                            viewModel.playAlbum(album); onNavigateToPlayer()
-                        })
+                OutlinedTextField(
+                    value = state.query,
+                    onValueChange = { viewModel.onQueryChanged(it) },
+                    placeholder = { Text("Search tracks, albums, artists...") },
+                    singleLine = true,
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester),
+                    shape = RoundedCornerShape(28.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+                    )
+                )
+                if (state.query.isNotBlank()) {
+                    IconButton(onClick = { viewModel.clearSearch() }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear")
                     }
                 }
+            }
 
-                if (state.artists.isNotEmpty()) {
-                    item {
-                        SectionHeader("Artists", state.artists.size)
+            if (state.query.isBlank()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Search, contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        Spacer(Modifier.height(12.dp))
+                        Text("Search your music", style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    items(state.artists, key = { it.id }) { artist ->
-                        SearchArtistRow(artist = artist, onClick = onNavigateToPlayer)
+                }
+            } else if (state.isSearching) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (!state.hasResults) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.SearchOff, contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                        Spacer(Modifier.height(12.dp))
+                        Text("No results found", style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    if (state.tracks.isNotEmpty()) {
+                        item {
+                            SectionHeader("Tracks", state.tracks.size)
+                        }
+                        items(state.tracks, key = { it.id }) { track ->
+                            SearchTrackRow(track = track, onClick = {
+                                viewModel.playTrack(track); onNavigateToPlayer()
+                            })
+                        }
+                    }
+
+                    if (state.albums.isNotEmpty()) {
+                        item {
+                            SectionHeader("Albums", state.albums.size)
+                        }
+                        items(state.albums, key = { it.id }) { album ->
+                            SearchAlbumRow(album = album, onClick = {
+                                viewModel.playAlbum(album); onNavigateToPlayer()
+                            })
+                        }
+                    }
+
+                    if (state.artists.isNotEmpty()) {
+                        item {
+                            SectionHeader("Artists", state.artists.size)
+                        }
+                        items(state.artists, key = { it.id }) { artist ->
+                            SearchArtistRow(artist = artist, onClick = onNavigateToPlayer)
+                        }
                     }
                 }
             }

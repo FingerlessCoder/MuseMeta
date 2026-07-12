@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -63,6 +64,7 @@ import java.io.File
 import com.mymusicplayer.domain.model.Track
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.platform.LocalContext
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -196,11 +198,15 @@ fun PlayerScreen(
         ) {
             SleepTimerSheetContent(
                 currentMinutes = state.sleepTimerMinutes,
+                remainingSeconds = state.sleepTimerRemainingSeconds,
                 onStart = { minutes ->
                     viewModel.setSleepTimer(minutes)
                     showSleepTimerSheet = false
                 },
-                onCancel = { showSleepTimerSheet = false }
+                onCancel = {
+                    viewModel.cancelSleepTimer()
+                    showSleepTimerSheet = false
+                }
             )
         }
     }
@@ -755,17 +761,41 @@ private fun SheetMenuItem(
 @Composable
 private fun SleepTimerSheetContent(
     currentMinutes: Int,
+    remainingSeconds: Int,
     onStart: (Int) -> Unit,
     onCancel: () -> Unit
 ) {
-    val options = remember { (10..90 step 5).toList() }
-    var selectedMinutes by remember { mutableStateOf(currentMinutes.coerceIn(10, 90)) }
-    val listState = rememberLazyListState()
+    val isActive = remainingSeconds > 0
+    val options = (10..90 step 5).toList()
+    val itemCount = options.size
 
-    // Auto-scroll to selected item
-    LaunchedEffect(Unit) {
-        val index = options.indexOfFirst { it >= selectedMinutes }.coerceAtLeast(0)
-        listState.scrollToItem(index)
+    val looped = remember { buildList { repeat(3) { addAll(options) } } }
+    val midStart = itemCount + options.indexOfFirst { it >= currentMinutes }.coerceAtLeast(0)
+    val listState = rememberLazyListState(midStart, 0)
+    val snapBehavior = rememberSnapFlingBehavior(listState)
+
+    val viewportCenter by remember {
+        derivedStateOf { listState.layoutInfo.viewportEndOffset / 2 }
+    }
+
+    val realIndex by remember {
+        derivedStateOf {
+            val items = listState.layoutInfo.visibleItemsInfo
+            if (items.isEmpty()) return@derivedStateOf 0
+            items.minByOrNull {
+                abs(it.offset + it.size / 2 - viewportCenter)
+            }?.let { it.index % itemCount } ?: 0
+        }
+    }
+
+    val selectedMinutes by remember { derivedStateOf { options[realIndex] } }
+
+    LaunchedEffect(listState.firstVisibleItemIndex) {
+        val idx = listState.firstVisibleItemIndex
+        when {
+            idx < itemCount -> listState.scrollToItem(idx + itemCount)
+            idx >= itemCount * 2 -> listState.scrollToItem(idx - itemCount)
+        }
     }
 
     Column(
@@ -783,102 +813,132 @@ private fun SleepTimerSheetContent(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "Music will pause after the selected time",
+            text = if (isActive) "Timer is running"
+                else "Music will pause after the selected time",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(Modifier.height(24.dp))
 
-        // Picker wheel area
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Selection highlight (centered)
+        if (isActive) {
+            // ── Countdown display ──
+            val mins = remainingSeconds / 60
+            val secs = remainingSeconds % 60
+            Text(
+                text = "%d:%02d".format(mins, secs),
+                style = MaterialTheme.typography.displayMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "remaining",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(32.dp))
+
+            Button(
+                onClick = onCancel,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .height(48.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Cancel Timer", modifier = Modifier.padding(vertical = 6.dp))
+            }
+        } else {
+            // ── Picker wheel ──
             Box(
                 modifier = Modifier
-                    .fillMaxWidth(0.6f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                    .fillMaxWidth()
+                    .height(240.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.55f)
+                        .height(52.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                )
+
+                LazyColumn(
+                    state = listState,
+                    flingBehavior = snapBehavior,
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    itemsIndexed(looped, key = { i, _ -> "item_$i" }) { virtualIdx, minutes ->
+                        val isCenterItem = realIndex == virtualIdx % itemCount
+                        val distance by remember(virtualIdx, viewportCenter) {
+                            derivedStateOf {
+                                val info = listState.layoutInfo.visibleItemsInfo
+                                    .find { it.index == virtualIdx }
+                                if (info == null) return@derivedStateOf 1f
+                                val center = info.offset + info.size / 2
+                                abs(center - viewportCenter).toFloat() / info.size.toFloat()
+                            }
+                        }
+                        val scale = (1f - distance * 0.35f).coerceIn(0.5f, 1f)
+                        val alpha = (1f - distance * 0.5f).coerceIn(0.2f, 1f)
+
+                        Text(
+                            text = "$minutes",
+                            fontSize = if (isCenterItem) 28.sp else 20.sp,
+                            fontWeight = if (isCenterItem) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isCenterItem) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                            modifier = Modifier
+                                .fillMaxWidth(0.55f)
+                                .height(52.dp)
+                                .graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }
+                                .wrapContentSize(Alignment.Center),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                text = "${selectedMinutes} min",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
 
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally
+            Spacer(Modifier.height(24.dp))
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                itemsIndexed(options) { index, minutes ->
-                    val isSelected = minutes == selectedMinutes
-
-                    Text(
-                        text = "$minutes min",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier
-                            .fillMaxWidth(0.6f)
-                            .height(44.dp)
-                            .clickable {
-                                selectedMinutes = minutes
-                            }
-                            .wrapContentSize(Alignment.Center),
-                        textAlign = TextAlign.Center
-                    )
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Cancel", modifier = Modifier.padding(vertical = 6.dp))
                 }
-            }
-        }
-
-        // Detect center item from scroll
-        LaunchedEffect(listState.isScrollInProgress) {
-            if (!listState.isScrollInProgress) {
-                val visibleItems = listState.layoutInfo.visibleItemsInfo
-                val center = listState.layoutInfo.viewportEndOffset / 2
-                val centerItem = visibleItems.minByOrNull {
-                    kotlin.math.abs((it.offset + it.size / 2) - center)
+                Button(
+                    onClick = { onStart(selectedMinutes) },
+                    modifier = Modifier.weight(1f).height(48.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text("Start", modifier = Modifier.padding(vertical = 6.dp))
                 }
-                if (centerItem != null) {
-                    selectedMinutes = options[centerItem.index]
-                }
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // Static time display
-        Text(
-            text = "${selectedMinutes} minutes",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-
-        Spacer(Modifier.height(24.dp))
-
-        // Cancel | Start buttons
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text("Cancel", modifier = Modifier.padding(vertical = 6.dp))
-            }
-            Button(
-                onClick = { onStart(selectedMinutes) },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Text("Start", modifier = Modifier.padding(vertical = 6.dp))
             }
         }
     }

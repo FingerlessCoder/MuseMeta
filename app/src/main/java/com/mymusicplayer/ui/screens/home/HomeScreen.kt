@@ -74,6 +74,11 @@ fun HomeScreen(
                 ),
                 textStyle = MaterialTheme.typography.bodyMedium
             )
+            if (state.searchQuery.isNotBlank()) {
+                IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                }
+            }
         }
 
         if (state.isLoading) {
