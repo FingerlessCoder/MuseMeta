@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import java.io.File
 import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
@@ -320,17 +321,19 @@ fun HomeScreen(
                             indices
                         }
 
-                        val activeLetter by remember(listState, letters, sectionIndices) {
-                            derivedStateOf {
-                                if (letters.isEmpty()) null
-                                else {
-                                    val firstVisible = listState.firstVisibleItemIndex
-                                    var bestIdx = -1
-                                    for (i in sectionIndices.indices) {
-                                        if (sectionIndices[i] <= firstVisible) bestIdx = i
-                                    }
-                                    if (bestIdx >= 0) letters[bestIdx] else null
+                        var activeLetter by remember { mutableStateOf<String?>(null) }
+                        LaunchedEffect(listState, letters, sectionIndices) {
+                            snapshotFlow {
+                                listState.layoutInfo.visibleItemsInfo
+                                    .firstOrNull { it.index > 1 && it.offset + it.size > 0 }?.index
+                                    ?: -1
+                            }.collect { firstIdx ->
+                                if (letters.isEmpty()) return@collect
+                                var bestIdx = -1
+                                for (i in sectionIndices.indices) {
+                                    if (sectionIndices[i] <= firstIdx) bestIdx = i
                                 }
+                                activeLetter = if (bestIdx >= 0) letters[bestIdx] else null
                             }
                         }
 
@@ -347,7 +350,7 @@ fun HomeScreen(
                                 letters = letters,
                                 sectionIndices = sectionIndices,
                                 listState = listState,
-                                activeLetter = activeLetter,
+                                activeLetter = draggedLetter ?: activeLetter,
                                 onDragLetterChanged = { draggedLetter = it },
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -462,8 +465,8 @@ private fun CompactMiniCard(label: String, count: Int, artPath: String?, modifie
         Box(modifier = Modifier.fillMaxSize()) {
             if (artPath != null) {
                 val ctx = LocalContext.current
-                AsyncImage(
-                    model = ImageRequest.Builder(ctx).data("file://$artPath").crossfade(true).build(),
+                        AsyncImage(
+                            model = ImageRequest.Builder(ctx).data(File(artPath)).crossfade(true).build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -535,7 +538,7 @@ private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Bo
             .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
             if (track.album?.artPath != null) {
                 SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context).data("file://${track.album.artPath}").crossfade(true).build(),
+                    model = ImageRequest.Builder(context).data(File(track.album.artPath)).crossfade(true).build(),
                     contentDescription = null,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
@@ -581,7 +584,7 @@ private fun AlbumGridItem(album: Album, onClick: () -> Unit, modifier: Modifier 
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center) {
                 if (album.artPath != null) {
-                    AsyncImage(model = ImageRequest.Builder(context).data("file://${album.artPath}").crossfade(true).build(),
+                    AsyncImage(model = ImageRequest.Builder(context).data(File(album.artPath)).crossfade(true).build(),
                         contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
                     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),

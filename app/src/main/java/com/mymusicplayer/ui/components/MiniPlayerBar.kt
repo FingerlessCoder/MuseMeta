@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import java.io.File
 import com.mymusicplayer.ui.screens.player.PlayerViewModel
 import org.koin.androidx.compose.koinViewModel
 
@@ -79,7 +80,7 @@ fun MiniPlayerBar(
                     if (track.album?.artPath != null) {
                         AsyncImage(
                             model = ImageRequest.Builder(context)
-                                .data("file://${track.album.artPath}")
+                                .data(File(track.album.artPath))
                                 .crossfade(true)
                                 .build(),
                             contentDescription = track.album.title,

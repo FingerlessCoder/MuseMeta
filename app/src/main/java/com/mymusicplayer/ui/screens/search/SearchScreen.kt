@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import java.io.File
 import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
@@ -157,7 +158,7 @@ private fun SearchTrackRow(track: Track, onClick: () -> Unit) {
         Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
             .padding(2.dp), contentAlignment = Alignment.Center) {
             if (track.album?.artPath != null) {
-                AsyncImage(model = ImageRequest.Builder(context).data("file://${track.album.artPath}").crossfade(true).build(),
+                AsyncImage(model = ImageRequest.Builder(context).data(File(track.album.artPath)).crossfade(true).build(),
                     contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Icon(Icons.Default.MusicNote, contentDescription = null,
@@ -182,7 +183,7 @@ private fun SearchAlbumRow(album: Album, onClick: () -> Unit) {
         Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center) {
             if (album.artPath != null) {
-                AsyncImage(model = ImageRequest.Builder(context).data("file://${album.artPath}").crossfade(true).build(),
+                AsyncImage(model = ImageRequest.Builder(context).data(File(album.artPath)).crossfade(true).build(),
                     contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

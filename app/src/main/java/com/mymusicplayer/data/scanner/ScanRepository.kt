@@ -1,6 +1,8 @@
 package com.mymusicplayer.data.scanner
 
 import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import com.mymusicplayer.data.db.dao.AlbumDao
@@ -192,7 +194,8 @@ class ScanRepository constructor(
         trackDao.deleteRemovedTracks(scannedPaths.toList())
 
         val albumCache = mutableMapOf<String, Long>()
-        val firstTrackPathPerAlbum = mutableMapOf<Long, String>()
+        // Track file path + content URI for each album (URI needed for scoped storage on Android 10+)
+        val firstTrackPerAlbum = mutableMapOf<Long, Pair<String, Uri>>()
         val validTracks = parsedResults.mapNotNull { (file, meta) ->
             meta ?: return@mapNotNull null
             if (minDuration > 0L && meta.duration < minDuration) return@mapNotNull null
@@ -239,8 +242,8 @@ class ScanRepository constructor(
                 }
                 artistDao.insertTrackArtistRelations(relations)
 
-                if (albumId != null && albumId !in firstTrackPathPerAlbum) {
-                    firstTrackPathPerAlbum[albumId] = file.path
+                if (albumId != null && albumId !in firstTrackPerAlbum) {
+                    firstTrackPerAlbum[albumId] = Pair(file.path, file.uri)
                 }
             }
         }
@@ -248,15 +251,16 @@ class ScanRepository constructor(
         artistDao.deleteOrphanedArtists()
         mergeDuplicateAlbums()
 
-        extractAlbumArt(firstTrackPathPerAlbum)
+        extractAlbumArt(firstTrackPerAlbum)
     }
 
-    private suspend fun extractAlbumArt(albumTrackMap: Map<Long, String>) {
+    private suspend fun extractAlbumArt(albumTrackMap: Map<Long, Pair<String, Uri>>) {
         val artDir = File(context.cacheDir, "album_art")
         artDir.mkdirs()
 
-        for ((albumId, filePath) in albumTrackMap) {
+        for ((albumId, trackInfo) in albumTrackMap) {
             if (albumId == 0L) continue
+            val (filePath, fileUri) = trackInfo
             try {
                 val album = albumDao.getAlbumByIdOnce(albumId) ?: continue
 
@@ -269,11 +273,21 @@ class ScanRepository constructor(
                 }
 
                 if (album.artPath == null) {
-                    val meta = metadataParser.parse(filePath, extractAlbumArt = true) ?: continue
-                    val bytes = meta.albumArtBytes ?: continue
-                    val artFile = File(artDir, "${albumId}.jpg")
-                    artFile.writeBytes(bytes)
-                    albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+                    var bytes: ByteArray? = null
+                    // Try jAudiotagger first (handles most standard embedded art)
+                    val meta = metadataParser.parse(filePath, extractAlbumArt = true)
+                    if (meta != null) {
+                        bytes = meta.albumArtBytes
+                    }
+                    // Fallback to Android MediaMetadataRetriever (wider format support, scoped-storage compatible)
+                    if (bytes == null) {
+                        bytes = extractArtWithMediaRetriever(filePath, fileUri)
+                    }
+                    if (bytes != null) {
+                        val artFile = File(artDir, "${albumId}.jpg")
+                        artFile.writeBytes(bytes)
+                        albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+                    }
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to extract for album $albumId", e)
@@ -312,6 +326,27 @@ class ScanRepository constructor(
 
         val newArtist = ArtistEntity(name = artistName)
         return artistDao.insertArtist(newArtist)
+    }
+
+    private fun extractArtWithMediaRetriever(filePath: String, fileUri: Uri): ByteArray? {
+        val retriever = MediaMetadataRetriever()
+        try {
+            // Try content URI first (works with scoped storage on Android 10+)
+            retriever.setDataSource(context, fileUri)
+            val art = retriever.embeddedPicture
+            if (art != null) return art
+        } catch (_: Exception) {
+            // URI approach failed — fall through to direct file path
+        }
+        try {
+            retriever.setDataSource(filePath)
+            return retriever.embeddedPicture
+        } catch (e: Exception) {
+            Log.w(TAG, "MediaMetadataRetriever failed for $filePath", e)
+            return null
+        } finally {
+            try { retriever.release() } catch (_: Exception) {}
+        }
     }
 
     private suspend fun mergeDuplicateAlbums() {

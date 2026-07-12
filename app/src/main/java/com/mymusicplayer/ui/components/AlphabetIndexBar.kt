@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.launch
 
 fun computeIndexLetters(items: List<String>): List<String> {
@@ -82,8 +83,9 @@ fun AlphabetIndexBar(
                     onDragLetterChanged?.invoke(letters[idx])
                     coroutineScope.launch {
                         listState.scrollToItem(targetIndex, scrollOffset = -stickyOffset())
+                        withFrameNanos { }
+                        onDragLetterChanged?.invoke(null)
                     }
-                    onDragLetterChanged?.invoke(null)
                 }
             }
             .pointerInput(letters, sectionIndices) {
@@ -116,12 +118,18 @@ fun AlphabetIndexBar(
                         }
                     },
                     onDragEnd = {
-                        lastLetter = null
-                        onDragLetterChanged?.invoke(null)
+                        coroutineScope.launch {
+                            withFrameNanos { }
+                            lastLetter = null
+                            onDragLetterChanged?.invoke(null)
+                        }
                     },
                     onDragCancel = {
-                        lastLetter = null
-                        onDragLetterChanged?.invoke(null)
+                        coroutineScope.launch {
+                            withFrameNanos { }
+                            lastLetter = null
+                            onDragLetterChanged?.invoke(null)
+                        }
                     }
                 )
             },

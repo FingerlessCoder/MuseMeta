@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import java.io.File
 import com.mymusicplayer.domain.model.Track
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.platform.LocalContext
@@ -83,7 +84,7 @@ fun PlayerScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         if (bgArtPath != null) {
             AsyncImage(
-                model = ImageRequest.Builder(context).data("file://$bgArtPath").crossfade(true).build(),
+                model = ImageRequest.Builder(context).data(File(bgArtPath)).crossfade(true).build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize().blur(50.dp),
                 contentScale = ContentScale.Crop
@@ -262,7 +263,7 @@ private fun PlayerContent(
             if (state.currentTrack?.album?.artPath != null) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data("file://${state.currentTrack.album.artPath}")
+                        .data(File(state.currentTrack.album.artPath))
                         .crossfade(true)
                         .build(),
                     contentDescription = state.currentTrack?.album?.title,
@@ -481,7 +482,7 @@ private fun LyricsFullView(
         // Background: blurred album art
         if (artPath != null) {
             AsyncImage(
-                model = ImageRequest.Builder(context).data("file://$artPath").crossfade(true).build(),
+                model = ImageRequest.Builder(context).data(File(artPath)).crossfade(true).build(),
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize().blur(60.dp),
                 contentScale = ContentScale.Crop
@@ -624,7 +625,7 @@ private fun EllipsisSheetContent(
             ) {
                 AsyncImage(
                     model = ImageRequest.Builder(context)
-                        .data("file://${state.currentTrack.album.artPath}")
+                        .data(File(state.currentTrack.album.artPath))
                         .crossfade(true)
                         .build(),
                     contentDescription = null,
