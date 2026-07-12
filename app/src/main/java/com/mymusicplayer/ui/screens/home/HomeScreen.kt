@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,10 +84,32 @@ fun HomeScreen(
                 val listState = rememberLazyListState()
                 val tracks = state.filteredTracks
 
+                data class BarLayoutInfo(val topOffsetPx: Int, val heightPx: Int)
+
+                val canShowBar = state.selectedTab == HomeTab.Tracks && state.sortMode == "name" && tracks.isNotEmpty()
+
+                val bottomPaddingPx = with(LocalDensity.current) { 16.dp.toPx() }.toInt()
+
+                val barLayout by remember(listState, bottomPaddingPx) {
+                    derivedStateOf {
+                        if (listState.firstVisibleItemIndex < 1) return@derivedStateOf null
+                        val info = listState.layoutInfo
+                        if (info.visibleItemsInfo.none { it.index >= 2 }) return@derivedStateOf null
+                        val viewportH = info.viewportEndOffset - info.viewportStartOffset
+                        if (viewportH <= 0) return@derivedStateOf null
+                        val topPx = info.visibleItemsInfo
+                            .firstOrNull { it.index == 1 }?.size ?: 0
+                        val heightPx = (viewportH - topPx - bottomPaddingPx).coerceAtLeast(0)
+                        BarLayoutInfo(topPx, heightPx)
+                    }
+                }
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 16.dp)
+                    contentPadding = PaddingValues(
+                        bottom = 16.dp
+                    )
                 ) {
                     // Mini cards — scroll away on scroll
                     item(key = "mini_cards") {
@@ -198,6 +221,7 @@ fun HomeScreen(
                                         isSelected = track.id in state.selectedTrackIds,
                                         onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
                                         onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                        showIndexBar = barLayout != null,
                                         context = context)
                                 }
                             }
@@ -252,17 +276,25 @@ fun HomeScreen(
                     }
                 }
 
-                // AlphabetIndexBar overlay (Tracks tab only, name sort)
-                if (state.selectedTab == HomeTab.Tracks && state.sortMode == "name" && tracks.isNotEmpty()) {
-                    val titles = tracks.map { it.title }
-                    val letters = computeIndexLetters(titles)
-                    val sectionIndices = computeSectionIndices(titles, letters).map { it + 2 }
-                    AlphabetIndexBar(
-                        letters = letters,
-                        sectionIndices = sectionIndices,
-                        listState = listState,
-                        modifier = Modifier.align(Alignment.CenterEnd)
-                    )
+                if (canShowBar) {
+                    val layout = barLayout
+                    if (layout != null) {
+                        val density = LocalDensity.current
+                        val topDp = with(density) { layout.topOffsetPx.toDp() }
+                        val heightDp = with(density) { layout.heightPx.toDp() }
+                        val titles = tracks.map { it.title }
+                        val letters = computeIndexLetters(titles)
+                        val sectionIndices = computeSectionIndices(titles, letters).map { it + 2 }
+                        AlphabetIndexBar(
+                            letters = letters,
+                            sectionIndices = sectionIndices,
+                            listState = listState,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(y = topDp)
+                                .height(heightDp)
+                        )
+                    }
                 }
             }
         }
@@ -320,11 +352,12 @@ private fun EmptyPlaceholder(text: String) {
 
 @Composable
 private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Boolean,
-                            onPlay: () -> Unit, onToggleSelect: () -> Unit, context: android.content.Context) {
+                            onPlay: () -> Unit, onToggleSelect: () -> Unit,
+                            showIndexBar: Boolean = false, context: android.content.Context) {
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { if (isMultiSelect) onToggleSelect() else onPlay() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(start = 12.dp, top = 8.dp, end = if (showIndexBar) 48.dp else 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isMultiSelect) {
