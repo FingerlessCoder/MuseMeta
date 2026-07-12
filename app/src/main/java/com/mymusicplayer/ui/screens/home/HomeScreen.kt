@@ -324,9 +324,12 @@ fun HomeScreen(
                         var activeLetter by remember { mutableStateOf<String?>(null) }
                         LaunchedEffect(listState, letters, sectionIndices) {
                             snapshotFlow {
-                                listState.layoutInfo.visibleItemsInfo
-                                    .firstOrNull { it.index > 1 && it.offset + it.size > 0 }?.index
-                                    ?: -1
+                                val items = listState.layoutInfo.visibleItemsInfo
+                                    .filter { it.index > 1 }
+                                // Use ~1 content row height as threshold so the highlight
+                                // doesn't change when a row is barely peeking at the top.
+                                val threshold = items.firstOrNull()?.size ?: 0
+                                items.firstOrNull { it.offset >= threshold }?.index ?: -1
                             }.collect { firstIdx ->
                                 if (letters.isEmpty()) return@collect
                                 var bestIdx = -1

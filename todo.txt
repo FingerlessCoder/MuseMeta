@@ -21,4 +21,4 @@ TODO
 
 index bar highlight -1
 track image //solved
-some times crash,idk probably some lifespan violation
+some times crash,idk probably some lifespan violation or codec error in the middle of process
