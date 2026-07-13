@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.media3.common.AudioAttributes
+import java.io.File
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -78,7 +81,14 @@ class MusicPlayerController constructor(
     fun initialize() {
         if (exoPlayer != null) return
 
-        exoPlayer = ExoPlayer.Builder(context).build().also { player ->
+        val audioAttributes = AudioAttributes.Builder()
+            .setUsage(C.USAGE_MEDIA)
+            .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+            .build()
+
+        exoPlayer = ExoPlayer.Builder(context)
+            .setAudioAttributes(audioAttributes, true)
+            .build().also { player ->
             player.addListener(object : Player.Listener {
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     updateState()
@@ -124,23 +134,40 @@ class MusicPlayerController constructor(
     ) {
         val player = exoPlayer ?: return
 
+        // Start the foreground service FIRST so MusicService.onCreate() creates the
+        // MediaSession before playback begins. The system media controller discovers
+        // the session via the MediaSessionService intent filter and displays controls
+        // in the notification shade, lock screen, and OEM "灵动岛" features.
+        context.startForegroundService(
+            Intent(context, com.mymusicplayer.service.MusicService::class.java)
+        )
+
         currentTrackPaths = trackPaths
         currentTrackIds = trackIds ?: trackPaths.indices.map { it.toLong() }
 
         val mediaItems = trackPaths.mapIndexed { index, path ->
-            val uri = Uri.parse("file://$path")
+            // Use Uri.fromFile() — it generates a proper file:/// URI and handles
+            // special characters (spaces, CJK, etc.) via URL encoding automatically.
+            // Uri.parse("file://$path") creates malformed URIs that Media3's
+            // BitmapLoader / SimpleBitmapLoader cannot decode.
+            val fileUri = Uri.fromFile(File(path))
+
+            val artPath = albumArtPaths?.getOrNull(index)
+            val artworkUri = if (!artPath.isNullOrBlank()) {
+                val cleanPath = artPath.removePrefix("file://")
+                Uri.fromFile(File(cleanPath))
+            } else {
+                Uri.EMPTY
+            }
+
             val metadata = MediaMetadata.Builder()
                 .setTitle(titles?.getOrNull(index))
                 .setArtist(artists?.getOrNull(index))
-                .apply {
-                    albumArtPaths?.getOrNull(index)?.let { artPath ->
-                        setArtworkUri(Uri.parse("file://$artPath"))
-                    }
-                }
+                .setArtworkUri(artworkUri)
                 .build()
 
             MediaItem.Builder()
-                .setUri(uri)
+                .setUri(fileUri)
                 .setMediaMetadata(metadata)
                 .build()
         }
@@ -148,10 +175,6 @@ class MusicPlayerController constructor(
         player.setMediaItems(mediaItems, startIndex, 0L)
         player.prepare()
         player.play()
-
-        context.startForegroundService(
-            Intent(context, com.mymusicplayer.service.MusicService::class.java)
-        )
 
         updateState()
     }
@@ -255,18 +278,27 @@ class MusicPlayerController constructor(
         artist: String?,
         albumArtPath: String?
     ): MediaItem {
-        val uri = Uri.parse(filePath)
-        val builder = MediaItem.Builder()
+        val cleanPath = filePath.removePrefix("file://")
+        val uri = Uri.fromFile(File(cleanPath))
+
+        val artworkUri = if (!albumArtPath.isNullOrBlank()) {
+            val cleanArtPath = albumArtPath.removePrefix("file://")
+            Uri.fromFile(File(cleanArtPath))
+        } else {
+            Uri.EMPTY
+        }
+
+        return MediaItem.Builder()
             .setUri(uri)
             .setMediaId(trackId.toString())
             .setMediaMetadata(
                 MediaMetadata.Builder()
                     .setTitle(title)
                     .setArtist(artist)
-                    .setArtworkUri(albumArtPath?.let { Uri.parse("file://$it") })
+                    .setArtworkUri(artworkUri)
                     .build()
             )
-        return builder.build()
+            .build()
     }
 
     fun removeTrack(index: Int) {
