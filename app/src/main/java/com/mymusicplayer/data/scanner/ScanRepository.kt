@@ -3,7 +3,7 @@ package com.mymusicplayer.data.scanner
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.os.Environment
+import android.os.Build
 import android.util.Log
 import com.mymusicplayer.data.db.dao.AlbumDao
 import com.mymusicplayer.data.db.dao.ArtistDao
@@ -73,9 +73,16 @@ class ScanRepository constructor(
                 // Fast path: query MediaStore for files in these directories (instant, with metadata)
                 val msFiles = mediaStoreScanner.scanByPaths(paths)
                 val msPaths = msFiles.map { it.path }.toMutableSet()
-                // Supplement: filesystem scan for anything MediaStore missed (rare but thorough)
-                val fsFiles = paths.flatMap { path ->
-                    fileSystemScanner.scanDirectory(path).filter { it.path !in msPaths }
+                // Supplement: filesystem scan for anything MediaStore missed (rare but thorough).
+                // Only works on Android 10- (API 29) where legacy storage may be available.
+                // On Android 11+ scoped storage blocks direct file access without
+                // MANAGE_EXTERNAL_STORAGE, which we no longer request for scanning.
+                val fsFiles = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                    paths.flatMap { path ->
+                        fileSystemScanner.scanDirectory(path).filter { it.path !in msPaths }
+                    }
+                } else {
+                    emptyList()
                 }
                 if (fsFiles.isNotEmpty()) {
                     Log.d(TAG, "MediaStore returned ${msFiles.size} files; " +

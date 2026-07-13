@@ -1,10 +1,6 @@
 package com.mymusicplayer.ui.screens.settings
 
-import android.content.Intent
-import android.os.Build
-import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -18,10 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -36,7 +30,6 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
-    val context = LocalContext.current
 
     Scaffold(
         topBar = {
@@ -111,7 +104,6 @@ fun SettingsScreen(
 
 @Composable
 private fun ScanDirectorySetting(path: String, onPathChange: (String) -> Unit, onClear: () -> Unit, onBrowse: () -> Unit) {
-    val context = LocalContext.current
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
@@ -128,17 +120,6 @@ private fun ScanDirectorySetting(path: String, onPathChange: (String) -> Unit, o
             Spacer(Modifier.height(4.dp))
             Text("Clear", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error,
                 modifier = Modifier.clickable { onClear() })
-        }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && path.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Button(onClick = {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = android.net.Uri.parse("package:${context.packageName}")
-                }
-                context.startActivity(intent)
-            }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(10.dp)) {
-                Text("Grant file access")
-            }
         }
     }
 }

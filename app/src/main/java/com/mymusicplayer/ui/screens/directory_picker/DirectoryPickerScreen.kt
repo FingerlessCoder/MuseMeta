@@ -3,7 +3,6 @@ package com.mymusicplayer.ui.screens.directory_picker
 import android.Manifest
 import android.content.Intent
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -75,15 +74,8 @@ fun DirectoryPickerScreen(
     var loadTrigger: Int by remember { mutableIntStateOf(0) }
 
     fun checkHasPermission(): Boolean {
-        if (Build.VERSION.SDK_INT >= 30) {
-            val hasManage = Environment.isExternalStorageManager()
-            val hasRead = ContextCompat.checkSelfPermission(context, requiredPermission) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-            return hasManage || hasRead
-        } else {
-            return ContextCompat.checkSelfPermission(context, requiredPermission) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
+        return ContextCompat.checkSelfPermission(context, requiredPermission) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
     LaunchedEffect(Unit) {
@@ -203,15 +195,7 @@ fun DirectoryPickerScreen(
                 ErrorContent(
                     message = errMsg,
                     onSettings = {
-                        if (Build.VERSION.SDK_INT >= 30) {
-                            val uri = android.net.Uri.parse("package:" + context.packageName)
-                            val intent = Intent(
-                                Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
-                            ).apply { data = uri }
-                            settingsLauncher.launch(intent)
-                        } else {
-                            permissionLauncher.launch(requiredPermission)
-                        }
+                        permissionLauncher.launch(requiredPermission)
                     },
                     onRetry = { loadTrigger = loadTrigger + 1 }
                 )

@@ -3,7 +3,6 @@ package com.mymusicplayer.ui.screens.scan
 import android.Manifest
 import android.content.Intent
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,17 +78,6 @@ fun ScanScreen(
         permissionGranted = granted
     }
 
-    val manageStorageLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        permissionGranted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            Environment.isExternalStorageManager()
-        } else {
-            ContextCompat.checkSelfPermission(context, requiredPermission) ==
-                    android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
-    }
-
     if (permissionChecked && permissionGranted) {
         LaunchedEffect(Unit) {
             if (!state.isScanning && !state.isComplete) {
@@ -130,7 +118,7 @@ fun ScanScreen(
                             Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                             android.net.Uri.fromParts("package", context.packageName, null)
                         )
-                        manageStorageLauncher.launch(intent)
+                        context.startActivity(intent)
                     }
                 )
             } else if (state.isComplete) {

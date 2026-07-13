@@ -58,3 +58,4 @@ now let think what to improve
 
 
 //fix:dynamic island
+// adapt to play store rules,keep MANAGE EXTERNAL STORAGE in manifest
