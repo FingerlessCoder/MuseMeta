@@ -83,6 +83,14 @@ class MusicPlayerController constructor(
     private var currentTrackPaths: List<String> = emptyList()
     private var currentTrackIds: List<Long> = emptyList()
 
+    // ── Track info cache (avoids DB query on track transition) ──
+    private data class CachedTrackInfo(
+        val title: String?,
+        val artist: String?,
+        val albumArtPath: String?
+    )
+    private val trackInfoCache = mutableMapOf<Long, CachedTrackInfo>()
+
     fun initialize() {
         if (exoPlayer != null) return
 
@@ -149,6 +157,16 @@ class MusicPlayerController constructor(
 
         currentTrackPaths = trackPaths
         currentTrackIds = trackIds ?: trackPaths.indices.map { it.toLong() }
+
+        // Pre-fill track info cache so PlayerViewModel doesn't need DB query
+        trackInfoCache.clear()
+        trackIds?.forEachIndexed { index, id ->
+            trackInfoCache[id] = CachedTrackInfo(
+                title = titles?.getOrNull(index),
+                artist = artists?.getOrNull(index),
+                albumArtPath = albumArtPaths?.getOrNull(index)
+            )
+        }
 
         val mediaItems = trackPaths.mapIndexed { index, path ->
             // Use Uri.fromFile() — it generates a proper file:/// URI and handles
@@ -261,6 +279,61 @@ class MusicPlayerController constructor(
     }
 
     fun getCurrentTrackIds(): List<Long> = currentTrackIds
+
+    fun getCurrentPlaybackMode(): PlaybackMode = _playbackState.value.playbackMode
+
+    fun toggleCurrentTrackFavorite() {
+        val player = exoPlayer ?: return
+        val index = player.currentMediaItemIndex
+        val trackId = currentTrackIds.getOrNull(index) ?: return
+        timerScope.launch {
+            val current = trackDao.getTrackByIdOnce(trackId) ?: return@launch
+            val newRating = if (current.rating >= 4) 0 else 5
+            trackDao.updateRating(trackId, newRating)
+            updateState()
+        }
+    }
+
+    fun getCachedTrackInfo(trackId: Long): com.mymusicplayer.domain.model.Track? {
+        if (trackId <= 0) return null
+        val cached = trackInfoCache[trackId] ?: return null
+        val idx = currentTrackIds.indexOf(trackId)
+        if (idx < 0) return null
+        val path = currentTrackPaths.getOrNull(idx) ?: return null
+
+        return         com.mymusicplayer.domain.model.Track(
+            id = trackId,
+            title = cached.title ?: "Unknown",
+            artists = cached.artist?.let { a ->
+                listOf(com.mymusicplayer.domain.model.Artist(id = 0, name = a))
+            } ?: emptyList(),
+            album = cached.albumArtPath?.let { artPath ->
+                com.mymusicplayer.domain.model.Album(
+                    id = 0,
+                    title = "",
+                    albumArtist = null,
+                    year = null,
+                    artPath = artPath
+                )
+            },
+            duration = 0L,
+            filePath = path,
+            fileSize = 0L,
+            rating = 0,
+            // Defaults for remaining fields
+            trackNumber = null,
+            discNumber = null,
+            year = null,
+            genre = null,
+            comment = null,
+            format = null,
+            dateAdded = 0L,
+            lastPlayed = null,
+            playCount = 0,
+            lyricsPath = null,
+            rawArtistTag = null
+        )
+    }
 
     fun getPlayer(): ExoPlayer? = exoPlayer
 

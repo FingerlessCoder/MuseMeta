@@ -37,32 +37,28 @@ class PlayerViewModel constructor(
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
     private var playbackUpdateJob: kotlinx.coroutines.Job? = null
-    private var loadedQueueIds: List<Long> = emptyList()
-
     init {
         viewModelScope.launch {
             musicPlayerController.playbackState.collect { state ->
                 val currentTrack = if (state.currentTrackId != null &&
                     state.currentTrackId != _uiState.value.currentTrack?.id) {
-                    musicRepository.getTrackById(state.currentTrackId).first().also { track ->
-                        if (track != null) {
+                    // Use cached info for instant display; fall back to DB for full Track
+                    val cachedInfo = state.currentTrackId?.let {
+                        musicPlayerController.getCachedTrackInfo(it)
+                    }
+                    if (cachedInfo != null) {
+                        cachedInfo.also { track ->
                             _uiState.value = _uiState.value.copy(isFavorite = track.rating >= 4)
+                        }
+                    } else {
+                        musicRepository.getTrackById(state.currentTrackId).first().also { track ->
+                            if (track != null) {
+                                _uiState.value = _uiState.value.copy(isFavorite = track.rating >= 4)
+                            }
                         }
                     }
                 } else {
                     _uiState.value.currentTrack
-                }
-
-                val ids = musicPlayerController.getCurrentTrackIds()
-                val queueTracks = if (ids != loadedQueueIds) {
-                    loadedQueueIds = ids
-                    if (ids.isNotEmpty()) {
-                        ids.mapNotNull { id -> musicRepository.getTrackById(id).first() }
-                    } else {
-                        emptyList()
-                    }
-                } else {
-                    _uiState.value.queueTracks
                 }
 
                 _uiState.value = _uiState.value.copy(
@@ -73,7 +69,6 @@ class PlayerViewModel constructor(
                     queueSize = state.queueSize,
                     queueIndex = state.queueIndex,
                     playbackMode = state.playbackMode,
-                    queueTracks = queueTracks,
                     sleepTimerMinutes = _uiState.value.sleepTimerMinutes
                 )
             }

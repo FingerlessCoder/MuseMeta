@@ -63,6 +63,7 @@ import coil.request.ImageRequest
 import java.io.File
 import com.mymusicplayer.data.audio.PlaybackMode
 import com.mymusicplayer.domain.model.Track
+import com.mymusicplayer.ui.components.MarqueeText
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.platform.LocalContext
 import kotlin.math.abs
@@ -307,12 +308,12 @@ private fun PlayerContent(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(
+                    MarqueeText(
                         text = state.currentTrack?.title ?: "No track selected",
-                        style = MaterialTheme.typography.headlineSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.headlineSmall.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(2.dp))
                     if (state.currentTrack != null) {
