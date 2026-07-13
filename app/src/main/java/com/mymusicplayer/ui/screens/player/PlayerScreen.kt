@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -66,6 +68,7 @@ import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.MarqueeText
 import org.koin.androidx.compose.koinViewModel
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -282,7 +285,10 @@ private fun PlayerContent(
         ) {
             Spacer(Modifier.height(16.dp))
 
-            // ── Album Cover (takes all available width) ──
+            // ── Album Cover (takes all available width, swipeable) ──
+            var dragOffsetX by remember { mutableFloatStateOf(0f) }
+            val swipeThreshold = with(LocalDensity.current) { 100.dp.toPx() }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -290,7 +296,28 @@ private fun PlayerContent(
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(24.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .clickable { onTapCover() },
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = { onTapCover() })
+                    }
+                    .graphicsLayer { translationX = dragOffsetX }
+                    .pointerInput(Unit) {
+                        detectHorizontalDragGestures(
+                            onDragEnd = {
+                                if (dragOffsetX < -swipeThreshold) {
+                                    viewModel.skipToNext()
+                                } else if (dragOffsetX > swipeThreshold) {
+                                    viewModel.skipToPrevious()
+                                }
+                                dragOffsetX = 0f
+                            },
+                            onDragCancel = { dragOffsetX = 0f }
+                        ) { _, dragAmount ->
+                            dragOffsetX = (dragOffsetX + dragAmount).coerceIn(
+                                -swipeThreshold * 2,
+                                swipeThreshold * 2
+                            )
+                        }
+                    },
                 contentAlignment = Alignment.Center
             ) {
                 if (state.currentTrack?.album?.artPath != null) {
