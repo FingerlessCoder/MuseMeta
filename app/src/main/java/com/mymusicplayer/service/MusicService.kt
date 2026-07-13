@@ -30,6 +30,12 @@ class MusicService : MediaSessionService(), KoinComponent {
         super.onCreate()
         createNotificationChannel()
 
+        // Must call startForeground() immediately to satisfy Android's timeout
+        // after startForegroundService(). Media3 will update this notification
+        // once the session is connected.
+        val startNotification = buildStartNotification()
+        startForeground(NOTIFICATION_ID, startNotification)
+
         playerController.initialize()
         val player = playerController.getPlayer() ?: return
         mediaSession = MediaSession.Builder(this, player).build()
@@ -145,6 +151,16 @@ class MusicService : MediaSessionService(), KoinComponent {
             this, action.hashCode(), intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+    }
+
+    private fun buildStartNotification(): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification_music)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText("Starting playback...")
+            .setOngoing(true)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .build()
     }
 
     companion object {
