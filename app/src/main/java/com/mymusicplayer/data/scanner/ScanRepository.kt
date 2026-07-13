@@ -66,10 +66,6 @@ class ScanRepository constructor(
         minDuration: Long = 0L
     ): Flow<ScanProgress> = callbackFlow {
         try {
-            // Clear old cached album art before scanning so orphaned files
-            // from previous scans don't accumulate or show stale covers.
-            clearAlbumArtCache()
-
             trySend(ScanProgress(ScanPhase.DISCOVERING, 0f, "Discovering audio files..."))
 
             val allFiles = if (scanDirectoryPath != null) {
@@ -324,6 +320,29 @@ class ScanRepository constructor(
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to extract for album $albumId", e)
+            }
+        }
+
+        // Remove cached art for albums that no longer exist in the database.
+        // This runs after extraction so existing albums' art is preserved
+        // across re-scans (no needlessly re-extracting from audio files).
+        cleanupOrphanedAlbumArt(artDir)
+    }
+
+    /**
+     * Delete album art files whose album ID no longer exists in the database.
+     * Called at the end of [extractAlbumArt] to prevent orphaned files from
+     * accumulating without nuking the entire cache every scan.
+     */
+    private suspend fun cleanupOrphanedAlbumArt(artDir: File) {
+        if (!artDir.exists()) return
+        val allAlbumIds = albumDao.getAllAlbumsOnce().map { it.id }.toSet()
+        artDir.listFiles()?.forEach { file ->
+            if (file.isFile && file.name.endsWith(".jpg")) {
+                val albumId = file.nameWithoutExtension.toLongOrNull()
+                if (albumId != null && albumId !in allAlbumIds) {
+                    file.delete()
+                }
             }
         }
     }
