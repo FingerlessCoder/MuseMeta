@@ -317,12 +317,10 @@ private fun PlayerContent(
                     )
                     Spacer(Modifier.height(2.dp))
                     if (state.currentTrack != null) {
-                        Text(
+                        MarqueeText(
                             text = state.currentTrack.artists.joinToString(" · ") { it.name },
                             style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
