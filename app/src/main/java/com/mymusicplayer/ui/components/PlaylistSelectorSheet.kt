@@ -24,7 +24,7 @@ import org.koin.compose.koinInject
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlaylistSelectorSheet(
-    trackId: Long,
+    trackIds: List<Long>,
     onDismiss: () -> Unit,
     onAdded: (String) -> Unit = {}
 ) {
@@ -48,7 +48,7 @@ fun PlaylistSelectorSheet(
             Spacer(Modifier.height(8.dp))
 
             Text(
-                text = "Add to Playlist",
+                text = if (trackIds.size > 1) "Add ${trackIds.size} tracks to..." else "Add to Playlist",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
@@ -120,7 +120,7 @@ fun PlaylistSelectorSheet(
                 )
             } else {
                 LazyColumn(
-                    modifier = Modifier.heightIn(max = 360.dp)
+                    modifier = Modifier.heightIn(max = 400.dp)
                 ) {
                     items(playlists, key = { it.id }) { playlist ->
                         PlaylistOption(
@@ -128,13 +128,14 @@ fun PlaylistSelectorSheet(
                             onClick = {
                                 scope.launch {
                                     val nextPos = playlistDao.getNextPosition(playlist.id)
-                                    playlistDao.addTrackToPlaylist(
+                                    val entries = trackIds.mapIndexed { index, trackId ->
                                         PlaylistEntryEntity(
                                             playlistId = playlist.id,
                                             trackId = trackId,
-                                            position = nextPos
+                                            position = nextPos + index
                                         )
-                                    )
+                                    }
+                                    playlistDao.addTracksToPlaylist(entries)
                                 }
                                 onAdded(playlist.name)
                                 onDismiss()
@@ -175,13 +176,14 @@ fun PlaylistSelectorSheet(
                                 val playlistId = playlistDao.createPlaylist(
                                     PlaylistEntity(name = name)
                                 )
-                                playlistDao.addTrackToPlaylist(
+                                val entries = trackIds.mapIndexed { index, trackId ->
                                     PlaylistEntryEntity(
                                         playlistId = playlistId,
                                         trackId = trackId,
-                                        position = 0
+                                        position = index
                                     )
-                                )
+                                }
+                                playlistDao.addTracksToPlaylist(entries)
                             }
                             onAdded(name)
                             showCreateDialog = false

@@ -8,7 +8,8 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -48,6 +49,7 @@ fun HomeScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var showSortSheet by remember { mutableStateOf(false) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
 
     val favoriteArt = state.favoriteTracks.firstOrNull()?.album?.artPath
     val playlistArt = state.tracks.firstOrNull()?.album?.artPath
@@ -105,26 +107,6 @@ fun HomeScreen(
                     groups.keys.filter { it != "#" }.sorted().forEach { sorted[it] = groups[it]!! }
                     if ("#" in groups) sorted["#"] = groups["#"]!!
                     sorted
-                }
-
-                data class BarLayoutInfo(val topOffsetPx: Int, val heightPx: Int)
-
-                val canShowBar = state.selectedTab == HomeTab.Tracks && state.sortMode == "name" && tracks.isNotEmpty()
-
-                val bottomPaddingPx = with(LocalDensity.current) { 16.dp.toPx() }.toInt()
-
-                val barLayout by remember(listState, bottomPaddingPx) {
-                    derivedStateOf {
-                        if (listState.firstVisibleItemIndex < 1) return@derivedStateOf null
-                        val info = listState.layoutInfo
-                        if (info.visibleItemsInfo.none { it.index >= 2 }) return@derivedStateOf null
-                        val viewportH = info.viewportEndOffset - info.viewportStartOffset
-                        if (viewportH <= 0) return@derivedStateOf null
-                        val topPx = info.visibleItemsInfo
-                            .firstOrNull { it.index == 1 }?.size ?: 0
-                        val heightPx = (viewportH - topPx - bottomPaddingPx).coerceAtLeast(0)
-                        BarLayoutInfo(topPx, heightPx)
-                    }
                 }
 
                 LazyColumn(
@@ -200,11 +182,24 @@ fun HomeScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    TextButton(onClick = { viewModel.playRandom() }) {
-                                        Icon(Icons.Default.Shuffle, contentDescription = null,
-                                            modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                    if (state.multiSelectEnabled) {
+                                        TextButton(
+                                            onClick = { if (state.selectedTrackIds.isNotEmpty()) showAddToPlaylistSheet = true },
+                                            enabled = state.selectedTrackIds.isNotEmpty()
+                                        ) {
+                                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null,
+                                                modifier = Modifier.size(18.dp))
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Add ${state.selectedTrackIds.size} to Playlist", 
+                                                style = MaterialTheme.typography.labelLarge)
+                                        }
+                                    } else {
+                                        TextButton(onClick = { viewModel.playRandom() }) {
+                                            Icon(Icons.Default.Shuffle, contentDescription = null,
+                                                modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                        }
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                         IconButton(onClick = { showSortSheet = true },
@@ -248,7 +243,6 @@ fun HomeScreen(
                                             isSelected = track.id in state.selectedTrackIds,
                                             onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
                                             onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                            showIndexBar = barLayout != null,
                                             context = context)
                                     }
                                 }
@@ -259,7 +253,6 @@ fun HomeScreen(
                                         isSelected = track.id in state.selectedTrackIds,
                                         onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
                                         onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                        showIndexBar = barLayout != null,
                                         context = context)
                                 }
                             }
@@ -314,89 +307,6 @@ fun HomeScreen(
                     }
                 }
 
-                if (canShowBar) {
-                    val layout = barLayout
-                    if (layout != null) {
-                        val density = LocalDensity.current
-                        val topDp = with(density) { layout.topOffsetPx.toDp() }
-                        val heightDp = with(density) { layout.heightPx.toDp() }
-                        val letters = groupedTracks?.keys?.toList() ?: emptyList()
-                        val sectionIndices = remember(groupedTracks) {
-                            if (groupedTracks == null) return@remember emptyList()
-                            val indices = mutableListOf<Int>()
-                            var cumIdx = 2
-                            for ((_, group) in groupedTracks) {
-                                indices.add(cumIdx)
-                                cumIdx += 1 + group.size
-                            }
-                            indices
-                        }
-
-                        var activeLetter by remember { mutableStateOf<String?>(null) }
-                        LaunchedEffect(listState, letters, sectionIndices) {
-                            snapshotFlow {
-                                val items = listState.layoutInfo.visibleItemsInfo
-                                    .filter { it.index > 1 }
-                                // Use ~1 content row height as threshold so the highlight
-                                // doesn't change when a row is barely peeking at the top.
-                                val threshold = items.firstOrNull()?.size ?: 0
-                                items.firstOrNull { it.offset >= threshold }?.index ?: -1
-                            }.collect { firstIdx ->
-                                if (letters.isEmpty()) return@collect
-                                var bestIdx = -1
-                                for (i in sectionIndices.indices) {
-                                    if (sectionIndices[i] <= firstIdx) bestIdx = i
-                                }
-                                activeLetter = if (bestIdx >= 0) letters[bestIdx] else null
-                            }
-                        }
-
-                        var draggedLetter by remember { mutableStateOf<String?>(null) }
-
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(y = topDp)
-                                .height(heightDp)
-                                .width(26.dp)
-                        ) {
-                            AlphabetIndexBar(
-                                letters = letters,
-                                sectionIndices = sectionIndices,
-                                listState = listState,
-                                activeLetter = draggedLetter ?: activeLetter,
-                                onDragLetterChanged = { draggedLetter = it },
-                                modifier = Modifier.fillMaxSize()
-                            )
-
-                            draggedLetter?.let { letter ->
-                                val letterIdx = letters.indexOf(letter)
-                                if (letterIdx >= 0) {
-                                    val itemHeight = heightDp / letters.size
-                                    val bubbleY = itemHeight * (letterIdx + 0.5f) - 20.dp
-                                    Surface(
-                                        modifier = Modifier
-                                            .align(Alignment.TopStart)
-                                            .offset(x = (-48).dp, y = bubbleY)
-                                            .size(40.dp),
-                                        shape = CircleShape,
-                                        color = MaterialTheme.colorScheme.primary,
-                                        shadowElevation = 6.dp
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = letter,
-                                                style = MaterialTheme.typography.titleMedium,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onPrimary
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
 
@@ -408,6 +318,17 @@ fun HomeScreen(
                     showSortSheet = false
                 },
                 onDismiss = { showSortSheet = false }
+            )
+        }
+
+        if (showAddToPlaylistSheet) {
+            com.mymusicplayer.ui.components.PlaylistSelectorSheet(
+                trackIds = state.selectedTrackIds.toList(),
+                onDismiss = { showAddToPlaylistSheet = false },
+                onAdded = {
+                    showAddToPlaylistSheet = false
+                    viewModel.toggleMultiSelect() // Turn off multi-select after adding
+                }
             )
         }
     }
@@ -539,11 +460,11 @@ private fun SectionHeaderRow(letter: String) {
 @Composable
 private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Boolean,
                             onPlay: () -> Unit, onToggleSelect: () -> Unit,
-                            showIndexBar: Boolean = false, context: android.content.Context) {
+                            context: android.content.Context) {
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { if (isMultiSelect) onToggleSelect() else onPlay() }
-            .padding(start = 12.dp, top = 8.dp, end = if (showIndexBar) 48.dp else 12.dp, bottom = 8.dp),
+            .padding(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isMultiSelect) {

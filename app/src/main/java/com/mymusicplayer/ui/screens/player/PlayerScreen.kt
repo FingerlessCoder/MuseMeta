@@ -243,7 +243,7 @@ fun PlayerScreen(
     val currentTrackId = state.currentTrack?.id
     if (showAddToPlaylistSheet && currentTrackId != null) {
         com.mymusicplayer.ui.components.PlaylistSelectorSheet(
-            trackId = currentTrackId,
+            trackIds = listOf(currentTrackId),
             onDismiss = { showAddToPlaylistSheet = false },
             onAdded = { showAddToPlaylistSheet = false }
         )
