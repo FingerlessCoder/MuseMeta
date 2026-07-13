@@ -67,6 +67,10 @@ class ScanViewModel constructor(
                     )
                 }
             }
+            // Mark scan as completed for first-launch loading state
+            if (_uiState.value.phase == ScanPhase.COMPLETE) {
+                settingsDataStore.setScanCompletedOnce()
+            }
         }
     }
 

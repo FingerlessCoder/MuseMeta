@@ -66,6 +66,10 @@ class ScanRepository constructor(
         minDuration: Long = 0L
     ): Flow<ScanProgress> = callbackFlow {
         try {
+            // Clear old cached album art before scanning so orphaned files
+            // from previous scans don't accumulate or show stale covers.
+            clearAlbumArtCache()
+
             trySend(ScanProgress(ScanPhase.DISCOVERING, 0f, "Discovering audio files..."))
 
             val allFiles = if (scanDirectoryPath != null) {
@@ -261,6 +265,22 @@ class ScanRepository constructor(
         extractAlbumArt(firstTrackPerAlbum)
     }
 
+    /**
+     * Remove all previously cached album art files.
+     * Called at the start of each scan so stale/ orphaned art
+     * from old scans doesn't show for albums that no longer exist.
+     */
+    private fun clearAlbumArtCache() {
+        val artDir = File(context.cacheDir, "album_art")
+        if (artDir.exists()) {
+            artDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.name.endsWith(".jpg")) {
+                    file.delete()
+                }
+            }
+        }
+    }
+
     private suspend fun extractAlbumArt(albumTrackMap: Map<Long, Pair<String, Uri>>) {
         val artDir = File(context.cacheDir, "album_art")
         artDir.mkdirs()
@@ -272,14 +292,20 @@ class ScanRepository constructor(
                 val album = albumDao.getAlbumByIdOnce(albumId) ?: continue
 
                 if (album.albumArtist == null) {
-                    val meta = metadataParser.parse(filePath, extractAlbumArt = false) ?: continue
-                    val firstArtist = meta.artists.firstOrNull()
-                    if (firstArtist != null) {
-                        albumDao.updateAlbumArtist(albumId, firstArtist)
+                    // Attempt to fill in albumArtist from first track's metadata.
+                    // If jAudiotagger can't read the file (scoped storage on API 30+),
+                    // this returns null — that's OK, we skip the artist update
+                    // but still proceed to art extraction below.
+                    val meta = metadataParser.parse(filePath, extractAlbumArt = false)
+                    if (meta != null) {
+                        val firstArtist = meta.artists.firstOrNull()
+                        if (firstArtist != null) {
+                            albumDao.updateAlbumArtist(albumId, firstArtist)
+                        }
                     }
                 }
 
-                if (album.artPath == null) {
+                if (album.artPath == null || !File(album.artPath).exists()) {
                     var bytes: ByteArray? = null
                     // Try jAudiotagger first (handles most standard embedded art)
                     val meta = metadataParser.parse(filePath, extractAlbumArt = true)

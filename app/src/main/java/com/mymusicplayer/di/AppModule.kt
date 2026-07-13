@@ -31,7 +31,7 @@ val appModule = module {
     single { SettingsDataStore(androidContext()) }
     factory { androidContext().contentResolver }
 
-    viewModel { HomeViewModel(get(), get(), get<PlaylistDao>()) }
+    viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get()) }
     viewModel { PlayerViewModel(get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }

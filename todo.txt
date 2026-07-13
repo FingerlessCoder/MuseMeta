@@ -55,6 +55,8 @@ now let think what to improve
  -multiselect not suitable for albums and artist
 8.artist tab the profile pic, dont know how to handle
 9.mini player, current only play/pause, add play next button at right of play/pause button
+10.UI design theme use material you
+ -//im alittle fraustrated ,discovered retro music player so late. so mature. but i have to persuade myself im doing based on mi music but enhance metadata and just refer to their design https://github.com/RetroMusicPlayer/RetroMusicPlayer
 
 //comment: require lot of new screen page.
 

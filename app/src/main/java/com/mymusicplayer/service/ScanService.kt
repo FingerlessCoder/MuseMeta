@@ -10,7 +10,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.mymusicplayer.MainActivity
-import com.mymusicplayer.R
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.data.scanner.ScanPhase
 import com.mymusicplayer.data.scanner.ScanRepository
 import kotlinx.coroutines.CoroutineScope
@@ -18,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -25,6 +26,7 @@ import org.koin.core.component.inject
 class ScanService : Service(), KoinComponent {
 
     private val scanRepository: ScanRepository by inject()
+    private val settingsDataStore: SettingsDataStore by inject()
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + Job())
     private var scanJob: Job? = null
@@ -43,7 +45,11 @@ class ScanService : Service(), KoinComponent {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START_SCAN -> startScan()
+            ACTION_START_SCAN -> {
+                // Cancel any running scan before starting a new one
+                scanJob?.cancel()
+                startScan()
+            }
         }
         return START_NOT_STICKY
     }
@@ -55,7 +61,18 @@ class ScanService : Service(), KoinComponent {
         startForeground(NOTIFICATION_ID, notification)
 
         scanJob = serviceScope.launch {
-            scanRepository.scanLibrary().collectLatest { progress ->
+            // Read user-configured scan settings
+            val excludedDirs = settingsDataStore.excludedDirs.first()
+            val scanDir = settingsDataStore.scanDirectoryPath.first()
+            val minFileSizeKb = settingsDataStore.scanMinFileSize.first()
+            val minDurationSec = settingsDataStore.scanMinDuration.first()
+
+            scanRepository.scanLibrary(
+                excludedPaths = excludedDirs,
+                scanDirectoryPath = scanDir?.ifBlank { null },
+                minFileSize = minFileSizeKb * 1024L,
+                minDuration = minDurationSec * 1000L
+            ).collectLatest { progress ->
                 val message = progress.message
                 val isComplete = progress.phase == ScanPhase.COMPLETE || progress.phase == ScanPhase.ERROR
 
@@ -64,6 +81,9 @@ class ScanService : Service(), KoinComponent {
                 nm.notify(NOTIFICATION_ID, notif)
 
                 if (isComplete) {
+                    if (progress.phase == ScanPhase.COMPLETE) {
+                        settingsDataStore.setScanCompletedOnce()
+                    }
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 }

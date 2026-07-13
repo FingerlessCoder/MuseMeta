@@ -17,6 +17,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 class SettingsDataStore(private val context: Context) {
 
     companion object {
+        val SCAN_COMPLETED_ONCE = booleanPreferencesKey("scan_completed_once")
         val SLEEP_TIMER_DURATION = intPreferencesKey("sleep_timer_duration")
         val DEFAULT_SORT = stringPreferencesKey("default_sort")
         val EQUALIZER_ENABLED = booleanPreferencesKey("equalizer_enabled")
@@ -93,6 +94,14 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setSleepTimerDuration(minutes: Int) {
         context.dataStore.edit { prefs -> prefs[SLEEP_TIMER_DURATION] = minutes }
+    }
+
+    val scanCompletedOnce: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[SCAN_COMPLETED_ONCE] ?: false
+    }
+
+    suspend fun setScanCompletedOnce() {
+        context.dataStore.edit { prefs -> prefs[SCAN_COMPLETED_ONCE] = true }
     }
 
     val excludedDirs: Flow<List<String>> = context.dataStore.data.map { prefs ->

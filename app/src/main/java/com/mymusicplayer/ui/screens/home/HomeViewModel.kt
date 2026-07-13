@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.db.dao.PlaylistDao
+import com.mymusicplayer.data.db.entity.PlaylistEntity
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Playlist
@@ -51,7 +53,8 @@ data class HomeUiState(
 class HomeViewModel(
     private val musicRepository: MusicRepository,
     private val musicPlayerController: MusicPlayerController,
-    private val playlistDao: PlaylistDao
+    private val playlistDao: PlaylistDao,
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -59,20 +62,26 @@ class HomeViewModel(
 
     init {
         viewModelScope.launch {
+            // Combine 5 content flows, then chain with scanDone flag.
+            // Separating the 6th flow avoids Kotlin type inference
+            // issues with the 6-param combine overload.
             combine(
-                musicRepository.getAllTracks("date_added"),
+                musicRepository.getAllTracks("name"),
                 musicRepository.getAllAlbums(),
                 musicRepository.getAllArtists(),
                 musicRepository.getFavoriteTracks(),
                 playlistDao.getAllPlaylists()
-            ) { tracks, albums, artists, favorites, playlistEntities ->
+            ) { tracks: List<Track>, albums: List<Album>, artists: List<Artist>, favorites: List<Track>, playlistEntities: List<PlaylistEntity> ->
+                CombinedContent(tracks, albums, artists, favorites, playlistEntities)
+            }.combine(settingsDataStore.scanCompletedOnce) { content: CombinedContent, scanDone: Boolean ->
+                val hasContent = content.tracks.isNotEmpty() || content.albums.isNotEmpty()
                 HomeUiState(
-                    isLoading = false,
-                    tracks = tracks,
-                    albums = albums,
-                    artists = artists,
-                    favoriteTracks = favorites,
-                    playlists = playlistEntities.map { entity ->
+                    isLoading = !hasContent && !scanDone,
+                    tracks = content.tracks,
+                    albums = content.albums,
+                    artists = content.artists,
+                    favoriteTracks = content.favorites,
+                    playlists = content.playlistEntities.map { entity ->
                         Playlist(
                             id = entity.id,
                             name = entity.name,
@@ -81,7 +90,7 @@ class HomeViewModel(
                             smartRuleJson = entity.smartRuleJson
                         )
                     },
-                    recentlyPlayed = tracks
+                    recentlyPlayed = content.tracks
                         .filter { it.lastPlayed != null && it.lastPlayed > 0L }
                         .sortedByDescending { it.lastPlayed }
                         .take(10),
@@ -197,3 +206,12 @@ class HomeViewModel(
         }
     }
 }
+
+/** Internal holder for the 5-way combine used in HomeViewModel init. */
+private data class CombinedContent(
+    val tracks: List<Track>,
+    val albums: List<Album>,
+    val artists: List<Artist>,
+    val favorites: List<Track>,
+    val playlistEntities: List<PlaylistEntity>
+)
