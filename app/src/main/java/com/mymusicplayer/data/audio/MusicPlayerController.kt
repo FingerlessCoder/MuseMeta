@@ -22,6 +22,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+enum class PlaybackMode {
+    SHUFFLE,
+    LIST,
+    SINGLE
+}
+
 data class PlaybackState(
     val isPlaying: Boolean = false,
     val currentTrackId: Long? = null,
@@ -29,8 +35,7 @@ data class PlaybackState(
     val duration: Long = 0,
     val queueSize: Int = 0,
     val queueIndex: Int = -1,
-    val shuffleMode: Boolean = false,
-    val repeatMode: Int = Player.REPEAT_MODE_OFF
+    val playbackMode: PlaybackMode = PlaybackMode.LIST
 )
 
 class MusicPlayerController constructor(
@@ -204,14 +209,35 @@ class MusicPlayerController constructor(
         updateState()
     }
 
+    fun cyclePlaybackMode() {
+        val player = exoPlayer ?: return
+        val currentMode = _playbackState.value.playbackMode
+        val nextMode = PlaybackMode.entries[(currentMode.ordinal + 1) % PlaybackMode.entries.size]
+
+        player.shuffleModeEnabled = nextMode == PlaybackMode.SHUFFLE
+        player.repeatMode = when (nextMode) {
+            PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_OFF
+            PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
+            PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
+        }
+
+        _playbackState.value = _playbackState.value.copy(playbackMode = nextMode)
+    }
+
     fun setShuffleMode(enabled: Boolean) {
         exoPlayer?.shuffleModeEnabled = enabled
-        _playbackState.value = _playbackState.value.copy(shuffleMode = enabled)
+        _playbackState.value = _playbackState.value.copy(
+            playbackMode = if (enabled) PlaybackMode.SHUFFLE else PlaybackMode.LIST
+        )
     }
 
     fun setRepeatMode(mode: Int) {
         exoPlayer?.repeatMode = mode
-        _playbackState.value = _playbackState.value.copy(repeatMode = mode)
+        val newMode = when (mode) {
+            Player.REPEAT_MODE_ONE -> PlaybackMode.SINGLE
+            else -> if (exoPlayer?.shuffleModeEnabled == true) PlaybackMode.SHUFFLE else PlaybackMode.LIST
+        }
+        _playbackState.value = _playbackState.value.copy(playbackMode = newMode)
     }
 
     fun getCurrentPosition(): Long {
@@ -335,6 +361,12 @@ class MusicPlayerController constructor(
         val player = exoPlayer ?: return
         val currentIndex = player.currentMediaItemIndex
 
+        val mode = when {
+            player.shuffleModeEnabled -> PlaybackMode.SHUFFLE
+            player.repeatMode == Player.REPEAT_MODE_ONE -> PlaybackMode.SINGLE
+            else -> PlaybackMode.LIST
+        }
+
         _playbackState.value = PlaybackState(
             isPlaying = player.isPlaying,
             currentTrackId = currentTrackIds.getOrNull(currentIndex),
@@ -342,8 +374,7 @@ class MusicPlayerController constructor(
             duration = player.duration,
             queueSize = player.mediaItemCount,
             queueIndex = currentIndex,
-            shuffleMode = player.shuffleModeEnabled,
-            repeatMode = player.repeatMode
+            playbackMode = mode
         )
     }
 

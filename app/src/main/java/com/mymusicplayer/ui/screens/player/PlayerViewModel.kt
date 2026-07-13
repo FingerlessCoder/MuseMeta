@@ -3,6 +3,7 @@ package com.mymusicplayer.ui.screens.player
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
+import com.mymusicplayer.data.audio.PlaybackMode
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +19,7 @@ data class PlayerUiState(
     val duration: Long = 0,
     val queueSize: Int = 0,
     val queueIndex: Int = -1,
-    val shuffleMode: Boolean = false,
-    val repeatMode: Int = 0,
+    val playbackMode: PlaybackMode = PlaybackMode.LIST,
     val isFavorite: Boolean = false,
     val selectedTab: Int = 0,
     val lyricsText: String? = null,
@@ -72,8 +72,7 @@ class PlayerViewModel constructor(
                     duration = state.duration,
                     queueSize = state.queueSize,
                     queueIndex = state.queueIndex,
-                    shuffleMode = state.shuffleMode,
-                    repeatMode = state.repeatMode,
+                    playbackMode = state.playbackMode,
                     queueTracks = queueTracks,
                     sleepTimerMinutes = _uiState.value.sleepTimerMinutes
                 )
@@ -118,17 +117,8 @@ class PlayerViewModel constructor(
         musicPlayerController.skipToPrevious()
     }
 
-    fun toggleShuffle() {
-        musicPlayerController.setShuffleMode(!_uiState.value.shuffleMode)
-    }
-
-    fun cycleRepeatMode() {
-        val nextMode = when (_uiState.value.repeatMode) {
-            0 -> 1
-            1 -> 2
-            else -> 0
-        }
-        musicPlayerController.setRepeatMode(nextMode)
+    fun cyclePlaybackMode() {
+        musicPlayerController.cyclePlaybackMode()
     }
 
     fun toggleFavorite() {
