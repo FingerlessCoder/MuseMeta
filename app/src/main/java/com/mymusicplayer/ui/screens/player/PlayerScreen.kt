@@ -82,6 +82,7 @@ fun PlayerScreen(
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showPlaylistSheet by remember { mutableStateOf(false) }
     var showLyricsView by remember { mutableStateOf(false) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
 
     val bgArtPath = state.currentTrack?.album?.artPath
 
@@ -175,6 +176,10 @@ fun PlayerScreen(
                 state = state,
                 onToggleFavorite = { viewModel.toggleFavorite() },
                 onOpenSleepTimer = { showEllipsisSheet = false; showSleepTimerSheet = true },
+                onAddToPlaylist = {
+                    showEllipsisSheet = false
+                    showAddToPlaylistSheet = true
+                },
                 onShare = {
                     showEllipsisSheet = false
                     shareTrack(context, state.currentTrack)
@@ -229,6 +234,16 @@ fun PlayerScreen(
                 onCycleMode = { viewModel.cyclePlaybackMode() }
             )
         }
+    }
+
+    // ── Add to Playlist Sheet ──
+    val currentTrackId = state.currentTrack?.id
+    if (showAddToPlaylistSheet && currentTrackId != null) {
+        com.mymusicplayer.ui.components.PlaylistSelectorSheet(
+            trackId = currentTrackId,
+            onDismiss = { showAddToPlaylistSheet = false },
+            onAdded = { showAddToPlaylistSheet = false }
+        )
     }
 }
 
@@ -635,6 +650,7 @@ private fun EllipsisSheetContent(
     state: PlayerUiState,
     onToggleFavorite: () -> Unit,
     onOpenSleepTimer: () -> Unit,
+    onAddToPlaylist: () -> Unit,
     onShare: () -> Unit,
     onRemoveFromQueue: () -> Unit,
     onDismiss: () -> Unit
@@ -714,7 +730,7 @@ private fun EllipsisSheetContent(
         SheetMenuItem(
             icon = Icons.AutoMirrored.Filled.QueueMusic,
             title = "Add to Playlist",
-            onClick = { /* TODO: show playlist selector */ onDismiss() }
+            onClick = { onAddToPlaylist() }
         )
         SheetMenuItem(
             icon = Icons.Default.Schedule,

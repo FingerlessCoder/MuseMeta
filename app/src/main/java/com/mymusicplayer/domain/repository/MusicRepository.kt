@@ -18,6 +18,7 @@ interface MusicRepository {
     fun getAllArtists(): Flow<List<Artist>>
     fun getArtistById(id: Long): Flow<Artist?>
     fun getTracksForArtist(artistId: Long): Flow<List<Track>>
+    fun getTracksInPlaylist(playlistId: Long): Flow<List<Track>>
     fun getFavoriteTracks(): Flow<List<Track>>
     suspend fun updateTrackRating(trackId: Long, rating: Int)
     suspend fun incrementPlayCount(trackId: Long)

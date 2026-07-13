@@ -40,6 +40,9 @@ fun HomeScreen(
     onNavigateToPlayer: () -> Unit = {},
     onNavigateToSearch: () -> Unit = {},
     onNavigateToSettings: () -> Unit = {},
+    onNavigateToFavorites: () -> Unit = {},
+    onNavigateToPlaylists: () -> Unit = {},
+    onNavigateToRecentlyPlayed: () -> Unit = {},
     viewModel: HomeViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -140,16 +143,19 @@ fun HomeScreen(
                             CompactMiniCard(
                                 label = "Favorites", count = state.favoriteCount,
                                 artPath = favoriteArt,
+                                onClick = onNavigateToFavorites,
                                 modifier = Modifier.weight(1f)
                             )
                             CompactMiniCard(
                                 label = "My Playlists", count = state.playlistCount,
                                 artPath = playlistArt,
+                                onClick = onNavigateToPlaylists,
                                 modifier = Modifier.weight(1f)
                             )
                             CompactMiniCard(
                                 label = "Recently Played", count = state.recentlyPlayedCount,
                                 artPath = recentArt,
+                                onClick = onNavigateToRecentlyPlayed,
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -464,8 +470,9 @@ private fun SortBottomSheet(
 }
 
 @Composable
-private fun CompactMiniCard(label: String, count: Int, artPath: String?, modifier: Modifier = Modifier) {
+private fun CompactMiniCard(label: String, count: Int, artPath: String?, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
     Card(
+        onClick = onClick,
         modifier = modifier.height(64.dp),
         shape = RoundedCornerShape(10.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)

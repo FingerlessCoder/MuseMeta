@@ -25,10 +25,10 @@ some times crash,idk probably some lifespan violation or codec error in the midd
 select directory content row height //fixed
 
 now let think what to improve
-1. home screen mini card cont implement:
- -favourite (combine with favourite),now got image from track already
- -my playlists
- -recently play (need to know last track album cover,replace with it)
+//1. home screen mini card cont implement:
+ //-favourite (combine with favourite),now got image from track already
+ //-my playlists
+ //-recently play (need to know last track album cover,replace with it)
  all require a next screens
 2.players
  //-move up abit, curr position too low,even caused metadata loaded and title text too large pushed all bottom element down lead to controller component bottom been clipped some

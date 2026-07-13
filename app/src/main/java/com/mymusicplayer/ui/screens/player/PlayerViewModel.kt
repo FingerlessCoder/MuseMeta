@@ -40,6 +40,18 @@ class PlayerViewModel constructor(
     init {
         viewModelScope.launch {
             musicPlayerController.playbackState.collect { state ->
+                // Track the track ID that changed for play count recording
+                val newTrackId = if (state.currentTrackId != null &&
+                    state.currentTrackId != _uiState.value.currentTrack?.id) {
+                    state.currentTrackId
+                } else null
+
+                if (newTrackId != null) {
+                    viewModelScope.launch {
+                        musicRepository.incrementPlayCount(newTrackId)
+                    }
+                }
+
                 val currentTrack = if (state.currentTrackId != null &&
                     state.currentTrackId != _uiState.value.currentTrack?.id) {
                     // Use cached info for instant display; fall back to DB for full Track

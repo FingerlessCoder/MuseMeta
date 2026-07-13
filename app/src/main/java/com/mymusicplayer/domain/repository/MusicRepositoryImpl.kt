@@ -2,6 +2,7 @@ package com.mymusicplayer.domain.repository
 
 import com.mymusicplayer.data.db.dao.AlbumDao
 import com.mymusicplayer.data.db.dao.ArtistDao
+import com.mymusicplayer.data.db.dao.PlaylistDao
 import com.mymusicplayer.data.db.dao.TrackDao
 import com.mymusicplayer.data.db.entity.TrackEntity
 import com.mymusicplayer.data.scanner.MetadataParser
@@ -19,6 +20,7 @@ class MusicRepositoryImpl constructor(
     private val trackDao: TrackDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
+    private val playlistDao: PlaylistDao,
     private val metadataParser: MetadataParser,
     private val scanRepository: ScanRepository
 ) : MusicRepository {
@@ -116,6 +118,12 @@ class MusicRepositoryImpl constructor(
 
     override fun getTracksForArtist(artistId: Long): Flow<List<Track>> {
         return trackDao.getTracksByArtist(artistId).map { entities ->
+            entities.map { it.toDomain() }
+        }
+    }
+
+    override fun getTracksInPlaylist(playlistId: Long): Flow<List<Track>> {
+        return playlistDao.getTracksInPlaylist(playlistId).map { entities ->
             entities.map { it.toDomain() }
         }
     }
