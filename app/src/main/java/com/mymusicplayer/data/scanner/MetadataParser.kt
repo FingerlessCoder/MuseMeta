@@ -40,7 +40,7 @@ data class ParsedMetadata(
     }
 }
 
-class MetadataParser constructor() {
+class MetadataParser {
 
     companion object {
         private const val TAG = "MetadataParser"

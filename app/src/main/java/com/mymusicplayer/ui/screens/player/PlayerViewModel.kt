@@ -28,7 +28,7 @@ data class PlayerUiState(
     val sleepTimerRemainingSeconds: Int = 0
 )
 
-class PlayerViewModel constructor(
+class PlayerViewModel(
     private val musicPlayerController: MusicPlayerController,
     private val musicRepository: MusicRepository
 ) : ViewModel() {

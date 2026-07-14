@@ -544,7 +544,7 @@ private fun PlayerContent(
 private fun LyricsFullView(
     lyricsText: String?,
     artPath: String?,
-    currentTrack: com.mymusicplayer.domain.model.Track?,
+    currentTrack: Track?,
     onTap: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1228,7 +1228,7 @@ private fun formatDuration(ms: Long): String {
     return "%d:%02d".format(min, sec)
 }
 
-private fun shareTrack(context: android.content.Context, track: com.mymusicplayer.domain.model.Track?) {
+private fun shareTrack(context: android.content.Context, track: Track?) {
     if (track == null) return
     val text = "Listening to ${track.title} by ${track.artists.joinToString(", ") { it.name }} on MuseMeta"
     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {

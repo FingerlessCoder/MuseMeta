@@ -4,7 +4,7 @@ import com.mymusicplayer.data.db.dao.TrackDao
 import com.mymusicplayer.data.db.entity.TrackEntity
 import kotlinx.coroutines.flow.Flow
 
-class SmartSortUseCase constructor(
+class SmartSortUseCase(
     private val trackDao: TrackDao
 ) {
     operator fun invoke(): Flow<List<TrackEntity>> {

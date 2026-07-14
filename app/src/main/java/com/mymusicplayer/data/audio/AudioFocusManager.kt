@@ -6,7 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.util.Log
 
-class AudioFocusManager constructor(
+class AudioFocusManager(
     private val context: Context
 ) {
 

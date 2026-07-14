@@ -26,7 +26,7 @@ data class ScannedAudioFile(
     val hasEmbeddedMetadata: Boolean get() = title != null
 }
 
-class MediaStoreScanner constructor(
+class MediaStoreScanner(
     private val contentResolver: ContentResolver
 ) {
 

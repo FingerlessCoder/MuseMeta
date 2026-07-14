@@ -22,7 +22,7 @@ data class SettingsUiState(
     val scanMinDurationSec: Long = 40L
 )
 
-class SettingsViewModel constructor(
+class SettingsViewModel(
     private val settingsDataStore: SettingsDataStore,
     private val musicPlayerController: MusicPlayerController
 ) : ViewModel() {

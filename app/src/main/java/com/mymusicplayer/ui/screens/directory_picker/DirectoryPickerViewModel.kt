@@ -27,7 +27,7 @@ data class DirectoryPickerUiState(
     val errorMessage: String? = null
 )
 
-class DirectoryPickerViewModel constructor(
+class DirectoryPickerViewModel(
     private val settingsDataStore: SettingsDataStore,
     private val mediaStoreScanner: MediaStoreScanner
 ) : ViewModel() {

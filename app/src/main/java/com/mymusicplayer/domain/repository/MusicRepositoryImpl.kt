@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-class MusicRepositoryImpl constructor(
+class MusicRepositoryImpl(
     private val trackDao: TrackDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,

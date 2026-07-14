@@ -23,7 +23,7 @@ data class ScanUiState(
     val isScanning: Boolean = false
 )
 
-class ScanViewModel constructor(
+class ScanViewModel(
     private val musicRepository: MusicRepository,
     private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {

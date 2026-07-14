@@ -3,7 +3,6 @@ package com.mymusicplayer.data.audio
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Bundle
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import java.io.File
@@ -12,12 +11,12 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import com.mymusicplayer.data.db.dao.TrackDao
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -39,9 +38,8 @@ data class PlaybackState(
     val playbackMode: PlaybackMode = PlaybackMode.LIST
 )
 
-class MusicPlayerController constructor(
-    private val context: Context,
-    private val trackDao: TrackDao
+class MusicPlayerController(
+    private val context: Context
 ) {
 
     companion object {
@@ -72,7 +70,7 @@ class MusicPlayerController constructor(
         _sleepTimerRemainingSeconds.value = minutes * 60
         sleepTimerJob = timerScope.launch {
             while (_sleepTimerRemainingSeconds.value > 0) {
-                delay(1000L)
+                delay(1.seconds)
                 _sleepTimerRemainingSeconds.value =
                     (_sleepTimerRemainingSeconds.value - 1).coerceAtLeast(0)
             }
@@ -248,22 +246,6 @@ class MusicPlayerController constructor(
         _playbackState.value = _playbackState.value.copy(playbackMode = nextMode)
     }
 
-    fun setShuffleMode(enabled: Boolean) {
-        exoPlayer?.shuffleModeEnabled = enabled
-        _playbackState.value = _playbackState.value.copy(
-            playbackMode = if (enabled) PlaybackMode.SHUFFLE else PlaybackMode.LIST
-        )
-    }
-
-    fun setRepeatMode(mode: Int) {
-        exoPlayer?.repeatMode = mode
-        val newMode = when (mode) {
-            Player.REPEAT_MODE_ONE -> PlaybackMode.SINGLE
-            else -> if (exoPlayer?.shuffleModeEnabled == true) PlaybackMode.SHUFFLE else PlaybackMode.LIST
-        }
-        _playbackState.value = _playbackState.value.copy(playbackMode = newMode)
-    }
-
     fun getCurrentPosition(): Long {
         return exoPlayer?.currentPosition ?: 0L
     }
@@ -271,20 +253,6 @@ class MusicPlayerController constructor(
     fun getDuration(): Long {
         return exoPlayer?.duration ?: 0L
     }
-
-    fun isPlaying(): Boolean {
-        return exoPlayer?.isPlaying ?: false
-    }
-
-    fun getCurrentMediaIndex(): Int {
-        return exoPlayer?.currentMediaItemIndex ?: -1
-    }
-
-    fun getQueueSize(): Int {
-        return exoPlayer?.mediaItemCount ?: 0
-    }
-
-    fun getCurrentTrackIds(): List<Long> = currentTrackIds
 
     fun getCurrentPlaybackMode(): PlaybackMode = _playbackState.value.playbackMode
 
@@ -336,73 +304,9 @@ class MusicPlayerController constructor(
 
     fun getPlayer(): ExoPlayer? = exoPlayer
 
-    fun addTrack(
-        filePath: String,
-        trackId: Long,
-        title: String? = null,
-        artist: String? = null,
-        albumArtPath: String? = null
-    ) {
-        val player = exoPlayer ?: return
-        val mediaItem = buildMediaItem(filePath, trackId, title, artist, albumArtPath)
-        player.addMediaItem(mediaItem)
-        player.prepare()
-        currentTrackIds = currentTrackIds + trackId
-        currentTrackPaths = currentTrackPaths + filePath
-        updateState()
-    }
-
-    fun addTrackAt(
-        index: Int,
-        filePath: String,
-        trackId: Long,
-        title: String? = null,
-        artist: String? = null,
-        albumArtPath: String? = null
-    ) {
-        val player = exoPlayer ?: return
-        val mediaItem = buildMediaItem(filePath, trackId, title, artist, albumArtPath)
-        player.addMediaItem(index, mediaItem)
-        player.prepare()
-        currentTrackIds = currentTrackIds.toMutableList().apply { add(index.coerceAtMost(size), trackId) }
-        currentTrackPaths = currentTrackPaths.toMutableList().apply { add(index.coerceAtMost(size), filePath) }
-        updateState()
-    }
-
-    private fun buildMediaItem(
-        filePath: String,
-        trackId: Long,
-        title: String?,
-        artist: String?,
-        albumArtPath: String?
-    ): MediaItem {
-        val cleanPath = filePath.removePrefix("file://")
-        val uri = Uri.fromFile(File(cleanPath))
-
-        val artworkUri = if (!albumArtPath.isNullOrBlank()) {
-            val cleanArtPath = albumArtPath.removePrefix("file://")
-            Uri.fromFile(File(cleanArtPath))
-        } else {
-            Uri.EMPTY
-        }
-
-        return MediaItem.Builder()
-            .setUri(uri)
-            .setMediaId(trackId.toString())
-            .setMediaMetadata(
-                MediaMetadata.Builder()
-                    .setTitle(title)
-                    .setArtist(artist)
-                    .setArtworkUri(artworkUri)
-                    .build()
-            )
-            .build()
-    }
-
     fun removeTrack(index: Int) {
         val player = exoPlayer ?: return
         if (index < 0 || index >= player.mediaItemCount) return
-        val wasCurrent = index == player.currentMediaItemIndex
 
         player.removeMediaItem(index)
         if (index in currentTrackIds.indices) {
@@ -421,12 +325,6 @@ class MusicPlayerController constructor(
         currentTrackIds = emptyList()
         currentTrackPaths = emptyList()
         updateState()
-    }
-
-    fun release() {
-        cancelSleepTimer()
-        exoPlayer?.release()
-        exoPlayer = null
     }
 
     private fun updateState() {

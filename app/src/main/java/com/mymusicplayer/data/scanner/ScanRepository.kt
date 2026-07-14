@@ -40,7 +40,7 @@ enum class ScanPhase {
     ERROR
 }
 
-class ScanRepository constructor(
+class ScanRepository(
     private val context: Context,
     private val trackDao: TrackDao,
     private val artistDao: ArtistDao,
