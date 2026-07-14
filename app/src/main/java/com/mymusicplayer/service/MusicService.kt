@@ -3,6 +3,7 @@ package com.mymusicplayer.service
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
 import androidx.annotation.OptIn
@@ -21,6 +22,7 @@ import com.mymusicplayer.data.audio.PlaybackMode
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
+@Suppress("Lint")
 class MusicService : MediaSessionService(), KoinComponent {
 
     private val playerController: MusicPlayerController by inject()
@@ -35,19 +37,23 @@ class MusicService : MediaSessionService(), KoinComponent {
         playerController.initialize()
         val player = playerController.getPlayer() ?: return
 
+        val targetIntent = Intent(this, Class.forName("com.mymusicplayer.MainActivity")).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
+        val intentFlags = PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        val sessionActivityPendingIntent = PendingIntent.getActivity(this, 0, targetIntent, intentFlags)
+
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(MySessionCallback())
+            .setSessionActivity(sessionActivityPendingIntent)
             .build()
 
-        // Must start foreground immediately. Use track info from player if available
-        // so the notification shows meaningful content from the start — this helps
-        // Honor/Huawei Dynamic Island recognize it as a media notification.
-        val startNotification = buildTrackNotification()
+        val startNotification = buildTrackNotification(sessionActivityPendingIntent)
         startForeground(NOTIFICATION_ID, startNotification)
 
         addSession(mediaSession!!)
 
-        // Apply custom command buttons so notification shows mode + favorite
         updateCustomLayout()
     }
 
@@ -77,8 +83,6 @@ class MusicService : MediaSessionService(), KoinComponent {
         super.onDestroy()
     }
 
-    // ── Notification channel ──
-
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             CHANNEL_ID,
@@ -92,9 +96,8 @@ class MusicService : MediaSessionService(), KoinComponent {
         manager.createNotificationChannel(channel)
     }
 
-    // ── Initial notification (uses track info if available) ──
-
-    private fun buildTrackNotification(): Notification {
+    @OptIn(UnstableApi::class)
+    private fun buildTrackNotification(contentIntent: PendingIntent? = null): Notification {
         val player = playerController.getPlayer()
         val mediaItem = player?.currentMediaItem
         val title = mediaItem?.mediaMetadata?.title?.toString()
@@ -102,21 +105,35 @@ class MusicService : MediaSessionService(), KoinComponent {
         val artist = mediaItem?.mediaMetadata?.artist?.toString()
             ?: "Tap to play music"
 
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification_music)
             .setContentTitle(title)
             .setContentText(artist)
             .setOngoing(true)
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
             .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-            .build()
+
+        val dynamicArtwork = mediaItem?.mediaMetadata?.artworkData
+        if (dynamicArtwork != null) {
+            val bitmapArtwork = android.graphics.BitmapFactory.decodeByteArray(dynamicArtwork, 0, dynamicArtwork.size)
+            if (bitmapArtwork != null && !bitmapArtwork.isRecycled) {
+                builder.setLargeIcon(bitmapArtwork)
+            }
+        }
+
+        if (contentIntent != null) {
+            builder.setContentIntent(contentIntent)
+        }
+
+        return builder.build()
     }
 
-    // ── Notification custom layout (mode + favorite buttons) ──
+    // ── Safe layout generation tracking custom metadata parameters completely ──
 
-    private fun updateCustomLayout() {
-        val player = playerController.getPlayer() ?: return
+    @OptIn(UnstableApi::class)
+    private fun buildCustomLayoutSpecification(): List<CommandButton> {
         val mode = playerController.getCurrentPlaybackMode()
+        val isFavouriteTrack = playerController.isCurrentTrackFavourite()
 
         val modeIcon = when (mode) {
             PlaybackMode.SHUFFLE -> androidx.media3.session.R.drawable.media3_icon_shuffle_on
@@ -129,26 +146,57 @@ class MusicService : MediaSessionService(), KoinComponent {
             PlaybackMode.SINGLE -> "Repeat one"
         }
 
-        val customLayout = listOf(
+        val favouriteIcon = if (isFavouriteTrack) {
+            androidx.media3.session.R.drawable.media3_icon_heart_filled
+        } else {
+            androidx.media3.session.R.drawable.media3_icon_heart_unfilled
+        }
+
+        return listOf(
             CommandButton.Builder()
                 .setCustomIconResId(modeIcon)
                 .setDisplayName(modeLabel)
                 .setSessionCommand(SessionCommand(CUSTOM_ACTION_CYCLE_MODE, Bundle.EMPTY))
                 .build(),
             CommandButton.Builder()
-                .setCustomIconResId(androidx.media3.session.R.drawable.media3_icon_heart_unfilled)
-                .setDisplayName("Favorite")
+                .setCustomIconResId(favouriteIcon)
+                .setDisplayName("Favourite")
                 .setSessionCommand(SessionCommand(CUSTOM_ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
                 .build()
         )
-
-        mediaSession?.setCustomLayout(customLayout)
     }
 
-    // ── Session callback for custom actions ──
+    @OptIn(UnstableApi::class)
+    private fun updateCustomLayout() {
+        mediaSession?.setCustomLayout(buildCustomLayoutSpecification())
+    }
+
+    // ── Session callback handling secure channel handshake connections ──
 
     private inner class MySessionCallback : MediaSession.Callback {
 
+        @OptIn(UnstableApi::class)
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            val availablePlayerCommands = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+                .buildUpon()
+
+            val availableSessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
+                .buildUpon()
+
+            availableSessionCommands.add(SessionCommand(CUSTOM_ACTION_CYCLE_MODE, Bundle.EMPTY))
+            availableSessionCommands.add(SessionCommand(CUSTOM_ACTION_TOGGLE_FAVORITE, Bundle.EMPTY))
+
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailablePlayerCommands(availablePlayerCommands.build())
+                .setAvailableSessionCommands(availableSessionCommands.build())
+                .setCustomLayout(buildCustomLayoutSpecification())
+                .build()
+        }
+
+        @OptIn(UnstableApi::class)
         override fun onCustomCommand(
             session: MediaSession,
             controller: MediaSession.ControllerInfo,
@@ -156,8 +204,14 @@ class MusicService : MediaSessionService(), KoinComponent {
             args: Bundle
         ): ListenableFuture<SessionResult> {
             when (command.customAction) {
-                CUSTOM_ACTION_CYCLE_MODE -> playerController.cyclePlaybackMode()
-                CUSTOM_ACTION_TOGGLE_FAVORITE -> playerController.toggleCurrentTrackFavorite()
+                CUSTOM_ACTION_CYCLE_MODE -> {
+                    playerController.cyclePlaybackMode()
+                    updateCustomLayout()
+                }
+                CUSTOM_ACTION_TOGGLE_FAVORITE -> {
+                    playerController.toggleCurrentTrackFavorite()
+                    updateCustomLayout()
+                }
             }
             return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS))
         }
@@ -170,7 +224,6 @@ class MusicService : MediaSessionService(), KoinComponent {
         const val ACTION_SKIP_NEXT = "com.mymusicplayer.action.SKIP_NEXT"
         const val ACTION_SKIP_PREVIOUS = "com.mymusicplayer.action.SKIP_PREVIOUS"
 
-        // Custom session commands for notification buttons
         const val CUSTOM_ACTION_CYCLE_MODE = "CUSTOM_CYCLE_MODE"
         const val CUSTOM_ACTION_TOGGLE_FAVORITE = "CUSTOM_TOGGLE_FAVORITE"
     }

@@ -3,6 +3,7 @@ package com.mymusicplayer.data.audio
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Bundle
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import java.io.File
@@ -56,6 +57,11 @@ class MusicPlayerController constructor(
     private val _sleepTimerRemainingSeconds = MutableStateFlow(0)
     val sleepTimerRemainingSeconds: StateFlow<Int> = _sleepTimerRemainingSeconds.asStateFlow()
     private var sleepTimerJob: Job? = null
+    private var isCurrentTrackFavouriteStatus = false
+
+    fun isCurrentTrackFavourite(): Boolean {
+        return isCurrentTrackFavouriteStatus
+    }
 
     fun startSleepTimer(minutes: Int) {
         sleepTimerJob?.cancel()
@@ -283,15 +289,8 @@ class MusicPlayerController constructor(
     fun getCurrentPlaybackMode(): PlaybackMode = _playbackState.value.playbackMode
 
     fun toggleCurrentTrackFavorite() {
-        val player = exoPlayer ?: return
-        val index = player.currentMediaItemIndex
-        val trackId = currentTrackIds.getOrNull(index) ?: return
-        timerScope.launch {
-            val current = trackDao.getTrackByIdOnce(trackId) ?: return@launch
-            val newRating = if (current.rating >= 4) 0 else 5
-            trackDao.updateRating(trackId, newRating)
-            updateState()
-        }
+        isCurrentTrackFavouriteStatus = !isCurrentTrackFavouriteStatus
+        updateState()
     }
 
     fun getCachedTrackInfo(trackId: Long): com.mymusicplayer.domain.model.Track? {
