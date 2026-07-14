@@ -2,6 +2,7 @@ package com.mymusicplayer.ui.screens.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,25 +11,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ImportExport
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,7 +45,6 @@ import org.koin.compose.koinInject
 import java.io.File
 
 private enum class TrackSort(val label: String) {
-    POSITION("Manual (position)"),
     TITLE_ASC("Title (A-Z)"),
     TITLE_DESC("Title (Z-A)"),
     ARTIST("Artist"),
@@ -66,13 +65,19 @@ fun PlaylistDetailScreen(
     val scope = rememberCoroutineScope()
     val rawTracks by repository.getTracksInPlaylist(playlistId).collectAsState(initial = emptyList())
 
-    var sortMode by remember { mutableStateOf(TrackSort.POSITION) }
+    var sortMode by remember { mutableStateOf(TrackSort.TITLE_ASC) }
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddTrackSheet by remember { mutableStateOf(false) }
 
     var multiSelectEnabled by remember { mutableStateOf(false) }
     var selectedTrackIds by remember { mutableStateOf(setOf<Long>()) }
     var reorderMode by remember { mutableStateOf(false) }
+
+    // Drag-to-reorder state
+    var draggedItemIndex by remember { mutableStateOf<Int?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    var itemHeightPx by remember { mutableFloatStateOf(0f) }
+    val reorderBuffer = remember { mutableStateListOf<Track>() }
 
     fun clearSelection() {
         selectedTrackIds = emptySet()
@@ -83,7 +88,6 @@ fun PlaylistDetailScreen(
     // Sort tracks in-memory
     val tracks = remember(rawTracks, sortMode) {
         when (sortMode) {
-            TrackSort.POSITION -> rawTracks // already by position ASC from DAO
             TrackSort.TITLE_ASC -> rawTracks.sortedBy { it.title.lowercase() }
             TrackSort.TITLE_DESC -> rawTracks.sortedByDescending { it.title.lowercase() }
             TrackSort.ARTIST -> rawTracks.sortedBy {
@@ -109,66 +113,65 @@ fun PlaylistDetailScreen(
                     }
                 },
                 navigationIcon = {
-                    IconButton(onClick = if (multiSelectEnabled || reorderMode) {{ clearSelection() }} else onBack) {
-                        Icon(
-                            if (multiSelectEnabled || reorderMode) Icons.Default.CheckBoxOutlineBlank
-                            else Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back"
-                        )
+                    if (multiSelectEnabled || reorderMode) {
+                        IconButton(onClick = { clearSelection() }) {
+                            Icon(Icons.Default.Close, contentDescription = "Exit")
+                        }
+                    } else {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        }
                     }
                 },
                 actions = {
-                    if (multiSelectEnabled && selectedTrackIds.isNotEmpty()) {
-                        IconButton(onClick = {
-                            scope.launch {
-                                selectedTrackIds.forEach { tid ->
-                                    playlistDao.removeTrackFromPlaylist(playlistId, tid)
+                    when {
+                        multiSelectEnabled -> {
+                            // Select All / Deselect All
+                            if (tracks.isNotEmpty()) {
+                                val allSelected = selectedTrackIds.size == tracks.size
+                                TextButton(onClick = {
+                                    selectedTrackIds = if (allSelected) emptySet()
+                                        else tracks.map { it.id }.toSet()
+                                }) {
+                                    Text(if (allSelected) "Deselect All" else "Select All")
                                 }
-                                clearSelection()
                             }
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Remove selected",
-                                tint = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                    if (tracks.isNotEmpty()) {
-                        if (!multiSelectEnabled && !reorderMode) {
-                            // Sort button
-                            IconButton(onClick = { showSortSheet = true }) {
-                                Icon(Icons.Default.ImportExport, contentDescription = "Sort")
-                            }
-                        }
-                        // Toggle multiselect
-                        if (!reorderMode) {
-                            IconButton(onClick = { multiSelectEnabled = !multiSelectEnabled }) {
-                                Icon(
-                                    if (multiSelectEnabled) Icons.Default.CheckBox
-                                    else Icons.Default.CheckBoxOutlineBlank,
-                                    contentDescription = "Multiselect",
-                                    tint = if (multiSelectEnabled) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            // Delete selected
+                            if (selectedTrackIds.isNotEmpty()) {
+                                IconButton(onClick = {
+                                    scope.launch {
+                                        selectedTrackIds.forEach { tid ->
+                                            playlistDao.removeTrackFromPlaylist(playlistId, tid)
+                                        }
+                                        clearSelection()
+                                    }
+                                }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Remove selected",
+                                        tint = MaterialTheme.colorScheme.error)
+                                }
                             }
                         }
-                        // Reorder toggle
-                        if (!multiSelectEnabled) {
-                            IconButton(onClick = {
-                                reorderMode = !reorderMode
-                                sortMode = TrackSort.POSITION
-                            }) {
-                                Icon(
-                                    Icons.Default.SwapVert,
-                                    contentDescription = "Reorder",
-                                    tint = if (reorderMode) MaterialTheme.colorScheme.primary
-                                        else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                        reorderMode -> {
+                            IconButton(onClick = { clearSelection() }) {
+                                Icon(Icons.Default.Check, contentDescription = "Done reordering",
+                                    tint = MaterialTheme.colorScheme.primary)
                             }
                         }
-                    }
-                    // Add track button
-                    if (!multiSelectEnabled && !reorderMode) {
-                        IconButton(onClick = { showAddTrackSheet = true }) {
-                            Icon(Icons.Default.Add, contentDescription = "Add track")
+                        else -> {
+                            if (tracks.isNotEmpty()) {
+                                IconButton(onClick = { showSortSheet = true }) {
+                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                }
+                                IconButton(onClick = { multiSelectEnabled = !multiSelectEnabled }) {
+                                    Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Multiselect")
+                                }
+                                IconButton(onClick = { reorderMode = !reorderMode }) {
+                                    Icon(Icons.Default.DragIndicator, contentDescription = "Reorder")
+                                }
+                            }
+                            IconButton(onClick = { showAddTrackSheet = true }) {
+                                Icon(Icons.Default.Add, contentDescription = "Add track")
+                            }
                         }
                     }
                 },
@@ -222,7 +225,7 @@ fun PlaylistDetailScreen(
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Use ▲▼ to reorder tracks",
+                            Text("Long press and drag to reorder tracks",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
@@ -251,34 +254,121 @@ fun PlaylistDetailScreen(
                 }
             }
         } else {
+            val isDragging = draggedItemIndex != null
+            val showTracks = if (isDragging) reorderBuffer else if (reorderMode) rawTracks else tracks
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
                 contentPadding = PaddingValues(vertical = 8.dp)
             ) {
-                itemsIndexed(tracks, key = { _, t -> t.id }) { index, track ->
+                itemsIndexed(showTracks, key = { _, t -> t.id }) { index, track ->
                     if (reorderMode) {
-                        ReorderTrackRow(
-                            track = track,
-                            index = index,
-                            totalCount = tracks.size,
-                            onMoveUp = {
-                                if (index > 0) {
-                                    scope.launch {
-                                        val prevId = tracks[index - 1].id
-                                        playlistDao.reorderTrack(playlistId, track.id, index - 1)
-                                        playlistDao.reorderTrack(playlistId, prevId, index)
+                        val isThisDragging = draggedItemIndex == index
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .graphicsLayer {
+                                    translationY = if (isThisDragging) dragOffset else 0f
+                                    scaleX = if (isThisDragging) 1.03f else 1f
+                                    scaleY = if (isThisDragging) 1.03f else 1f
+                                    shadowElevation = if (isThisDragging) 8f else 0f
+                                }
+                                .onGloballyPositioned { coords ->
+                                    if (itemHeightPx == 0f) {
+                                        itemHeightPx = coords.size.height.toFloat()
                                     }
                                 }
-                            },
-                            onMoveDown = {
-                                if (index < tracks.size - 1) {
-                                    scope.launch {
-                                        val nextId = tracks[index + 1].id
-                                        playlistDao.reorderTrack(playlistId, track.id, index + 1)
-                                        playlistDao.reorderTrack(playlistId, nextId, index)
-                                    }
+                                .pointerInput(index) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            reorderBuffer.clear()
+                                            reorderBuffer.addAll(showTracks)
+                                            draggedItemIndex = index
+                                            dragOffset = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffset += dragAmount.y
+                                            if (itemHeightPx > 0f) {
+                                                val halfItem = itemHeightPx * 0.5f
+                                                val currentIdx = draggedItemIndex ?: return@detectDragGesturesAfterLongPress
+                                                if (dragOffset > halfItem && currentIdx < reorderBuffer.size - 1) {
+                                                    val temp = reorderBuffer[currentIdx]
+                                                    reorderBuffer[currentIdx] = reorderBuffer[currentIdx + 1]
+                                                    reorderBuffer[currentIdx + 1] = temp
+                                                    draggedItemIndex = currentIdx + 1
+                                                    dragOffset -= itemHeightPx
+                                                } else if (dragOffset < -halfItem && currentIdx > 0) {
+                                                    val temp = reorderBuffer[currentIdx]
+                                                    reorderBuffer[currentIdx] = reorderBuffer[currentIdx - 1]
+                                                    reorderBuffer[currentIdx - 1] = temp
+                                                    draggedItemIndex = currentIdx - 1
+                                                    dragOffset += itemHeightPx
+                                                }
+                                            }
+                                        },
+                                        onDragEnd = {
+                                            scope.launch {
+                                                reorderBuffer.forEachIndexed { idx, t ->
+                                                    playlistDao.reorderTrack(playlistId, t.id, idx)
+                                                }
+                                            }
+                                            draggedItemIndex = null
+                                            dragOffset = 0f
+                                        },
+                                        onDragCancel = {
+                                            draggedItemIndex = null
+                                            dragOffset = 0f
+                                        }
+                                    )
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.DragIndicator,
+                                contentDescription = "Drag to reorder",
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val context = LocalContext.current
+                                if (track.album?.artPath != null) {
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(File(track.album.artPath)).crossfade(true).build(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop,
+                                        error = {
+                                            Icon(Icons.Default.MusicNote, contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                                        }
+                                    )
+                                } else {
+                                    Icon(Icons.Default.MusicNote, contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                                 }
                             }
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                Text(track.artists.joinToString(", ") { it.name }.ifBlank { "Unknown" },
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        HorizontalDivider(
+                            modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
                         )
                     } else {
                         PlaylistTrackRow(
@@ -668,79 +758,4 @@ private fun PlaylistTrackRow(
     )
 }
 
-@Composable
-private fun ReorderTrackRow(
-    track: Track,
-    index: Int,
-    totalCount: Int,
-    onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit
-) {
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Move up
-        IconButton(
-            onClick = onMoveUp,
-            enabled = index > 0,
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move up",
-                tint = if (index > 0) MaterialTheme.colorScheme.onSurface
-                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
-        }
-        // Move down
-        IconButton(
-            onClick = onMoveDown,
-            enabled = index < totalCount - 1,
-            modifier = Modifier.size(36.dp)
-        ) {
-            Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move down",
-                tint = if (index < totalCount - 1) MaterialTheme.colorScheme.onSurface
-                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f))
-        }
 
-        // Track info
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(6.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            if (track.album?.artPath != null) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(File(track.album.artPath)).crossfade(true).build(),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    error = {
-                        Icon(Icons.Default.MusicNote, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                    }
-                )
-            } else {
-                Icon(Icons.Default.MusicNote, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-            }
-        }
-        Spacer(Modifier.width(10.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-            Text(track.artists.joinToString(", ") { it.name }.ifBlank { "Unknown" },
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-    HorizontalDivider(
-        modifier = Modifier.padding(start = 96.dp, end = 16.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-    )
-}
