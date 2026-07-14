@@ -2,7 +2,7 @@ package com.mymusicplayer.ui.screens.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -277,57 +277,61 @@ fun PlaylistDetailScreen(
                                         itemHeightPx = coords.size.height.toFloat()
                                     }
                                 }
-                                .pointerInput(index) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            reorderBuffer.clear()
-                                            reorderBuffer.addAll(showTracks)
-                                            draggedItemIndex = index
-                                            dragOffset = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOffset += dragAmount.y
-                                            if (itemHeightPx > 0f) {
-                                                val halfItem = itemHeightPx * 0.5f
-                                                val currentIdx = draggedItemIndex ?: return@detectDragGesturesAfterLongPress
-                                                if (dragOffset > halfItem && currentIdx < reorderBuffer.size - 1) {
-                                                    val temp = reorderBuffer[currentIdx]
-                                                    reorderBuffer[currentIdx] = reorderBuffer[currentIdx + 1]
-                                                    reorderBuffer[currentIdx + 1] = temp
-                                                    draggedItemIndex = currentIdx + 1
-                                                    dragOffset -= itemHeightPx
-                                                } else if (dragOffset < -halfItem && currentIdx > 0) {
-                                                    val temp = reorderBuffer[currentIdx]
-                                                    reorderBuffer[currentIdx] = reorderBuffer[currentIdx - 1]
-                                                    reorderBuffer[currentIdx - 1] = temp
-                                                    draggedItemIndex = currentIdx - 1
-                                                    dragOffset += itemHeightPx
-                                                }
-                                            }
-                                        },
-                                        onDragEnd = {
-                                            scope.launch {
-                                                reorderBuffer.forEachIndexed { idx, t ->
-                                                    playlistDao.reorderTrack(playlistId, t.id, idx)
-                                                }
-                                            }
-                                            draggedItemIndex = null
-                                            dragOffset = 0f
-                                        },
-                                        onDragCancel = {
-                                            draggedItemIndex = null
-                                            dragOffset = 0f
-                                        }
-                                    )
-                                }
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Default.DragIndicator,
                                 contentDescription = "Drag to reorder",
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .pointerInput(track.id) {
+                                        detectDragGestures(
+                                            onDragStart = {
+                                                reorderBuffer.clear()
+                                                reorderBuffer.addAll(rawTracks)
+                                                val startIdx = reorderBuffer.indexOfFirst { it.id == track.id }
+                                                if (startIdx >= 0) {
+                                                    draggedItemIndex = startIdx
+                                                    dragOffset = 0f
+                                                }
+                                            },
+                                            onDrag = { change, dragAmount ->
+                                                change.consume()
+                                                dragOffset += dragAmount.y
+                                                if (itemHeightPx > 0f) {
+                                                    val halfItem = itemHeightPx * 0.5f
+                                                    val currentIdx = draggedItemIndex ?: return@detectDragGestures
+                                                    if (dragOffset > halfItem && currentIdx < reorderBuffer.size - 1) {
+                                                        val temp = reorderBuffer[currentIdx]
+                                                        reorderBuffer[currentIdx] = reorderBuffer[currentIdx + 1]
+                                                        reorderBuffer[currentIdx + 1] = temp
+                                                        draggedItemIndex = currentIdx + 1
+                                                        dragOffset -= itemHeightPx
+                                                    } else if (dragOffset < -halfItem && currentIdx > 0) {
+                                                        val temp = reorderBuffer[currentIdx]
+                                                        reorderBuffer[currentIdx] = reorderBuffer[currentIdx - 1]
+                                                        reorderBuffer[currentIdx - 1] = temp
+                                                        draggedItemIndex = currentIdx - 1
+                                                        dragOffset += itemHeightPx
+                                                    }
+                                                }
+                                            },
+                                            onDragEnd = {
+                                                scope.launch {
+                                                    reorderBuffer.forEachIndexed { idx, t ->
+                                                        playlistDao.reorderTrack(playlistId, t.id, idx)
+                                                    }
+                                                }
+                                                draggedItemIndex = null
+                                                dragOffset = 0f
+                                            },
+                                            onDragCancel = {
+                                                draggedItemIndex = null
+                                                dragOffset = 0f
+                                            }
+                                        )
+                                    },
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.width(8.dp))

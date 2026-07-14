@@ -65,6 +65,7 @@ now let think what to improve
 //comment: require lot of new screen page.
 
 
+// playlist order cant drag
 //fix:dynamic island
 // adapt to play store rules,keep MANAGE EXTERNAL STORAGE in manifest
 
