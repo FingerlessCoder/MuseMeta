@@ -5,6 +5,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.delay
@@ -35,6 +37,7 @@ fun MarqueeText(
     color: Color = Color.Unspecified
 ) {
     var containerWidthPx by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
 
     val textMeasurer = rememberTextMeasurer()
     val textWidthPx = remember(text, style) {
@@ -44,6 +47,7 @@ fun MarqueeText(
             constraints = Constraints(maxWidth = 100000)
         ).size.width.toFloat()
     }
+    val textWidthDp = with(density) { textWidthPx.toDp() }
 
     val overflowPx = textWidthPx - containerWidthPx
     val shouldAnimate = overflowPx > 0f && containerWidthPx > 0f
@@ -85,6 +89,7 @@ fun MarqueeText(
         Text(
             text = text,
             modifier = Modifier
+                .width(textWidthDp)
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) },
             style = style,
             color = color,
