@@ -54,6 +54,7 @@ fun HomeScreen(
     onNavigateToRecentlyPlayed: () -> Unit = {},
     onNavigateToAlbum: (Long) -> Unit = {},
     onNavigateToArtist: (Long) -> Unit = {},
+    onNavigateToMultiSelect: () -> Unit = {},
     viewModel: HomeViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -263,7 +264,12 @@ fun HomeScreen(
                                                 contentDescription = "Sort",
                                                 modifier = Modifier.size(20.dp))
                                         }
-                                        IconButton(onClick = { viewModel.toggleMultiSelect() },
+                                        IconButton(onClick = {
+                                            if (!state.multiSelectEnabled) {
+                                                viewModel.toggleMultiSelect()
+                                                onNavigateToMultiSelect()
+                                            }
+                                        },
                                             modifier = Modifier.size(36.dp)) {
                                             Icon(
                                                 if (state.multiSelectEnabled) Icons.Default.CheckBox

@@ -14,6 +14,7 @@ import com.mymusicplayer.data.db.dao.PlaylistDao
 import com.mymusicplayer.ui.screens.albums.AlbumDetailViewModel
 import com.mymusicplayer.ui.screens.artists.ArtistDetailViewModel
 import com.mymusicplayer.ui.screens.home.HomeViewModel
+import com.mymusicplayer.ui.screens.home.MultiSelectViewModel
 import com.mymusicplayer.ui.screens.player.PlayerViewModel
 import com.mymusicplayer.ui.screens.scan.ScanViewModel
 import com.mymusicplayer.ui.screens.search.SearchViewModel
@@ -35,6 +36,7 @@ val appModule = module {
     factory { androidContext().contentResolver }
 
     viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get()) }
+    viewModel { MultiSelectViewModel(get(), get()) }
     viewModel { PlayerViewModel(get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }

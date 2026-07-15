@@ -19,4 +19,7 @@ sealed class Screen(val route: String) {
     data object ArtistDetail : Screen("artist_detail/{artistId}") {
         fun createRoute(artistId: Long) = "artist_detail/$artistId"
     }
+    data object MultiSelect : Screen("multi_select") {
+        fun createRoute() = "multi_select"
+    }
 }

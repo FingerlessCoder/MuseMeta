@@ -13,6 +13,7 @@ import com.mymusicplayer.ui.screens.artists.ArtistDetailScreen
 import com.mymusicplayer.ui.screens.artists.ArtistDetailViewModel
 import com.mymusicplayer.ui.screens.home.FavoritesScreen
 import com.mymusicplayer.ui.screens.home.HomeScreen
+import com.mymusicplayer.ui.screens.home.MultiSelectScreen
 import com.mymusicplayer.ui.screens.home.PlaylistDetailScreen
 import com.mymusicplayer.ui.screens.home.PlaylistsScreen
 import com.mymusicplayer.ui.screens.home.RecentlyPlayedScreen
@@ -40,7 +41,15 @@ fun NavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
                 onNavigateToPlaylists = { navController.navigate(Screen.Playlists.route) },
                 onNavigateToRecentlyPlayed = { navController.navigate(Screen.RecentlyPlayed.route) },
                 onNavigateToAlbum = { albumId -> navController.navigate(Screen.AlbumDetail.createRoute(albumId)) },
-                onNavigateToArtist = { artistId -> navController.navigate(Screen.ArtistDetail.createRoute(artistId)) }
+                onNavigateToArtist = { artistId -> navController.navigate(Screen.ArtistDetail.createRoute(artistId)) },
+                onNavigateToMultiSelect = { navController.navigate(Screen.MultiSelect.createRoute()) }
+            )
+        }
+
+        composable(Screen.MultiSelect.route) {
+            MultiSelectScreen(
+                onBack = { navController.popBackStack() },
+                onNavigateToPlayer = { navController.navigate(Screen.NowPlaying.route) }
             )
         }
 
