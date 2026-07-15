@@ -396,14 +396,14 @@ fun PlaylistDetailScreen(
                                             startIndex = trackIndex,
                                             trackIds = allTracks.map { it.id },
                                             titles = allTracks.map { it.title },
-                                            artists = allTracks.map { it.artists.firstOrNull()?.name },
+                                            artists = allTracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                                             albumArtPaths = allTracks.map { it.album?.artPath }
                                         )
                                     } else {
                                         playerController.play(
                                             track.filePath, track.id,
                                             title = track.title,
-                                            artist = track.artists.firstOrNull()?.name,
+                                            artist = track.artists.joinToString(" · ") { it.name },
                                             albumArtPath = track.album?.artPath
                                         )
                                     }

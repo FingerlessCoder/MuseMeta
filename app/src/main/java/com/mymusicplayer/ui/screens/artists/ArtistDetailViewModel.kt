@@ -56,7 +56,7 @@ class ArtistDetailViewModel(
                 startIndex = index,
                 trackIds = tracks.map { it.id },
                 titles = tracks.map { it.title },
-                artists = tracks.map { it.artists.firstOrNull()?.name },
+                artists = tracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                 albumArtPaths = tracks.map { it.album?.artPath }
             )
         }
@@ -72,7 +72,7 @@ class ArtistDetailViewModel(
                     startIndex = 0,
                     trackIds = tracks.map { it.id },
                     titles = tracks.map { it.title },
-                    artists = tracks.map { it.artists.firstOrNull()?.name },
+                    artists = tracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                     albumArtPaths = tracks.map { it.album?.artPath }
                 )
             }
@@ -90,7 +90,7 @@ class ArtistDetailViewModel(
                     startIndex = 0,
                     trackIds = tracks.map { it.id },
                     titles = tracks.map { it.title },
-                    artists = tracks.map { it.artists.firstOrNull()?.name },
+                    artists = tracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                     albumArtPaths = tracks.map { it.album?.artPath }
                 )
             }

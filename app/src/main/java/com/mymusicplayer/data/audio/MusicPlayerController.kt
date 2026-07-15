@@ -272,7 +272,7 @@ class MusicPlayerController(
             id = trackId,
             title = cached.title ?: "Unknown",
             artists = cached.artist?.let { a ->
-                listOf(com.mymusicplayer.domain.model.Artist(id = 0, name = a))
+                a.split(" · ").map { com.mymusicplayer.domain.model.Artist(id = 0, name = it.trim()) }
             } ?: emptyList(),
             album = cached.albumArtPath?.let { artPath ->
                 com.mymusicplayer.domain.model.Album(

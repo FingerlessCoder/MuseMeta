@@ -148,14 +148,14 @@ class HomeViewModel(
                 startIndex = trackIndex,
                 trackIds = allTracks.map { it.id },
                 titles = allTracks.map { it.title },
-                artists = allTracks.map { it.artists.firstOrNull()?.name },
+                artists = allTracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                 albumArtPaths = allTracks.map { it.album?.artPath }
             )
         } else {
             musicPlayerController.play(
                 track.filePath, track.id,
                 title = track.title,
-                artist = track.artists.firstOrNull()?.name,
+                artist = track.artists.joinToString(" · ") { it.name },
                 albumArtPath = track.album?.artPath
             )
         }
@@ -178,7 +178,7 @@ class HomeViewModel(
                         startIndex = 0,
                         trackIds = tracks.map { it.id },
                         titles = tracks.map { it.title },
-                        artists = tracks.map { it.artists.firstOrNull()?.name },
+                        artists = tracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                         albumArtPaths = tracks.map { it.album?.artPath }
                     )
                 }
@@ -197,7 +197,7 @@ class HomeViewModel(
                         startIndex = 0,
                         trackIds = tracks.map { it.id },
                         titles = tracks.map { it.title },
-                        artists = tracks.map { it.artists.firstOrNull()?.name },
+                        artists = tracks.map { it.artists.joinToString(" · ") { artist -> artist.name } },
                         albumArtPaths = tracks.map { it.album?.artPath }
                     )
                 }

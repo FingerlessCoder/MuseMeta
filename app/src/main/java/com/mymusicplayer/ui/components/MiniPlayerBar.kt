@@ -100,6 +100,7 @@ fun MiniPlayerBar(
                 Column(modifier = Modifier.weight(1f)) {
                     MarqueeText(
                         text = track.title,
+                        modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )

@@ -364,6 +364,7 @@ private fun PlayerContent(
                 Column(modifier = Modifier.weight(1f)) {
                     MarqueeText(
                         text = state.currentTrack?.title ?: "No track selected",
+                        modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.headlineSmall.copy(
                             fontWeight = FontWeight.Bold
                         ),
@@ -373,6 +374,7 @@ private fun PlayerContent(
                     if (state.currentTrack != null) {
                         MarqueeText(
                             text = state.currentTrack.artists.joinToString(" · ") { it.name },
+                            modifier = Modifier.fillMaxWidth(),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

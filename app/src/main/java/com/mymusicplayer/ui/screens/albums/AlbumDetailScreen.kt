@@ -177,7 +177,7 @@ fun AlbumDetailScreen(
                     TrackRow(
                         index = index + 1,
                         title = track.title,
-                        artist = track.artists.firstOrNull()?.name ?: "Unknown Artist",
+                        artist = track.artists.joinToString(" · ") { it.name }.ifBlank { "Unknown Artist" },
                         duration = track.duration,
                         isLast = index == state.tracks.lastIndex,
                         onClick = {

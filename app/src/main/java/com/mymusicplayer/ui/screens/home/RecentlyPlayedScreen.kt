@@ -92,7 +92,7 @@ fun RecentlyPlayedScreen(
                             playerController.play(
                                 track.filePath, track.id,
                                 title = track.title,
-                                artist = track.artists.firstOrNull()?.name,
+                                artist = track.artists.joinToString(" · ") { it.name },
                                 albumArtPath = track.album?.artPath
                             )
                             onNavigateToPlayer()
