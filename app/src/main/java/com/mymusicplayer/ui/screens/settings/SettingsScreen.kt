@@ -1,10 +1,12 @@
 package com.mymusicplayer.ui.screens.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -19,6 +21,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.mymusicplayer.ui.theme.AccentPalettes
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,6 +92,25 @@ fun SettingsScreen(
                     currentMinutes = state.sleepTimerMinutes,
                     remainingSeconds = state.sleepTimerRemainingSeconds,
                     onSelect = { viewModel.setSleepTimer(it) }
+                )
+            }
+
+            SectionHeader("Appearance")
+            SettingCard {
+                SettingRow(Icons.Default.DarkMode, "AMOLED Black Theme",
+                    if (state.amoledBlackTheme) "Pure black for AMOLED screens" else "Dark gray theme",
+                    trailing = {
+                        Switch(checked = state.amoledBlackTheme, onCheckedChange = { viewModel.setAmoledBlackTheme(it) })
+                    })
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                AccentColorPicker(
+                    selectedIndex = state.accentColorIndex,
+                    onSelect = { viewModel.setAccentColorIndex(it) }
+                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                PlayerThemePicker(
+                    selectedTheme = state.playerTheme,
+                    onSelect = { viewModel.setPlayerTheme(it) }
                 )
             }
 
@@ -272,6 +294,76 @@ private fun SettingRow(
             subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         }
         trailing?.invoke()
+    }
+}
+
+@Composable
+private fun AccentColorPicker(selectedIndex: Int, onSelect: (Int) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Palette, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(16.dp))
+            Text("Accent Color", style = MaterialTheme.typography.bodyLarge)
+        }
+        Spacer(Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AccentPalettes.forEachIndexed { index, palette ->
+                val isSelected = index == selectedIndex
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(palette.primary)
+                        .clickable { onSelect(index) },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(Icons.Default.Check, contentDescription = "Selected",
+                            tint = palette.onPrimary,
+                            modifier = Modifier.size(18.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerThemePicker(selectedTheme: Int, onSelect: (Int) -> Unit) {
+    val themes = listOf("Normal" to "Centered art with controls below", "Full Art" to "Full-screen art with overlaid controls")
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Image, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(16.dp))
+            Text("Player Theme", style = MaterialTheme.typography.bodyLarge)
+        }
+        Spacer(Modifier.height(8.dp))
+        themes.forEachIndexed { index, (name, desc) ->
+            val isSelected = index == selectedTheme
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(index) }
+                    .padding(vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(selected = isSelected, onClick = { onSelect(index) })
+                Spacer(Modifier.width(8.dp))
+                Column {
+                    Text(name, style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
+                    Text(desc, style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
     }
 }
 

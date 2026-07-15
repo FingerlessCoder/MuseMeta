@@ -31,6 +31,9 @@ class SettingsDataStore(private val context: Context) {
         val SCAN_DIRECTORY_PATH = stringPreferencesKey("scan_directory_path")
         val SCAN_MIN_FILE_SIZE = longPreferencesKey("scan_min_file_size_kb")
         val SCAN_MIN_DURATION = longPreferencesKey("scan_min_duration_sec")
+        val AMOLED_BLACK_THEME = booleanPreferencesKey("amoled_black_theme")
+        val ACCENT_COLOR_INDEX = intPreferencesKey("accent_color_index")
+        val PLAYER_THEME = intPreferencesKey("player_theme")
     }
 
     val sleepTimerDuration: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -122,6 +125,30 @@ class SettingsDataStore(private val context: Context) {
 
     val scanMinDuration: Flow<Long> = context.dataStore.data.map { prefs ->
         prefs[SCAN_MIN_DURATION] ?: 40L
+    }
+
+    val amoledBlackTheme: Flow<Boolean> = context.dataStore.data.map { prefs ->
+        prefs[AMOLED_BLACK_THEME] ?: false
+    }
+
+    val accentColorIndex: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[ACCENT_COLOR_INDEX] ?: 0
+    }
+
+    val playerTheme: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[PLAYER_THEME] ?: 0
+    }
+
+    suspend fun setAmoledBlackTheme(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[AMOLED_BLACK_THEME] = enabled }
+    }
+
+    suspend fun setAccentColorIndex(index: Int) {
+        context.dataStore.edit { prefs -> prefs[ACCENT_COLOR_INDEX] = index }
+    }
+
+    suspend fun setPlayerTheme(theme: Int) {
+        context.dataStore.edit { prefs -> prefs[PLAYER_THEME] = theme }
     }
 
     suspend fun setScanFileSizeFilter(minKb: Long) {

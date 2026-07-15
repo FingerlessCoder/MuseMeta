@@ -64,9 +64,11 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import java.io.File
 import com.mymusicplayer.data.audio.PlaybackMode
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.MarqueeText
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.abs
@@ -80,6 +82,8 @@ fun PlayerScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+    val settingsDataStore: SettingsDataStore = koinInject()
+    val playerTheme by settingsDataStore.playerTheme.collectAsState(initial = 0)
 
     var showEllipsisSheet by remember { mutableStateOf(false) }
     var showSleepTimerSheet by remember { mutableStateOf(false) }
@@ -152,6 +156,14 @@ fun PlayerScreen(
                             artPath = bgArtPath,
                             currentTrack = state.currentTrack,
                             onTap = { showLyricsView = false }
+                        )
+                    }
+                    playerTheme == 1 && !showLyricsView -> {
+                        PlayerThemeFull(
+                            state = state,
+                            viewModel = viewModel,
+                            context = context,
+                            onTapCover = { showLyricsView = true }
                         )
                     }
                     else -> {

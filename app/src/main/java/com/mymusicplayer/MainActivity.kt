@@ -12,10 +12,15 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.service.ScanService
+import com.mymusicplayer.ui.theme.AccentPalettes
 import com.mymusicplayer.ui.theme.MuseMetaTheme
+import org.koin.android.ext.android.get
 
 class MainActivity : ComponentActivity() {
 
@@ -48,7 +53,14 @@ class MainActivity : ComponentActivity() {
         requestPermissions()
 
         setContent {
-            MuseMetaTheme {
+            val settingsDataStore: SettingsDataStore = get()
+            val amoledBlack by settingsDataStore.amoledBlackTheme.collectAsState(initial = false)
+            val accentIndex by settingsDataStore.accentColorIndex.collectAsState(initial = 0)
+
+            MuseMetaTheme(
+                amoledBlack = amoledBlack,
+                accentPalette = AccentPalettes.getOrElse(accentIndex) { AccentPalettes[0] }
+            ) {
                 Surface(modifier = Modifier.fillMaxSize()) {
                     MainScreen()
                 }

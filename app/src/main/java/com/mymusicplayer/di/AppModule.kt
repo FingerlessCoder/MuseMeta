@@ -11,6 +11,8 @@ import com.mymusicplayer.domain.repository.MusicRepository
 import com.mymusicplayer.domain.repository.MusicRepositoryImpl
 import com.mymusicplayer.ui.screens.directory_picker.DirectoryPickerViewModel
 import com.mymusicplayer.data.db.dao.PlaylistDao
+import com.mymusicplayer.ui.screens.albums.AlbumDetailViewModel
+import com.mymusicplayer.ui.screens.artists.ArtistDetailViewModel
 import com.mymusicplayer.ui.screens.home.HomeViewModel
 import com.mymusicplayer.ui.screens.player.PlayerViewModel
 import com.mymusicplayer.ui.screens.scan.ScanViewModel
@@ -18,6 +20,7 @@ import com.mymusicplayer.ui.screens.search.SearchViewModel
 import com.mymusicplayer.ui.screens.settings.SettingsViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
+import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
 val appModule = module {
@@ -37,4 +40,6 @@ val appModule = module {
     viewModel { SettingsViewModel(get(), get()) }
     viewModel { ScanViewModel(get(), get()) }
     viewModel { DirectoryPickerViewModel(get(), get()) }
+    viewModel { params -> AlbumDetailViewModel(params.get(), get(), get()) }
+    viewModel { params -> ArtistDetailViewModel(params.get(), get(), get()) }
 }

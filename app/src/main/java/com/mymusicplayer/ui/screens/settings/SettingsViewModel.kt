@@ -19,7 +19,10 @@ data class SettingsUiState(
     val sleepTimerRemainingSeconds: Int = 0,
     val scanDirectoryPath: String = "",
     val scanMinFileSizeKb: Long = 2048L,
-    val scanMinDurationSec: Long = 40L
+    val scanMinDurationSec: Long = 40L,
+    val amoledBlackTheme: Boolean = false,
+    val accentColorIndex: Int = 0,
+    val playerTheme: Int = 0
 )
 
 class SettingsViewModel(
@@ -76,6 +79,21 @@ class SettingsViewModel(
                 _uiState.value = _uiState.value.copy(scanMinDurationSec = sec)
             }
         }
+        viewModelScope.launch {
+            settingsDataStore.amoledBlackTheme.collect { enabled ->
+                _uiState.value = _uiState.value.copy(amoledBlackTheme = enabled)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.accentColorIndex.collect { index ->
+                _uiState.value = _uiState.value.copy(accentColorIndex = index)
+            }
+        }
+        viewModelScope.launch {
+            settingsDataStore.playerTheme.collect { theme ->
+                _uiState.value = _uiState.value.copy(playerTheme = theme)
+            }
+        }
     }
 
     fun setSortMode(sort: String) {
@@ -117,6 +135,24 @@ class SettingsViewModel(
     fun setScanMinDuration(sec: Long) {
         viewModelScope.launch {
             settingsDataStore.setScanDurationFilter(sec.coerceIn(0L, 300L))
+        }
+    }
+
+    fun setAmoledBlackTheme(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsDataStore.setAmoledBlackTheme(enabled)
+        }
+    }
+
+    fun setAccentColorIndex(index: Int) {
+        viewModelScope.launch {
+            settingsDataStore.setAccentColorIndex(index)
+        }
+    }
+
+    fun setPlayerTheme(theme: Int) {
+        viewModelScope.launch {
+            settingsDataStore.setPlayerTheme(theme)
         }
     }
 
