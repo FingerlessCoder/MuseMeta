@@ -5,7 +5,6 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,17 +13,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -37,22 +32,18 @@ fun MarqueeText(
     color: Color = Color.Unspecified
 ) {
     var containerWidthPx by remember { mutableFloatStateOf(0f) }
-    val density = LocalDensity.current
+    var textLayoutWidthPx by remember { mutableFloatStateOf(0f) }
 
-    val textMeasurer = rememberTextMeasurer()
-    val textWidthPx = remember(text, style) {
-        textMeasurer.measure(
-            text = AnnotatedString(text),
-            style = style,
-            constraints = Constraints(maxWidth = 100000)
-        ).size.width.toFloat()
-    }
-    val textWidthDp = with(density) { textWidthPx.toDp() }
-
-    val overflowPx = textWidthPx - containerWidthPx
-    val shouldAnimate = overflowPx > 0f && containerWidthPx > 0f
+    val overflowPx = textLayoutWidthPx - containerWidthPx
+    val shouldAnimate = overflowPx > 0f && containerWidthPx > 0f && textLayoutWidthPx > 0f
 
     val offsetX = remember { Animatable(0f) }
+
+    val onTextLayout: (TextLayoutResult) -> Unit = remember {
+        { layoutResult ->
+            textLayoutWidthPx = layoutResult.size.width.toFloat()
+        }
+    }
 
     LaunchedEffect(shouldAnimate, text, overflowPx) {
         if (!shouldAnimate) {
@@ -83,19 +74,18 @@ fun MarqueeText(
     Box(
         modifier = modifier
             .clipToBounds()
-            .onSizeChanged { containerWidthPx = it.width.toFloat() },
-        contentAlignment = Alignment.CenterStart
+            .onSizeChanged { containerWidthPx = it.width.toFloat() }
     ) {
         Text(
             text = text,
             modifier = Modifier
-                .requiredWidth(textWidthDp)
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) },
             style = style,
             color = color,
             maxLines = 1,
-            overflow = TextOverflow.Clip,
-            softWrap = false
+            overflow = TextOverflow.Visible,
+            softWrap = false,
+            onTextLayout = onTextLayout
         )
     }
 }
