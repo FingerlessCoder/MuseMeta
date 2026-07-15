@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,6 +34,8 @@ import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.AlphabetIndexBar
+import com.mymusicplayer.ui.components.computeIndexLetters
+import com.mymusicplayer.ui.components.computeSectionIndices
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -44,6 +47,8 @@ fun HomeScreen(
     onNavigateToFavorites: () -> Unit = {},
     onNavigateToPlaylists: () -> Unit = {},
     onNavigateToRecentlyPlayed: () -> Unit = {},
+    onNavigateToAlbum: (Long) -> Unit = {},
+    onNavigateToArtist: (Long) -> Unit = {},
     viewModel: HomeViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -99,8 +104,8 @@ fun HomeScreen(
                     if (state.sortMode != "name") return@remember null
                     val groups = mutableMapOf<String, MutableList<Track>>()
                     for (track in tracks) {
-                        val c = track.title.firstOrNull()?.uppercase() ?: "#"
-                        val letter = if (c.length == 1 && c[0] in 'A'..'Z') c else "#"
+                        val c = track.title.firstOrNull()?.uppercaseChar() ?: '#'
+                        val letter = if (c in 'A'..'Z') c.toString() else "#"
                         groups.getOrPut(letter) { mutableListOf() }.add(track)
                     }
                     val sorted = linkedMapOf<String, List<Track>>()
@@ -109,114 +114,300 @@ fun HomeScreen(
                     sorted
                 }
 
+                val canShowBar = tracks.isNotEmpty()
+                    && state.selectedTab == HomeTab.Tracks
+                    && state.sortMode == "name"
+
+                data class BarLayoutInfo(val topOffsetPx: Int, val heightPx: Int)
+
+                val bottomPaddingPx = with(LocalDensity.current) { 16.dp.toPx() }.toInt()
+
+                val barLayout by remember(listState, bottomPaddingPx) {
+                    derivedStateOf {
+                        if (!canShowBar || listState.firstVisibleItemIndex < 1) return@derivedStateOf null
+                        val info = listState.layoutInfo
+                        if (info.visibleItemsInfo.none { it.index >= 2 }) return@derivedStateOf null
+                        val viewportH = info.viewportEndOffset - info.viewportStartOffset
+                        if (viewportH <= 0) return@derivedStateOf null
+                        val topPx = info.visibleItemsInfo
+                            .firstOrNull { it.index == 1 }?.size ?: 0
+                        val heightPx = (viewportH - topPx - bottomPaddingPx).coerceAtLeast(0)
+                        BarLayoutInfo(topPx, heightPx)
+                    }
+                }
+
+                val activeLetter = remember(canShowBar, listState) {
+                    derivedStateOf {
+                        if (!canShowBar) return@derivedStateOf null
+                        val items = listState.layoutInfo.visibleItemsInfo
+                            .filter { it.index > 1 }
+                        val threshold = items.firstOrNull()?.size ?: 0
+                        val firstIdx = items.firstOrNull { it.offset >= threshold }?.index ?: -1
+                        if (firstIdx < 0 || groupedTracks == null) return@derivedStateOf null
+                        val lettersList = groupedTracks.keys.toList()
+                        val sections = mutableListOf<Int>()
+                        var cumIdx = 2
+                        for ((_, group) in groupedTracks) {
+                            sections.add(cumIdx)
+                            cumIdx += 1 + group.size
+                        }
+                        var bestIdx = -1
+                        for (i in sections.indices) {
+                            if (sections[i] <= firstIdx) bestIdx = i
+                        }
+                        if (bestIdx >= 0) lettersList[bestIdx] else null
+                    }
+                }
+
+                var draggedLetter by remember { mutableStateOf<String?>(null) }
+
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        bottom = 16.dp
-                    )
+                    contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                    // Mini cards — scroll away on scroll
-                    item(key = "mini_cards") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            CompactMiniCard(
-                                label = "Favorites", count = state.favoriteCount,
-                                artPath = favoriteArt,
-                                onClick = onNavigateToFavorites,
-                                modifier = Modifier.weight(1f)
-                            )
-                            CompactMiniCard(
-                                label = "My Playlists", count = state.playlistCount,
-                                artPath = playlistArt,
-                                onClick = onNavigateToPlaylists,
-                                modifier = Modifier.weight(1f)
-                            )
-                            CompactMiniCard(
-                                label = "Recently Played", count = state.recentlyPlayedCount,
-                                artPath = recentArt,
-                                onClick = onNavigateToRecentlyPlayed,
-                                modifier = Modifier.weight(1f)
-                            )
+                        item(key = "mini_cards") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CompactMiniCard(
+                                    label = "Favorites", count = state.favoriteCount,
+                                    artPath = favoriteArt,
+                                    onClick = onNavigateToFavorites,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                CompactMiniCard(
+                                    label = "My Playlists", count = state.playlistCount,
+                                    artPath = playlistArt,
+                                    onClick = onNavigateToPlaylists,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                CompactMiniCard(
+                                    label = "Recently Played", count = state.recentlyPlayedCount,
+                                    artPath = recentArt,
+                                    onClick = onNavigateToRecentlyPlayed,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
-                    }
 
-                    // Sticky header: tabs + filter controls pinned on scroll
-                    stickyHeader(key = "tab_bar") {
-                        Surface(
-                            color = MaterialTheme.colorScheme.background,
-                            tonalElevation = 0.dp
-                        ) {
-                            Column {
-                                // tab chips
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                        .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    HomeTab.entries.forEach { tab ->
-                                        val selected = state.selectedTab == tab
-                                        FilterChip(
-                                            selected = selected,
-                                            onClick = { viewModel.selectTab(tab) },
-                                            label = {
-                                                Text(tab.name,
-                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                                    modifier = Modifier.padding(horizontal = 4.dp))
-                                            },
-                                            shape = RoundedCornerShape(8.dp),
-                                            colors = FilterChipDefaults.filterChipColors(
-                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                            ),
-                                            modifier = Modifier.weight(1f)
-                                        )
+                        stickyHeader(key = "tab_bar") {
+                            Surface(
+                                color = MaterialTheme.colorScheme.background,
+                                tonalElevation = 0.dp
+                            ) {
+                                Column {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        HomeTab.entries.forEach { tab ->
+                                            val selected = state.selectedTab == tab
+                                            FilterChip(
+                                                selected = selected,
+                                                onClick = { viewModel.selectTab(tab) },
+                                                label = {
+                                                    Text(tab.name,
+                                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                        modifier = Modifier.padding(horizontal = 4.dp))
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                colors = FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                                ),
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                    }
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 2.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        if (state.multiSelectEnabled) {
+                                            TextButton(
+                                                onClick = { if (state.selectedTrackIds.isNotEmpty()) showAddToPlaylistSheet = true },
+                                                enabled = state.selectedTrackIds.isNotEmpty()
+                                            ) {
+                                                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null,
+                                                    modifier = Modifier.size(18.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                                Text("Add ${state.selectedTrackIds.size} to Playlist",
+                                                    style = MaterialTheme.typography.labelLarge)
+                                            }
+                                        } else {
+                                            TextButton(onClick = { viewModel.playRandom() }) {
+                                                Icon(Icons.Default.Shuffle, contentDescription = null,
+                                                    modifier = Modifier.size(16.dp))
+                                                Spacer(Modifier.width(4.dp))
+                                                Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                            }
+                                        }
+                                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                            IconButton(onClick = { showSortSheet = true },
+                                                modifier = Modifier.size(36.dp)) {
+                                                Icon(Icons.Default.ImportExport,
+                                                    contentDescription = "Sort",
+                                                    modifier = Modifier.size(20.dp))
+                                            }
+                                            IconButton(onClick = { viewModel.toggleMultiSelect() },
+                                                modifier = Modifier.size(36.dp)) {
+                                                Icon(
+                                                    if (state.multiSelectEnabled) Icons.Default.CheckBox
+                                                    else Icons.Default.CheckBoxOutlineBlank,
+                                                    contentDescription = "Multi-select",
+                                                    tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
+                                                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
-                                // filter controls
-                                Row(
-                                    modifier = Modifier.fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 2.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (state.multiSelectEnabled) {
-                                        TextButton(
-                                            onClick = { if (state.selectedTrackIds.isNotEmpty()) showAddToPlaylistSheet = true },
-                                            enabled = state.selectedTrackIds.isNotEmpty()
-                                        ) {
-                                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null,
-                                                modifier = Modifier.size(18.dp))
-                                            Spacer(Modifier.width(6.dp))
-                                            Text("Add ${state.selectedTrackIds.size} to Playlist", 
-                                                style = MaterialTheme.typography.labelLarge)
+                            }
+                        }
+
+                        when (state.selectedTab) {
+                            HomeTab.Tracks -> {
+                                if (tracks.isEmpty()) {
+                                    item(key = "empty_tracks") {
+                                        EmptyPlaceholder("No tracks found")
+                                    }
+                                } else if (groupedTracks != null) {
+                                    groupedTracks.forEach { (letter, group) ->
+                                        item(key = "section_$letter") {
+                                            SectionHeaderRow(letter = letter)
                                         }
-                                    } else {
-                                        TextButton(onClick = { viewModel.playRandom() }) {
-                                            Icon(Icons.Default.Shuffle, contentDescription = null,
-                                                modifier = Modifier.size(16.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                        items(group, key = { it.id }) { track ->
+                                            TrackContentRow(track = track,
+                                                  isMultiSelect = state.multiSelectEnabled,
+                                                  isSelected = track.id in state.selectedTrackIds,
+                                                  onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
+                                                  onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                                  context = context,
+                                                  showIndexBar = barLayout != null)
                                         }
                                     }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        IconButton(onClick = { showSortSheet = true },
-                                            modifier = Modifier.size(36.dp)) {
-                                            Icon(Icons.Default.ImportExport,
-                                                contentDescription = "Sort",
-                                                modifier = Modifier.size(20.dp))
+                                } else {
+                                    items(tracks, key = { it.id }) { track ->
+                                        TrackContentRow(track = track,
+                                              isMultiSelect = state.multiSelectEnabled,
+                                              isSelected = track.id in state.selectedTrackIds,
+                                              onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
+                                              onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                              context = context,
+                                              showIndexBar = barLayout != null)
+                                }
+                                }
+                            }
+                            HomeTab.Albums -> {
+                                val albums = state.filteredAlbums
+                                if (albums.isEmpty()) {
+                                    item(key = "empty_albums") {
+                                        EmptyPlaceholder("No albums found")
+                                    }
+                                } else {
+                                    albums.chunked(2).forEachIndexed { i, row ->
+                                        item(key = "album_row_$i") {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                            ) {
+                                                row.forEach { album ->
+                                                    AlbumGridItem(album = album,
+                                                        onClick = { onNavigateToAlbum(album.id) },
+                                                        modifier = Modifier.weight(1f), context = context)
+                                                }
+                                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                                            }
                                         }
-                                        IconButton(onClick = { viewModel.toggleMultiSelect() },
-                                            modifier = Modifier.size(36.dp)) {
-                                            Icon(
-                                                if (state.multiSelectEnabled) Icons.Default.CheckBox
-                                                else Icons.Default.CheckBoxOutlineBlank,
-                                                contentDescription = "Multi-select",
-                                                tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
-                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                modifier = Modifier.size(20.dp)
+                                    }
+                                }
+                            }
+                            HomeTab.Artists -> {
+                                val artists = state.filteredArtists
+                                if (artists.isEmpty()) {
+                                    item(key = "empty_artists") {
+                                        EmptyPlaceholder("No artists found")
+                                    }
+                                } else {
+                                    artists.chunked(4).forEachIndexed { i, row ->
+                                        item(key = "artist_row_$i") {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                                horizontalArrangement = Arrangement.SpaceEvenly
+                                            ) {
+                                                row.forEach { artist ->
+                                                    ArtistGridItem(artist = artist,
+                                                        onClick = { onNavigateToArtist(artist.id) },
+                                                        modifier = Modifier.weight(1f))
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                        }
+                    }
+                }
+                if (canShowBar) {
+                    val layout = barLayout
+                    if (layout != null) {
+                        val density = LocalDensity.current
+                        val topDp = with(density) { layout.topOffsetPx.toDp() }
+                        val heightDp = with(density) { layout.heightPx.toDp() }
+                        val letters = groupedTracks?.keys?.toList() ?: emptyList()
+                        val sectionIndices = remember(groupedTracks) {
+                            if (groupedTracks == null) return@remember emptyList()
+                            val indices = mutableListOf<Int>()
+                            var cumIdx = 2
+                            for ((_, group) in groupedTracks) {
+                                indices.add(cumIdx)
+                                cumIdx += 1 + group.size
+                            }
+                            indices
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(y = topDp)
+                                .height(heightDp)
+                                .width(26.dp)
+                        ) {
+                            AlphabetIndexBar(
+                                letters = letters,
+                                sectionIndices = sectionIndices,
+                                listState = listState,
+                                activeLetter = null,
+                                highlightedLetter = activeLetter.value,
+                                onDragLetterChanged = { draggedLetter = it },
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            draggedLetter?.let { letter ->
+                                val letterIdx = letters.indexOf(letter)
+                                if (letterIdx >= 0) {
+                                    val itemHeight = heightDp / letters.size
+                                    val bubbleY = itemHeight * (letterIdx + 0.5f) - 20.dp
+                                    Surface(
+                                        modifier = Modifier
+                                            .align(Alignment.TopStart)
+                                            .offset(x = (-48).dp, y = bubbleY)
+                                            .size(40.dp),
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        shadowElevation = 6.dp
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = letter,
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onPrimary
                                             )
                                         }
                                     }
@@ -224,90 +415,7 @@ fun HomeScreen(
                             }
                         }
                     }
-
-                    // Content based on selected tab
-                    when (state.selectedTab) {
-                        HomeTab.Tracks -> {
-                            if (tracks.isEmpty()) {
-                                item(key = "empty_tracks") {
-                                    EmptyPlaceholder("No tracks found")
-                                }
-                            } else if (groupedTracks != null) {
-                                groupedTracks.forEach { (letter, group) ->
-                                    item(key = "section_$letter") {
-                                        SectionHeaderRow(letter = letter)
-                                    }
-                                    items(group, key = { it.id }) { track ->
-                                        TrackContentRow(track = track,
-                                            isMultiSelect = state.multiSelectEnabled,
-                                            isSelected = track.id in state.selectedTrackIds,
-                                            onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                            onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                            context = context)
-                                    }
-                                }
-                            } else {
-                                items(tracks, key = { it.id }) { track ->
-                                    TrackContentRow(track = track,
-                                        isMultiSelect = state.multiSelectEnabled,
-                                        isSelected = track.id in state.selectedTrackIds,
-                                        onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                        onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                        context = context)
-                                }
-                            }
-                        }
-                        HomeTab.Albums -> {
-                            val albums = state.filteredAlbums
-                            if (albums.isEmpty()) {
-                                item(key = "empty_albums") {
-                                    EmptyPlaceholder("No albums found")
-                                }
-                            } else {
-                                albums.chunked(2).forEachIndexed { i, row ->
-                                    item(key = "album_row_$i") {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            row.forEach { album ->
-                                                AlbumGridItem(album = album,
-                                                    onClick = { viewModel.playAlbum(album); onNavigateToPlayer() },
-                                                    modifier = Modifier.weight(1f), context = context)
-                                            }
-                                            if (row.size == 1) Spacer(Modifier.weight(1f))
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        HomeTab.Artists -> {
-                            val artists = state.filteredArtists
-                            if (artists.isEmpty()) {
-                                item(key = "empty_artists") {
-                                    EmptyPlaceholder("No artists found")
-                                }
-                            } else {
-                                artists.chunked(4).forEachIndexed { i, row ->
-                                    item(key = "artist_row_$i") {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceEvenly
-                                        ) {
-                                            row.forEach { artist ->
-                                                ArtistGridItem(artist = artist,
-                                                    onClick = { viewModel.playArtistTracks(artist); onNavigateToPlayer() },
-                                                    modifier = Modifier.weight(1f))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
-
-            }
         }
 
         if (showSortSheet) {
@@ -327,11 +435,12 @@ fun HomeScreen(
                 onDismiss = { showAddToPlaylistSheet = false },
                 onAdded = {
                     showAddToPlaylistSheet = false
-                    viewModel.toggleMultiSelect() // Turn off multi-select after adding
+                    viewModel.toggleMultiSelect()
                 }
             )
         }
     }
+}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -401,8 +510,8 @@ private fun CompactMiniCard(label: String, count: Int, artPath: String?, onClick
         Box(modifier = Modifier.fillMaxSize()) {
             if (artPath != null) {
                 val ctx = LocalContext.current
-                        AsyncImage(
-                            model = ImageRequest.Builder(ctx).data(File(artPath)).crossfade(true).build(),
+                AsyncImage(
+                    model = ImageRequest.Builder(ctx).data(File(artPath)).crossfade(true).build(),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -460,11 +569,12 @@ private fun SectionHeaderRow(letter: String) {
 @Composable
 private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Boolean,
                             onPlay: () -> Unit, onToggleSelect: () -> Unit,
-                            context: android.content.Context) {
+                            context: android.content.Context,
+                            showIndexBar: Boolean = false) {
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { if (isMultiSelect) onToggleSelect() else onPlay() }
-            .padding(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 8.dp),
+            .padding(start = 12.dp, top = 8.dp, end = if (showIndexBar) 44.dp else 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (isMultiSelect) {
@@ -553,3 +663,5 @@ private fun ArtistGridItem(artist: Artist, onClick: () -> Unit, modifier: Modifi
             style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
     }
 }
+
+
