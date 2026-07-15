@@ -39,9 +39,9 @@ now let think what to improve
  //-the player controller, i want loop switch mode of shuffle,list,single. not now like only toggle shuffle
  -hamburger add options view album,view artist(if check multi artist or single),edit track metadata(persistence one,detail have to think of song metadata,even update all album cover)
  -auto horizontal scroll title name for too long clipped
-3.new screen page for invidual
- - album page
- - artists page
+//3.new screen page for invidual
+ //- album page
+ //- artists page
  not direct play that,list content row,but i think artist can use tab all, by album
 // 4.search bar add a cross clear all at right side
 // 5.sleep timer ios like scroll is not loop, caused only able to select from 20-80m ,not fully cover the option range from 10-90m 
