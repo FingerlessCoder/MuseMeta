@@ -5,7 +5,6 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -18,16 +17,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/**
- * A horizontally-scrolling text composable for long titles.
- * Automatically animates left/right when text overflows its container.
- */
 @Composable
 fun MarqueeText(
     text: String,
@@ -35,8 +34,17 @@ fun MarqueeText(
     style: TextStyle = MaterialTheme.typography.bodyLarge,
     color: Color = Color.Unspecified
 ) {
-    var textWidthPx by remember { mutableFloatStateOf(0f) }
     var containerWidthPx by remember { mutableFloatStateOf(0f) }
+
+    val textMeasurer = rememberTextMeasurer()
+    val textWidthPx = remember(text, style) {
+        textMeasurer.measure(
+            text = AnnotatedString(text),
+            style = style,
+            constraints = Constraints(maxWidth = 100000)
+        ).size.width.toFloat()
+    }
+
     val overflowPx = textWidthPx - containerWidthPx
     val shouldAnimate = overflowPx > 0f && containerWidthPx > 0f
 
@@ -47,7 +55,6 @@ fun MarqueeText(
             offsetX.snapTo(0f)
             return@LaunchedEffect
         }
-        // Scroll speed: ~50px/s, with 2s pause at each end
         val scrollTimeMs = (overflowPx / 50f * 1000).toInt().coerceIn(1000, 8000)
         while (true) {
             delay(2000)
@@ -78,7 +85,6 @@ fun MarqueeText(
         Text(
             text = text,
             modifier = Modifier
-                .onSizeChanged { textWidthPx = it.width.toFloat() }
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) },
             style = style,
             color = color,
