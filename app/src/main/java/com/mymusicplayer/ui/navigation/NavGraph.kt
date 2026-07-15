@@ -53,7 +53,13 @@ fun NavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
 
         composable(Screen.NowPlaying.route) {
             PlayerScreen(
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                onNavigateToAlbum = { albumId ->
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistId ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                }
             )
         }
 

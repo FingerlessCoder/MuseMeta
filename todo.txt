@@ -37,7 +37,8 @@ now let think what to improve
  //-dynamic island
  -add lyrics(i would like automation to find and download LRC file) for song(not pure music) so user active
  //-the player controller, i want loop switch mode of shuffle,list,single. not now like only toggle shuffle
- -hamburger add options view album,view artist(if check multi artist or single),edit track metadata(persistence one,detail have to think of song metadata,even update all album cover)
+ // -hamburger add options view album,view artist(if check multi artist or single),edit track metadata(persistence one,detail have to think of song metadata,even update all album cover)
+ //-metadata write function
  //-auto horizontal scroll title name animation for too long clipped
 //3.new screen page for invidual
  //- album page

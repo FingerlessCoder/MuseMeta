@@ -62,9 +62,10 @@ class PlayerViewModel(
                         isFavorite = (dbTrack?.rating ?: 0) >= 4
                     )
 
-                    // Use cached info for instant display (title/artist/art); fall back to full DB track
+                    // Prefer the full DB track (has correct album id/title + artists);
+                    // fall back to cached MediaSession info only if DB has no record yet.
                     val cachedInfo = musicPlayerController.getCachedTrackInfo(trackId)
-                    if (cachedInfo != null) cachedInfo else dbTrack
+                    dbTrack ?: cachedInfo
                 } else {
                     _uiState.value.currentTrack
                 }
@@ -164,6 +165,47 @@ class PlayerViewModel(
 
     fun clearQueue() {
         musicPlayerController.clearQueue()
+    }
+
+    fun editTrackMetadata(
+        trackId: Long,
+        title: String?,
+        artists: List<String>?,
+        albumTitle: String?,
+        year: Int?,
+        trackNumber: Int?,
+        genre: String?,
+        comment: String?
+    ) {
+        viewModelScope.launch {
+            musicRepository.editTrackMetadata(
+                trackId = trackId,
+                title = title,
+                artists = artists,
+                albumTitle = albumTitle,
+                year = year,
+                trackNumber = trackNumber,
+                genre = genre,
+                comment = comment
+            )
+            // Refresh the displayed track so the player reflects the edit immediately
+            val updated = musicRepository.getTrackById(trackId).first()
+            if (updated != null) {
+                _uiState.value = _uiState.value.copy(currentTrack = updated)
+            }
+        }
+    }
+
+    fun updateAlbumArt(imageBytes: ByteArray, applyToAll: Boolean = false) {
+        val trackId = _uiState.value.currentTrack?.id ?: return
+        viewModelScope.launch {
+            musicRepository.updateAlbumArt(trackId, imageBytes, applyToAll)
+            // Refresh the displayed track so the new cover shows immediately
+            val updated = musicRepository.getTrackById(trackId).first()
+            if (updated != null) {
+                _uiState.value = _uiState.value.copy(currentTrack = updated)
+            }
+        }
     }
 
     override fun onCleared() {

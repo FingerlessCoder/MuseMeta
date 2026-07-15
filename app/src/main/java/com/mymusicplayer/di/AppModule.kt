@@ -24,7 +24,7 @@ import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
 val appModule = module {
-    single<MusicRepository> { MusicRepositoryImpl(get(), get(), get(), get(), get(), get()) }
+    single<MusicRepository> { MusicRepositoryImpl(androidContext(), get(), get(), get(), get(), get(), get()) }
     single { MusicPlayerController(androidContext()) }
     single { AudioFocusManager(androidContext()) }
     single { MediaStoreScanner(get()) }

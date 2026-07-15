@@ -73,11 +73,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayerScreen(
     onBack: () -> Unit = {},
+    onNavigateToAlbum: (Long) -> Unit = {},
+    onNavigateToArtist: (Long) -> Unit = {},
     viewModel: PlayerViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -90,6 +94,8 @@ fun PlayerScreen(
     var showPlaylistSheet by remember { mutableStateOf(false) }
     var showLyricsView by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showArtistPicker by remember { mutableStateOf(false) }
+    var showEditMetadata by remember { mutableStateOf(false) }
 
     val bgArtPath = state.currentTrack?.album?.artPath
 
@@ -203,7 +209,78 @@ fun PlayerScreen(
                     showEllipsisSheet = false
                     viewModel.removeCurrentTrackFromQueue()
                 },
+                onViewAlbum = {
+                    showEllipsisSheet = false
+                    state.currentTrack?.album?.id?.let { onNavigateToAlbum(it) }
+                },
+                onViewArtist = {
+                    val artists = state.currentTrack?.artists ?: emptyList()
+                    showEllipsisSheet = false
+                    when {
+                        artists.isEmpty() -> { /* nothing to view */ }
+                        artists.size == 1 -> onNavigateToArtist(artists.first().id)
+                        else -> showArtistPicker = true
+                    }
+                },
+                onEditMetadata = {
+                    showEllipsisSheet = false
+                    showEditMetadata = true
+                },
                 onDismiss = { showEllipsisSheet = false }
+            )
+        }
+    }
+
+    // ── Artist Picker Sheet (multi-artist) ──
+    if (showArtistPicker) {
+        val artists = state.currentTrack?.artists ?: emptyList()
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showArtistPicker = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            ArtistPickerSheetContent(
+                artists = artists,
+                onPick = { artistId ->
+                    showArtistPicker = false
+                    onNavigateToArtist(artistId)
+                },
+                onDismiss = { showArtistPicker = false }
+            )
+        }
+    }
+
+    // ── Edit Metadata Sheet ──
+    val editTrack = state.currentTrack
+    if (showEditMetadata && editTrack != null) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showEditMetadata = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            EditMetadataSheetContent(
+                track = editTrack,
+                currentArtPath = editTrack.album?.artPath,
+                onDismiss = { showEditMetadata = false },
+                onSave = { title, artists, albumTitle, year, trackNumber, genre, comment ->
+                    viewModel.editTrackMetadata(
+                        trackId = editTrack.id,
+                        title = title,
+                        artists = artists,
+                        albumTitle = albumTitle,
+                        year = year,
+                        trackNumber = trackNumber,
+                        genre = genre,
+                        comment = comment
+                    )
+                    showEditMetadata = false
+                },
+                onSaveArtwork = { bytes, applyToAll ->
+                    viewModel.updateAlbumArt(bytes, applyToAll)
+                    showEditMetadata = false
+                }
             )
         }
     }
@@ -692,6 +769,9 @@ private fun EllipsisSheetContent(
     onAddToPlaylist: () -> Unit,
     onShare: () -> Unit,
     onRemoveFromQueue: () -> Unit,
+    onViewAlbum: () -> Unit,
+    onViewArtist: () -> Unit,
+    onEditMetadata: () -> Unit,
     onDismiss: () -> Unit
 ) {
     Column(
@@ -771,6 +851,31 @@ private fun EllipsisSheetContent(
             title = "Add to Playlist",
             onClick = { onAddToPlaylist() }
         )
+        if (state.currentTrack?.album != null) {
+            SheetMenuItem(
+                icon = Icons.Default.Album,
+                title = "View Album",
+                onClick = { onViewAlbum() }
+            )
+        }
+        if (state.currentTrack?.artists?.isNotEmpty() == true) {
+            val artistLabel = if (state.currentTrack?.artists?.size == 1) "View Artist"
+            else "View Artist…"
+            SheetMenuItem(
+                icon = Icons.Default.Person,
+                title = artistLabel,
+                onClick = { onViewArtist() }
+            )
+        }
+        SheetMenuItem(
+            icon = Icons.Default.Edit,
+            title = "Edit Metadata",
+            onClick = { onEditMetadata() }
+        )
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
         SheetMenuItem(
             icon = Icons.Default.Schedule,
             title = "Sleep Timer",
@@ -834,6 +939,285 @@ private fun SheetMenuItem(
             )
         }
     }
+}
+
+// ═══════════════════════════════════════
+//  ARTIST PICKER SHEET (multi-artist)
+// ═══════════════════════════════════════
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ArtistPickerSheetContent(
+    artists: List<com.mymusicplayer.domain.model.Artist>,
+    onPick: (Long) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 32.dp)
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "View Artist",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 24.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+        Spacer(Modifier.height(4.dp))
+        artists.forEach { artist ->
+            SheetMenuItem(
+                icon = Icons.Default.Person,
+                title = artist.name,
+                onClick = { onPick(artist.id) }
+            )
+        }
+    }
+}
+
+// ═══════════════════════════════════════
+//  EDIT METADATA SHEET
+// ═══════════════════════════════════════
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditMetadataSheetContent(
+    track: com.mymusicplayer.domain.model.Track,
+    currentArtPath: String?,
+    onDismiss: () -> Unit,
+    onSave: (
+        title: String?,
+        artists: List<String>?,
+        albumTitle: String?,
+        year: Int?,
+        trackNumber: Int?,
+        genre: String?,
+        comment: String?
+    ) -> Unit,
+    onSaveArtwork: (ByteArray, Boolean) -> Unit
+) {
+    var title by remember { mutableStateOf(track.title) }
+    var artistsText by remember { mutableStateOf(track.artists.joinToString(", ") { it.name }) }
+    var albumText by remember { mutableStateOf(track.album?.title ?: "") }
+    var yearText by remember { mutableStateOf(track.year?.toString() ?: "") }
+    var trackNumberText by remember { mutableStateOf(track.trackNumber?.toString() ?: "") }
+    var genreText by remember { mutableStateOf(track.genre ?: "") }
+    var commentText by remember { mutableStateOf(track.comment ?: "") }
+    var selectedArtBytes by remember { mutableStateOf<ByteArray?>(null) }
+    var applyToAll by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val previewArtFile = remember { File(context.cacheDir, "cover_preview_${track.id}.jpg") }
+    LaunchedEffect(selectedArtBytes) {
+        selectedArtBytes?.let { previewArtFile.writeBytes(it) }
+    }
+    val pickImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            uri?.let {
+                val bytes = context.contentResolver.openInputStream(it)?.use { stream ->
+                    stream.readBytes()
+                }
+                if (bytes != null) selectedArtBytes = bytes
+            }
+        }
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = 32.dp)
+    ) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Edit Metadata",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 24.dp)
+        )
+        Spacer(Modifier.height(12.dp))
+
+        // ── Cover preview + picker ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            when {
+                selectedArtBytes != null -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(previewArtFile)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                currentArtPath != null -> {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(File(currentArtPath))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.MusicNote,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                            modifier = Modifier.size(32.dp)
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            OutlinedButton(onClick = { pickImageLauncher.launch("image/*") }) {
+                Text("Change cover")
+            }
+            if (selectedArtBytes != null) {
+                Spacer(Modifier.width(12.dp))
+                Button(onClick = { onSaveArtwork(selectedArtBytes!!, applyToAll) }) {
+                    Text("Save cover")
+                }
+            }
+        }
+        // ── Apply-to-all toggle ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Checkbox(checked = applyToAll, onCheckedChange = { applyToAll = it })
+            Text(
+                text = "Apply cover to all tracks in this album",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+
+        EditField(label = "Title", value = title, onValueChange = { title = it })
+        EditField(label = "Artists (comma separated)", value = artistsText, onValueChange = { artistsText = it })
+        EditField(label = "Album", value = albumText, onValueChange = { albumText = it })
+        EditField(label = "Year", value = yearText, onValueChange = { yearText = it }, singleLine = true)
+        EditField(label = "Track Number", value = trackNumberText, onValueChange = { trackNumberText = it }, singleLine = true)
+        EditField(label = "Genre", value = genreText, onValueChange = { genreText = it })
+        EditField(label = "Comment", value = commentText, onValueChange = { commentText = it })
+
+        Spacer(Modifier.height(16.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("Cancel")
+            }
+            Button(
+                onClick = {
+                    val originalArtists = track.artists.joinToString(", ") { it.name }
+                    val newArtists = if (artistsText.trim() != originalArtists) {
+                        splitArtists(artistsText).takeIf { it.isNotEmpty() }
+                    } else null
+
+                    onSave(
+                        title.trim().ifBlank { null }?.takeIf { it != track.title },
+                        newArtists,
+                        albumText.trim().ifBlank { null }?.takeIf { it != track.album?.title },
+                        yearText.trim().toIntOrNull()?.takeIf { it != track.year },
+                        trackNumberText.trim().toIntOrNull()?.takeIf { it != track.trackNumber },
+                        genreText.trim().ifBlank { null }?.takeIf { it != track.genre },
+                        commentText.trim().ifBlank { null }?.takeIf { it != track.comment }
+                    )
+                },
+                modifier = Modifier.weight(1f).height(48.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Text("Save")
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun EditField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    singleLine: Boolean = false
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        singleLine = singleLine,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+        )
+    )
+}
+
+private fun splitArtists(input: String): List<String> {
+    val delimiters = listOf(
+        " feat. ", " ft. ", " featuring ",
+        " & ", " and ",
+        " / ", " \\ ", "/",
+        ", ", "; ", ";"
+    )
+    var remaining = input.trim()
+    val result = mutableListOf<String>()
+    while (remaining.isNotBlank()) {
+        var best: Pair<Int, String>? = null
+        for (d in delimiters) {
+            val idx = remaining.indexOf(d, ignoreCase = true)
+            if (idx >= 0 && (best == null || idx < best.first)) best = idx to d
+        }
+        if (best != null) {
+            val name = remaining.substring(0, best.first).trim()
+            if (name.isNotBlank()) result.add(name)
+            remaining = remaining.substring(best.first + best.second.length).trim()
+        } else {
+            val name = remaining.trim()
+            if (name.isNotBlank()) result.add(name)
+            remaining = ""
+        }
+    }
+    return result.distinct().ifEmpty { listOf(input.trim()) }
 }
 
 // ═══════════════════════════════════════

@@ -7,6 +7,7 @@ import org.jaudiotagger.audio.exceptions.CannotReadException
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.Tag
 import org.jaudiotagger.tag.images.Artwork
+import org.jaudiotagger.tag.images.ArtworkFactory
 import java.io.File
 
 data class ParsedMetadata(
@@ -119,7 +120,7 @@ class MetadataParser {
         return try {
             val file = File(filePath)
             val audioFile: AudioFile = AudioFileIO.read(file)
-            val tag = audioFile.tag ?: return false
+            val tag = audioFile.tag ?: audioFile.createDefaultTag()
 
             title?.let { tag.setField(tag.createField(FieldKey.TITLE, it)) }
             artists?.let { tag.setField(tag.createField(FieldKey.ARTIST, it.joinToString(" / "))) }
@@ -129,12 +130,43 @@ class MetadataParser {
             genre?.let { tag.setField(tag.createField(FieldKey.GENRE, it)) }
             comment?.let { tag.setField(tag.createField(FieldKey.COMMENT, it)) }
 
+            audioFile.tag = tag
             audioFile.commit()
             Log.d(TAG, "Metadata written to: $filePath")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error writing metadata to $filePath: ${e.message}")
             false
+        }
+    }
+
+    fun writeAlbumArt(filePath: String, imageBytes: ByteArray): Boolean {
+        return try {
+            val file = File(filePath)
+            val audioFile: AudioFile = AudioFileIO.read(file)
+            val tag = audioFile.tag ?: audioFile.createDefaultTag()
+            val artwork = ArtworkFactory.getNew()
+            artwork.setBinaryData(imageBytes)
+            artwork.setMimeType(inferMimeType(imageBytes))
+            tag.setField(artwork)
+            audioFile.tag = tag
+            audioFile.commit()
+            Log.d(TAG, "Album art written to: $filePath")
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error writing album art to $filePath: ${e.message}")
+            false
+        }
+    }
+
+    private fun inferMimeType(bytes: ByteArray): String {
+        return when {
+            bytes.size >= 4 &&
+                bytes[0] == 0xFF.toByte() && bytes[1] == 0xD8.toByte() -> "image/jpeg"
+            bytes.size >= 8 &&
+                bytes[0] == 0x89.toByte() && bytes[1] == 0x50.toByte() &&
+                bytes[2] == 0x4E.toByte() && bytes[3] == 0x47.toByte() -> "image/png"
+            else -> "image/jpeg"
         }
     }
 

@@ -1,9 +1,15 @@
 package com.mymusicplayer.domain.repository
 
+import android.content.Context
+import android.util.Log
 import com.mymusicplayer.data.db.dao.AlbumDao
+import java.io.File
 import com.mymusicplayer.data.db.dao.ArtistDao
 import com.mymusicplayer.data.db.dao.PlaylistDao
 import com.mymusicplayer.data.db.dao.TrackDao
+import com.mymusicplayer.data.db.entity.AlbumEntity
+import com.mymusicplayer.data.db.entity.ArtistEntity
+import com.mymusicplayer.data.db.entity.TrackArtistEntity
 import com.mymusicplayer.data.db.entity.TrackEntity
 import com.mymusicplayer.data.scanner.MetadataParser
 import com.mymusicplayer.data.scanner.ScanProgress
@@ -17,6 +23,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 class MusicRepositoryImpl(
+    private val context: Context,
     private val trackDao: TrackDao,
     private val artistDao: ArtistDao,
     private val albumDao: AlbumDao,
@@ -146,6 +153,63 @@ class MusicRepositoryImpl(
         trackDao.deleteTrackById(trackId)
     }
 
+    override suspend fun updateAlbumArt(
+        trackId: Long,
+        imageBytes: ByteArray,
+        applyToAll: Boolean
+    ) {
+        withContext(Dispatchers.IO) {
+            val track = trackDao.getTrackByIdOnce(trackId) ?: return@withContext
+            val albumId = track.albumId ?: return@withContext
+
+            // Normalize: downscale large images and re-encode to JPEG so embedding
+            // succeeds across formats and doesn't bloat the audio files.
+            val resized = resizeArtwork(imageBytes)
+
+            // Best-effort: embed into the audio file(s). The DB/cache update below
+            // always runs, so the UI reflects the new cover even if a file write fails.
+            val targets = if (applyToAll) {
+                trackDao.getTracksByAlbum(albumId).first()
+            } else {
+                listOf(track)
+            }
+            for (t in targets) {
+                val ok = metadataParser.writeAlbumArt(t.filePath, resized)
+                if (!ok) Log.w("MusicRepository", "Embedded art write failed for ${t.filePath}")
+            }
+
+            // Single source of truth for the UI: shared album cache + DB.
+            val artDir = File(context.cacheDir, "album_art")
+            artDir.mkdirs()
+            val artFile = File(artDir, "$albumId.jpg")
+            artFile.writeBytes(resized)
+            albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+        }
+    }
+
+    private fun resizeArtwork(bytes: ByteArray, maxSize: Int = 1024): ByteArray {
+        return try {
+            val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+            val w = opts.outWidth
+            val h = opts.outHeight
+            val scale = if (w > 0 && h > 0) (maxSize.toFloat() / maxOf(w, h)).coerceAtMost(1f) else 1f
+            val bmp = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return bytes
+            val resized = if (scale < 1f) {
+                android.graphics.Bitmap.createScaledBitmap(
+                    bmp, (w * scale).toInt(), (h * scale).toInt(), true
+                )
+            } else bmp
+            val out = java.io.ByteArrayOutputStream()
+            resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+            if (resized != bmp) resized.recycle()
+            out.toByteArray()
+        } catch (e: Exception) {
+            Log.w("MusicRepository", "Artwork resize failed; using original bytes", e)
+            bytes
+        }
+    }
+
     override suspend fun rescanLibrary(
         excludedPaths: List<String>,
         scanDirectoryPath: String?,
@@ -170,7 +234,10 @@ class MusicRepositoryImpl(
         withContext(Dispatchers.IO) {
             val track = trackDao.getTrackByIdOnce(trackId) ?: return@withContext
 
-            val success = metadataParser.writeMetadata(
+            // Best-effort: write embedded tags into the audio file. The SQLite
+            // update below always runs so the library reflects the edit even if
+            // the file is read-only or the format can't be tagged.
+            val fileWritten = metadataParser.writeMetadata(
                 filePath = track.filePath,
                 title = title,
                 artists = artists,
@@ -180,36 +247,46 @@ class MusicRepositoryImpl(
                 genre = genre,
                 comment = comment
             )
+            if (!fileWritten) {
+                Log.w("MusicRepository", "Embedded tag write failed for ${track.filePath}; updating database only")
+            }
 
-            if (success) {
-                val updated = track.copy(
-                    title = title ?: track.title,
-                    year = year ?: track.year,
-                    trackNumber = trackNumber ?: track.trackNumber,
-                    genre = genre ?: track.genre,
-                    comment = comment ?: track.comment
+            // Resolve album: a renamed album reuses an existing one (case-insensitive)
+            // or creates a new one, and the track is re-linked to it.
+            var albumId = track.albumId
+            if (albumTitle != null) {
+                val existingAlbum = albumDao.getAlbumByTitleNormalized(albumTitle)
+                albumId = existingAlbum?.id ?: albumDao.insertAlbum(
+                    AlbumEntity(title = albumTitle, year = year ?: track.year)
                 )
-                trackDao.updateTrack(updated)
+            }
 
-                if (artists != null) {
-                    artistDao.deleteArtistsForTrack(trackId)
-                    for (artistName in artists) {
-                        val existing = artistDao.getArtistByName(artistName)
-                        val artistId = if (existing != null) {
-                            existing.id
-                        } else {
-                            artistDao.insertArtist(
-                                com.mymusicplayer.data.db.entity.ArtistEntity(name = artistName)
-                            )
-                        }
-                        artistDao.insertTrackArtistRelation(
-                            com.mymusicplayer.data.db.entity.TrackArtistEntity(
-                                trackId = trackId,
-                                artistId = artistId,
-                                role = "ARTIST"
-                            )
-                        )
+            val updated = track.copy(
+                title = title ?: track.title,
+                albumId = albumId,
+                year = year ?: track.year,
+                trackNumber = trackNumber ?: track.trackNumber,
+                genre = genre ?: track.genre,
+                comment = comment ?: track.comment
+            )
+            trackDao.updateTrack(updated)
+
+            if (artists != null) {
+                artistDao.deleteArtistsForTrack(trackId)
+                for (artistName in artists) {
+                    val existing = artistDao.getArtistByName(artistName)
+                    val artistId = if (existing != null) {
+                        existing.id
+                    } else {
+                        artistDao.insertArtist(ArtistEntity(name = artistName))
                     }
+                    artistDao.insertTrackArtistRelation(
+                        TrackArtistEntity(
+                            trackId = trackId,
+                            artistId = artistId,
+                            role = "ARTIST"
+                        )
+                    )
                 }
             }
         }
