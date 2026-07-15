@@ -113,6 +113,7 @@ class SettingsViewModel(
     }
 
     fun setSleepTimer(minutes: Int) {
+        musicPlayerController.startSleepTimer(minutes)
         viewModelScope.launch { settingsDataStore.setSleepTimerDuration(minutes) }
     }
 

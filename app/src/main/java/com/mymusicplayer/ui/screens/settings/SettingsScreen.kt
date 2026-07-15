@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
@@ -20,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.mymusicplayer.ui.theme.AccentPalettes
 import org.koin.androidx.compose.koinViewModel
@@ -90,7 +90,6 @@ fun SettingsScreen(
             SectionHeader("Playback")
             SettingCard {
                 SleepTimerSetting(
-                    currentMinutes = state.sleepTimerMinutes,
                     remainingSeconds = state.sleepTimerRemainingSeconds,
                     onSelect = { viewModel.setSleepTimer(it) }
                 )
@@ -122,7 +121,7 @@ fun SettingsScreen(
                 val ctx = LocalContext.current
                 SettingRow(Icons.Default.Info, "MuseMeta", "Version 1.0.0")
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow(Icons.Default.OpenInNew, "GitHub",
+                SettingRow(Icons.AutoMirrored.Filled.OpenInNew, "GitHub",
                     "github.com/FingerlessCoder",
                     onClick = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
@@ -179,95 +178,71 @@ private fun ScanFilterSetting(minSizeKb: Long, minDurationSec: Long, onSetSize: 
 
 @Composable
 private fun SleepTimerSetting(
-    currentMinutes: Int,
     remainingSeconds: Int,
     onSelect: (Int) -> Unit
 ) {
     val isActive = remainingSeconds > 0
+    var sliderValue by remember { mutableFloatStateOf(1f) }
 
-    if (isActive) {
-        val mins = remainingSeconds / 60
-        val secs = remainingSeconds % 60
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Schedule, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Sleep Timer", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Timer is running",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                text = "%d:%02d remaining".format(mins, secs),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center
-            )
-        }
-    } else {
-        var enabled by remember(currentMinutes) { mutableStateOf(currentMinutes > 0) }
-        var sliderValue by remember(currentMinutes) {
-            mutableFloatStateOf(if (currentMinutes > 0) currentMinutes.toFloat() else 30f)
-        }
-
-        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Default.Schedule, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(16.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Sleep Timer", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        if (enabled) "${sliderValue.toInt()} minutes" else "Off",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (enabled) MaterialTheme.colorScheme.primary
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Schedule, contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.size(22.dp))
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Sleep Timer", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    if (isActive) {
+                        val mins = remainingSeconds / 60
+                        val secs = remainingSeconds % 60
+                        "%d:%02d remaining".format(mins, secs)
+                    } else {
+                        "Off"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isActive) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = {
-                        enabled = it
-                        onSelect(if (it) sliderValue.toInt() else 0)
-                    }
                 )
             }
+            if (isActive) {
+                TextButton(onClick = { onSelect(0) }) {
+                    Text("Stop", color = MaterialTheme.colorScheme.error)
+                }
+            } else {
+                Switch(checked = false, onCheckedChange = { onSelect(sliderValue.toInt()) })
+            }
+        }
 
-            AnimatedVisibility(visible = enabled) {
-                Column {
-                    Spacer(Modifier.height(8.dp))
-                    Slider(
-                        value = sliderValue,
-                        onValueChange = { sliderValue = it },
-                        onValueChangeFinished = { onSelect(sliderValue.toInt()) },
-                        valueRange = 1f..90f,
-                        steps = 0
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("1m", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("90m", style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        AnimatedVisibility(visible = isActive) {
+            Column {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("${sliderValue.toInt()} min",
+                        style = MaterialTheme.typography.labelMedium)
+                }
+                Slider(
+                    value = sliderValue,
+                    onValueChange = { sliderValue = it },
+                    onValueChangeFinished = { onSelect(sliderValue.toInt()) },
+                    valueRange = 1f..90f,
+                    steps = 0
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("1m", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("90m", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
