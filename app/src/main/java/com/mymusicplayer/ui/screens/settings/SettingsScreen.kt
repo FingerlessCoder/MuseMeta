@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -116,7 +117,18 @@ fun SettingsScreen(
 
             SectionHeader("About")
             SettingCard {
+                SettingRow(Icons.Default.Person, "FingerlessCoder", "Developer")
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                val ctx = LocalContext.current
                 SettingRow(Icons.Default.Info, "MuseMeta", "Version 1.0.0")
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingRow(Icons.Default.OpenInNew, "GitHub",
+                    "github.com/FingerlessCoder",
+                    onClick = {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
+                            android.net.Uri.parse("https://github.com/FingerlessCoder"))
+                        ctx.startActivity(intent)
+                    })
             }
 
             Spacer(Modifier.height(32.dp))
