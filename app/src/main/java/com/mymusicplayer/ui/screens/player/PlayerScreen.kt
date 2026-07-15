@@ -365,18 +365,16 @@ private fun PlayerContent(
                     MarqueeText(
                         text = state.currentTrack?.title ?: "No track selected",
                         modifier = Modifier.fillMaxWidth(),
-                        style = MaterialTheme.typography.headlineSmall.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(Modifier.height(2.dp))
                     if (state.currentTrack != null) {
                         MarqueeText(
-                            text = state.currentTrack.artists.joinToString(" · ") { it.name },
+                            text = state.currentTrack?.artists?.joinToString(" · ") { it.name } ?: "Unknown Artist",
                             modifier = Modifier.fillMaxWidth(),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -403,8 +401,8 @@ private fun PlayerContent(
                 ) {
                     Text(
                         text = state.lyricsText?.take(80) ?: "No lyrics available",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -655,8 +653,8 @@ private fun LyricsFullView(
                         Spacer(Modifier.height(12.dp))
                         Text(
                             text = "No lyrics available",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
                             text = "Tap to return to player",

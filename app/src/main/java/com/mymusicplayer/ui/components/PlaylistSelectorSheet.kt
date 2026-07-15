@@ -1,5 +1,7 @@
 package com.mymusicplayer.ui.components
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -34,6 +37,13 @@ fun PlaylistSelectorSheet(
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
 
+    // Animated sheet with fade-in effect
+    val animatedAlpha by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = tween(durationMillis = 300),
+        label = "sheetAlpha"
+    )
+
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -44,6 +54,8 @@ fun PlaylistSelectorSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 32.dp)
+                .alpha(animatedAlpha),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(Modifier.height(8.dp))
 
@@ -51,13 +63,14 @@ fun PlaylistSelectorSheet(
                 text = if (trackIds.size > 1) "Add ${trackIds.size} tracks to..." else "Add to Playlist",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp),
+                color = MaterialTheme.colorScheme.onSurface
             )
 
-            // Create New Playlist option
+            // Create New Playlist option with better visual feedback
             Surface(
                 onClick = { showCreateDialog = true },
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -71,8 +84,8 @@ fun PlaylistSelectorSheet(
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        contentDescription = "Create new playlist",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(Modifier.width(16.dp))
@@ -80,7 +93,7 @@ fun PlaylistSelectorSheet(
                         "Create New Playlist",
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
             }
@@ -147,7 +160,7 @@ fun PlaylistSelectorSheet(
         }
     }
 
-    // Create Playlist Dialog
+    // Create Playlist Dialog with fade-in animation
     if (showCreateDialog) {
         AlertDialog(
             onDismissRequest = {
@@ -155,7 +168,7 @@ fun PlaylistSelectorSheet(
                 newPlaylistName = ""
             },
             title = {
-                Text("New Playlist", fontWeight = FontWeight.Bold)
+                Text("New Playlist", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             },
             text = {
                 OutlinedTextField(
@@ -193,7 +206,7 @@ fun PlaylistSelectorSheet(
                     },
                     enabled = newPlaylistName.isNotBlank()
                 ) {
-                    Text("Create")
+                    Text("Create", color = MaterialTheme.colorScheme.onSurface)
                 }
             },
             dismissButton = {
@@ -201,7 +214,7 @@ fun PlaylistSelectorSheet(
                     showCreateDialog = false
                     newPlaylistName = ""
                 }) {
-                    Text("Cancel")
+                    Text("Cancel", color = MaterialTheme.colorScheme.onSurface)
                 }
             }
         )
@@ -212,7 +225,7 @@ fun PlaylistSelectorSheet(
 private fun PlaylistOption(playlist: PlaylistEntity, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.95f),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier
             .fillMaxWidth()
@@ -226,7 +239,7 @@ private fun PlaylistOption(playlist: PlaylistEntity, onClick: () -> Unit) {
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.QueueMusic,
-                contentDescription = null,
+                contentDescription = "Playlist icon",
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
                 modifier = Modifier.size(24.dp)
             )
@@ -236,13 +249,14 @@ private fun PlaylistOption(playlist: PlaylistEntity, onClick: () -> Unit) {
                     playlist.name,
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 if (playlist.description != null) {
                     Text(
                         playlist.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

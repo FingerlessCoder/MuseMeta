@@ -205,6 +205,80 @@ class HomeViewModel(
             }
         }
     }
+
+    // ── Multi-select actions ──
+
+    private fun getSelectedTracks(): List<Track> {
+        val ids = _uiState.value.selectedTrackIds
+        return _uiState.value.tracks.filter { it.id in ids }
+    }
+
+    fun playNextSelected() {
+        val tracks = getSelectedTracks()
+        if (tracks.isEmpty()) return
+        musicPlayerController.initialize()
+        musicPlayerController.playNext(tracks)
+        _uiState.value = _uiState.value.copy(
+            multiSelectEnabled = false,
+            selectedTrackIds = emptySet()
+        )
+    }
+
+    fun addToQueueSelected() {
+        val tracks = getSelectedTracks()
+        if (tracks.isEmpty()) return
+        musicPlayerController.initialize()
+        musicPlayerController.addToQueue(tracks)
+        _uiState.value = _uiState.value.copy(
+            multiSelectEnabled = false,
+            selectedTrackIds = emptySet()
+        )
+    }
+
+    fun deleteSelectedTracks() {
+        viewModelScope.launch {
+            val ids = _uiState.value.selectedTrackIds.toList()
+            for (trackId in ids) {
+                musicRepository.deleteTrackById(trackId)
+            }
+            _uiState.value = _uiState.value.copy(
+                multiSelectEnabled = false,
+                selectedTrackIds = emptySet()
+            )
+        }
+    }
+
+    fun areAllSelectedFavorites(): Boolean {
+        val ids = _uiState.value.selectedTrackIds
+        if (ids.isEmpty()) return false
+        val favIds = _uiState.value.favoriteTracks.map { it.id }.toSet()
+        return ids.all { it in favIds }
+    }
+
+    fun toggleFavoriteSelected() {
+        viewModelScope.launch {
+            val ids = _uiState.value.selectedTrackIds
+            val allFav = areAllSelectedFavorites()
+            val newRating = if (allFav) 0 else 5
+            for (trackId in ids) {
+                musicRepository.updateTrackRating(trackId, newRating)
+            }
+        }
+    }
+
+    fun shareSelected(context: android.content.Context) {
+        val tracks = getSelectedTracks()
+        if (tracks.isEmpty()) return
+        val text = tracks.joinToString("\n") { track ->
+            "${track.title} - ${track.artists.joinToString(", ") { it.name }}"
+        }
+        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, text)
+            putExtra(android.content.Intent.EXTRA_SUBJECT, "${tracks.size} track${if (tracks.size != 1) "s" else ""}")
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, "Share tracks"))
+    }
 }
 
 /** Internal holder for the 5-way combine used in HomeViewModel init. */

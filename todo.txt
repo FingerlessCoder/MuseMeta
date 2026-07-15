@@ -50,6 +50,7 @@ now let think what to improve
  -add to my playlists (modal bottom,opt:create new,favourite,other existing playlist)
  -delete(always remember a warning confirm modal)
  -other advance(favourite,share)
+ //- add to playlist
 7.filter control in other tab not yet handled
  -random play can keep, same only,but probably arrange from album,and artist only
  -sort hmm,i think need to consider, asc-des order,sort by might need to do some change like add a by year for album. artists tab only by name

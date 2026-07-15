@@ -49,7 +49,8 @@ fun EqualizerView(
     Column(modifier = modifier.padding(16.dp)) {
         Text(
             text = "Equalizer",
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(Modifier.height(12.dp))
 
@@ -60,7 +61,7 @@ fun EqualizerView(
         ) {
             Box {
                 TextButton(onClick = { showPresets = true }) {
-                    Text(selectedPreset)
+                    Text(selectedPreset, color = MaterialTheme.colorScheme.onSurface)
                 }
                 DropdownMenu(
                     expanded = showPresets,
@@ -68,7 +69,7 @@ fun EqualizerView(
                 ) {
                     presets.forEach { preset ->
                         DropdownMenuItem(
-                            text = { Text(preset) },
+                            text = { Text(preset, color = MaterialTheme.colorScheme.onSurface) },
                             onClick = {
                                 onPresetSelected(preset)
                                 showPresets = false
@@ -85,7 +86,7 @@ fun EqualizerView(
                         else MaterialTheme.colorScheme.surfaceVariant
                 )
             ) {
-                Text(if (isEnabled) "ON" else "OFF")
+                Text(if (isEnabled) "ON" else "OFF", color = MaterialTheme.colorScheme.onSurface)
             }
         }
 
@@ -102,7 +103,7 @@ fun EqualizerView(
                     Text(
                         text = band.frequency,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -113,7 +114,7 @@ fun EqualizerView(
         Text(
             text = "Full graphic EQ with slider controls will be implemented using Android AudioFX API.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
 
         Spacer(Modifier.height(8.dp))
@@ -121,7 +122,7 @@ fun EqualizerView(
         Text(
             text = "AudioFX availability is device-dependent. EQ will be hidden on unsupported devices.",
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
     }
 }

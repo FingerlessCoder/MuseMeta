@@ -50,12 +50,12 @@ private val JustBlackColorScheme = darkColorScheme(
     onTertiary = OnTertiary,
     tertiaryContainer = TertiaryContainer,
     onTertiaryContainer = OnTertiaryContainer,
-    background = Color(0xFF000000),
-    onBackground = Color(0xFFE9EDF2),
-    surface = Color(0xFF000000),
-    onSurface = Color(0xFFE9EDF2),
-    surfaceVariant = Color(0xFF1A1A1A),
-    onSurfaceVariant = Color(0xFFB6C0CD),
+    background = Background,
+    onBackground = OnBackground,
+    surface = Surface,
+    onSurface = OnSurface,
+    surfaceVariant = SurfaceVariant,
+    onSurfaceVariant = OnSurfaceVariant,
     error = Error,
     onError = OnError
 )
@@ -72,16 +72,21 @@ fun MuseMetaTheme(
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && dynamicColor -> {
             dynamicDarkColorScheme(LocalContext.current)
         }
-        else -> darkColorScheme(
-            background = Background,
-            onBackground = OnBackground,
-            surface = Surface,
-            onSurface = OnSurface,
-            surfaceVariant = SurfaceVariant,
-            onSurfaceVariant = OnSurfaceVariant,
-            error = Error,
-            onError = OnError
-        )
+        darkTheme -> {
+            JustBlackColorScheme
+        }
+        else -> {
+            darkColorScheme(
+                background = Background,
+                onBackground = OnBackground,
+                surface = Surface,
+                onSurface = OnSurface,
+                surfaceVariant = SurfaceVariant,
+                onSurfaceVariant = OnSurfaceVariant,
+                error = Error,
+                onError = OnError
+            )
+        }
     }
     val withAccent = baseScheme.copy(
         primary = accentPalette.primary,
@@ -98,13 +103,9 @@ fun MuseMetaTheme(
         onTertiaryContainer = accentPalette.onTertiaryContainer
     )
     val colorScheme = if (amoledBlack) {
-        withAccent.copy(
-            background = Color(0xFF000000),
-            surface = Color(0xFF000000),
-            surfaceVariant = Color(0xFF1A1A1A)
-        )
+        JustBlackColorScheme
     } else {
-        withAccent
+        baseScheme
     }
     val view = LocalView.current
     if (!view.isInEditMode) {

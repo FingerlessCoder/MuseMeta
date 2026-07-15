@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
@@ -36,6 +37,10 @@ import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.AlphabetIndexBar
 import com.mymusicplayer.ui.components.computeIndexLetters
 import com.mymusicplayer.ui.components.computeSectionIndices
+import com.mymusicplayer.ui.components.MoreActionsSheet
+import com.mymusicplayer.ui.components.MultiSelectBar
+import com.mymusicplayer.ui.components.PlaylistActionsSheet
+import com.mymusicplayer.ui.components.PlaylistSelectorSheet
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -55,24 +60,32 @@ fun HomeScreen(
     val context = LocalContext.current
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showPlaylistActionsSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showMoreActionsSheet by remember { mutableStateOf(false) }
 
     val favoriteArt = state.favoriteTracks.firstOrNull()?.album?.artPath
     val playlistArt = state.tracks.firstOrNull()?.album?.artPath
     val recentArt = state.recentlyPlayed.firstOrNull()?.album?.artPath
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    val darkModeBackground = MaterialTheme.colorScheme.background
+    Column(modifier = Modifier.fillMaxSize().background(darkModeBackground)) {
+
+
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
+            modifier = Modifier.fillMaxWidth()
+                .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onNavigateToSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings")
+                Icon(Icons.Default.Settings, contentDescription = "Open settings menu")
             }
             OutlinedTextField(
                 value = state.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
-                placeholder = { Text("Search", style = MaterialTheme.typography.bodyMedium) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
+                placeholder = { Text("Search", style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search tracks and albums") },
                 singleLine = true,
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.weight(1f),
@@ -82,11 +95,11 @@ fun HomeScreen(
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent
                 ),
-                textStyle = MaterialTheme.typography.bodyMedium
+                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)
             )
             if (state.searchQuery.isNotBlank()) {
                 IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search")
+                    Icon(Icons.Default.Close, contentDescription = "Clear search query")
                 }
             }
         }
@@ -166,190 +179,186 @@ fun HomeScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 16.dp)
                 ) {
-                        item(key = "mini_cards") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CompactMiniCard(
-                                    label = "Favorites", count = state.favoriteCount,
-                                    artPath = favoriteArt,
-                                    onClick = onNavigateToFavorites,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactMiniCard(
-                                    label = "My Playlists", count = state.playlistCount,
-                                    artPath = playlistArt,
-                                    onClick = onNavigateToPlaylists,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                CompactMiniCard(
-                                    label = "Recently Played", count = state.recentlyPlayedCount,
-                                    artPath = recentArt,
-                                    onClick = onNavigateToRecentlyPlayed,
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                    item(key = "mini_cards") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CompactMiniCard(
+                                label = "Favorites", count = state.favoriteCount,
+                                artPath = favoriteArt,
+                                onClick = onNavigateToFavorites,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactMiniCard(
+                                label = "My Playlists", count = state.playlistCount,
+                                artPath = playlistArt,
+                                onClick = onNavigateToPlaylists,
+                                modifier = Modifier.weight(1f)
+                            )
+                            CompactMiniCard(
+                                label = "Recently Played", count = state.recentlyPlayedCount,
+                                artPath = recentArt,
+                                onClick = onNavigateToRecentlyPlayed,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
+                    }
 
-                        stickyHeader(key = "tab_bar") {
-                            Surface(
-                                color = MaterialTheme.colorScheme.background,
-                                tonalElevation = 0.dp
-                            ) {
-                                Column {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth()
-                                            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        HomeTab.entries.forEach { tab ->
-                                            val selected = state.selectedTab == tab
-                                            FilterChip(
-                                                selected = selected,
-                                                onClick = { viewModel.selectTab(tab) },
-                                                label = {
-                                                    Text(tab.name,
-                                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                                        modifier = Modifier.padding(horizontal = 4.dp))
-                                                },
-                                                shape = RoundedCornerShape(8.dp),
-                                                colors = FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                                ),
-                                                modifier = Modifier.weight(1f)
+                    stickyHeader(key = "tab_bar") {
+                        Surface(
+                            color = MaterialTheme.colorScheme.background,
+                            tonalElevation = 0.dp
+                        ) {
+                            Column {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    HomeTab.entries.forEach { tab ->
+                                        val selected = state.selectedTab == tab
+                                        FilterChip(
+                                            selected = selected,
+                                            onClick = { viewModel.selectTab(tab) },
+                                            label = {
+                                                Text(tab.name,
+                                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                                    modifier = Modifier.padding(horizontal = 4.dp))
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (state.multiSelectEnabled) {
+                                        if (state.selectedTrackIds.isNotEmpty()) {
+                                            Text("${state.selectedTrackIds.size} selected",
+                                                style = MaterialTheme.typography.labelLarge,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(start = 16.dp))
+                                        }
+                                    } else {
+                                        TextButton(onClick = { viewModel.playRandom() }) {
+                                            Icon(Icons.Default.Shuffle, contentDescription = null,
+                                                modifier = Modifier.size(16.dp))
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                        }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        IconButton(onClick = { showSortSheet = true },
+                                            modifier = Modifier.size(36.dp)) {
+                                            Icon(Icons.Default.ImportExport,
+                                                contentDescription = "Sort",
+                                                modifier = Modifier.size(20.dp))
+                                        }
+                                        IconButton(onClick = { viewModel.toggleMultiSelect() },
+                                            modifier = Modifier.size(36.dp)) {
+                                            Icon(
+                                                if (state.multiSelectEnabled) Icons.Default.CheckBox
+                                                else Icons.Default.CheckBoxOutlineBlank,
+                                                contentDescription = "Multi-select",
+                                                tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
+                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.size(20.dp)
                                             )
                                         }
                                     }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth()
-                                            .padding(horizontal = 12.dp, vertical = 2.dp),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        if (state.multiSelectEnabled) {
-                                            TextButton(
-                                                onClick = { if (state.selectedTrackIds.isNotEmpty()) showAddToPlaylistSheet = true },
-                                                enabled = state.selectedTrackIds.isNotEmpty()
-                                            ) {
-                                                Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null,
-                                                    modifier = Modifier.size(18.dp))
-                                                Spacer(Modifier.width(6.dp))
-                                                Text("Add ${state.selectedTrackIds.size} to Playlist",
-                                                    style = MaterialTheme.typography.labelLarge)
+                                }
+                            }
+                        }
+                    }
+
+                    when (state.selectedTab) {
+                        HomeTab.Tracks -> {
+                            if (tracks.isEmpty()) {
+                                item(key = "empty_tracks") {
+                                    EmptyPlaceholder("No tracks found")
+                                }
+                            } else if (groupedTracks != null) {
+                                groupedTracks.forEach { (letter, group) ->
+                                    item(key = "section_$letter") {
+                                        SectionHeaderRow(letter = letter)
+                                    }
+                                    items(group, key = { it.id }) { track ->
+                                        TrackContentRow(track = track,
+                                            isMultiSelect = state.multiSelectEnabled,
+                                            isSelected = track.id in state.selectedTrackIds,
+                                            onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
+                                            onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                            context = context,
+                                            showIndexBar = barLayout != null)
+                                    }
+                                }
+                            } else {
+                                items(tracks, key = { it.id }) { track ->
+                                    TrackContentRow(track = track,
+                                        isMultiSelect = state.multiSelectEnabled,
+                                        isSelected = track.id in state.selectedTrackIds,
+                                        onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
+                                        onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
+                                        context = context,
+                                        showIndexBar = barLayout != null)
+                                }
+                            }
+                        }
+                        HomeTab.Albums -> {
+                            val albums = state.filteredAlbums
+                            if (albums.isEmpty()) {
+                                item(key = "empty_albums") {
+                                    EmptyPlaceholder("No albums found")
+                                }
+                            } else {
+                                albums.chunked(2).forEachIndexed { i, row ->
+                                    item(key = "album_row_$i") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            row.forEach { album ->
+                                                AlbumGridItem(album = album,
+                                                    onClick = { onNavigateToAlbum(album.id) },
+                                                    modifier = Modifier.weight(1f), context = context)
                                             }
-                                        } else {
-                                            TextButton(onClick = { viewModel.playRandom() }) {
-                                                Icon(Icons.Default.Shuffle, contentDescription = null,
-                                                    modifier = Modifier.size(16.dp))
-                                                Spacer(Modifier.width(4.dp))
-                                                Text("Random Play", style = MaterialTheme.typography.labelLarge)
-                                            }
-                                        }
-                                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                            IconButton(onClick = { showSortSheet = true },
-                                                modifier = Modifier.size(36.dp)) {
-                                                Icon(Icons.Default.ImportExport,
-                                                    contentDescription = "Sort",
-                                                    modifier = Modifier.size(20.dp))
-                                            }
-                                            IconButton(onClick = { viewModel.toggleMultiSelect() },
-                                                modifier = Modifier.size(36.dp)) {
-                                                Icon(
-                                                    if (state.multiSelectEnabled) Icons.Default.CheckBox
-                                                    else Icons.Default.CheckBoxOutlineBlank,
-                                                    contentDescription = "Multi-select",
-                                                    tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
-                                                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
+                                            if (row.size == 1) Spacer(Modifier.weight(1f))
                                         }
                                     }
                                 }
                             }
                         }
-
-                        when (state.selectedTab) {
-                            HomeTab.Tracks -> {
-                                if (tracks.isEmpty()) {
-                                    item(key = "empty_tracks") {
-                                        EmptyPlaceholder("No tracks found")
-                                    }
-                                } else if (groupedTracks != null) {
-                                    groupedTracks.forEach { (letter, group) ->
-                                        item(key = "section_$letter") {
-                                            SectionHeaderRow(letter = letter)
-                                        }
-                                        items(group, key = { it.id }) { track ->
-                                            TrackContentRow(track = track,
-                                                  isMultiSelect = state.multiSelectEnabled,
-                                                  isSelected = track.id in state.selectedTrackIds,
-                                                  onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                                  onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                                  context = context,
-                                                  showIndexBar = barLayout != null)
-                                        }
-                                    }
-                                } else {
-                                    items(tracks, key = { it.id }) { track ->
-                                        TrackContentRow(track = track,
-                                              isMultiSelect = state.multiSelectEnabled,
-                                              isSelected = track.id in state.selectedTrackIds,
-                                              onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                              onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
-                                              context = context,
-                                              showIndexBar = barLayout != null)
+                        HomeTab.Artists -> {
+                            val artists = state.filteredArtists
+                            if (artists.isEmpty()) {
+                                item(key = "empty_artists") {
+                                    EmptyPlaceholder("No artists found")
                                 }
-                                }
-                            }
-                            HomeTab.Albums -> {
-                                val albums = state.filteredAlbums
-                                if (albums.isEmpty()) {
-                                    item(key = "empty_albums") {
-                                        EmptyPlaceholder("No albums found")
-                                    }
-                                } else {
-                                    albums.chunked(2).forEachIndexed { i, row ->
-                                        item(key = "album_row_$i") {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                            ) {
-                                                row.forEach { album ->
-                                                    AlbumGridItem(album = album,
-                                                        onClick = { onNavigateToAlbum(album.id) },
-                                                        modifier = Modifier.weight(1f), context = context)
-                                                }
-                                                if (row.size == 1) Spacer(Modifier.weight(1f))
+                            } else {
+                                artists.chunked(4).forEachIndexed { i, row ->
+                                    item(key = "artist_row_$i") {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                            horizontalArrangement = Arrangement.SpaceEvenly
+                                        ) {
+                                            row.forEach { artist ->
+                                                ArtistGridItem(artist = artist,
+                                                    onClick = { onNavigateToArtist(artist.id) },
+                                                    modifier = Modifier.weight(1f))
                                             }
                                         }
                                     }
                                 }
                             }
-                            HomeTab.Artists -> {
-                                val artists = state.filteredArtists
-                                if (artists.isEmpty()) {
-                                    item(key = "empty_artists") {
-                                        EmptyPlaceholder("No artists found")
-                                    }
-                                } else {
-                                    artists.chunked(4).forEachIndexed { i, row ->
-                                        item(key = "artist_row_$i") {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                                horizontalArrangement = Arrangement.SpaceEvenly
-                                            ) {
-                                                row.forEach { artist ->
-                                                    ArtistGridItem(artist = artist,
-                                                        onClick = { onNavigateToArtist(artist.id) },
-                                                        modifier = Modifier.weight(1f))
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                         }
                     }
                 }
@@ -416,31 +425,31 @@ fun HomeScreen(
                         }
                     }
                 }
-        }
+            }
 
-        if (showSortSheet) {
-            SortBottomSheet(
-                currentSort = state.sortMode,
-                onSelect = { sort ->
-                    viewModel.setSortMode(sort)
-                    showSortSheet = false
-                },
-                onDismiss = { showSortSheet = false }
-            )
-        }
+            if (showSortSheet) {
+                SortBottomSheet(
+                    currentSort = state.sortMode,
+                    onSelect = { sort ->
+                        viewModel.setSortMode(sort)
+                        showSortSheet = false
+                    },
+                    onDismiss = { showSortSheet = false }
+                )
+            }
 
-        if (showAddToPlaylistSheet) {
-            com.mymusicplayer.ui.components.PlaylistSelectorSheet(
-                trackIds = state.selectedTrackIds.toList(),
-                onDismiss = { showAddToPlaylistSheet = false },
-                onAdded = {
-                    showAddToPlaylistSheet = false
-                    viewModel.toggleMultiSelect()
-                }
-            )
+            if (showAddToPlaylistSheet) {
+                com.mymusicplayer.ui.components.PlaylistSelectorSheet(
+                    trackIds = state.selectedTrackIds.toList(),
+                    onDismiss = { showAddToPlaylistSheet = false },
+                    onAdded = {
+                        showAddToPlaylistSheet = false
+                        viewModel.toggleMultiSelect()
+                    }
+                )
+            }
         }
     }
-}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -545,7 +554,7 @@ private fun CompactMiniCard(label: String, count: Int, artPath: String?, onClick
 @Composable
 private fun EmptyPlaceholder(text: String) {
     Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
     }
 }
 
@@ -554,14 +563,14 @@ private fun SectionHeaderRow(letter: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         Text(
             text = letter,
-            style = MaterialTheme.typography.labelMedium,
+            style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -581,26 +590,26 @@ private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Bo
             Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() }, modifier = Modifier.padding(end = 8.dp))
         }
         Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
             if (track.album?.artPath != null) {
                 SubcomposeAsyncImage(
                     model = ImageRequest.Builder(context).data(File(track.album.artPath)).crossfade(true).build(),
-                    contentDescription = null,
+                    contentDescription = track.title,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
                     error = {
-                        Icon(Icons.Default.MusicNote, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                        Icon(Icons.Default.MusicNote, contentDescription = "Album art not available",
+                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                     }
                 )
             } else {
-                Icon(Icons.Default.MusicNote, contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                Icon(Icons.Default.MusicNote, contentDescription = "Music track icon",
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
             }
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
+            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = buildString {
                     append(track.artists.joinToString(", ") { it.name }.ifBlank { "Unknown Artist" })
@@ -609,14 +618,14 @@ private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Bo
                     }
                 },
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
         if (!isMultiSelect) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "Play",
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
+            Icon(Icons.Default.PlayArrow, contentDescription = "Play track",
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
         }
     }
     HorizontalDivider(modifier = Modifier.padding(start = if (isMultiSelect) 72.dp else 68.dp, end = 12.dp))
@@ -631,20 +640,20 @@ private fun AlbumGridItem(album: Album, onClick: () -> Unit, modifier: Modifier 
                 contentAlignment = Alignment.Center) {
                 if (album.artPath != null) {
                     AsyncImage(model = ImageRequest.Builder(context).data(File(album.artPath)).crossfade(true).build(),
-                        contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                        contentDescription = album.title, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                 } else {
-                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
                         contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(40.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                        Icon(Icons.Default.Album, contentDescription = "Album cover", modifier = Modifier.size(40.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
                     }
                 }
             }
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(album.title, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    style = MaterialTheme.typography.bodyMedium)
                 Text(album.albumArtist ?: "Unknown Artist", maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -653,15 +662,13 @@ private fun AlbumGridItem(album: Album, onClick: () -> Unit, modifier: Modifier 
 @Composable
 private fun ArtistGridItem(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(modifier = Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant)
+        Box(modifier = Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+            Icon(Icons.Default.Person, contentDescription = "Artist profile", modifier = Modifier.size(32.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
         }
         Spacer(Modifier.height(4.dp))
         Text(artist.name, maxLines = 1, overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
     }
 }
-
-

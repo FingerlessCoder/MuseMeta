@@ -82,29 +82,65 @@ fun TrackActionsSheet(
 
             Spacer(Modifier.height(8.dp))
 
-            ActionItem(icon = Icons.Default.PlayArrow, title = "Play Now", onClick = { onPlay(); onDismiss() })
-            ActionItem(icon = Icons.Default.SkipNext, title = "Play Next", onClick = { onPlayNext(); onDismiss() })
-            ActionItem(icon = Icons.AutoMirrored.Filled.QueueMusic, title = "Add to Queue", onClick = { onAddToQueue(); onDismiss() })
-
-            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-
-            if (track.album != null) {
-                ActionItem(icon = Icons.Default.Album, title = "Go to Album", onClick = { onGoToAlbum(); onDismiss() })
-            }
-            if (track.artists.isNotEmpty()) {
-                ActionItem(icon = Icons.Default.Person, title = "Go to Artist", onClick = { onGoToArtist(); onDismiss() })
-            }
             ActionItem(
-                icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                title = if (isFavorite) "Remove from Favorites" else "Favorite",
-                tint = if (isFavorite) MaterialTheme.colorScheme.error else null,
-                onClick = { onToggleFavorite(); onDismiss() }
+                icon = Icons.Default.PlayArrow, 
+                title = "Play Now", 
+                onClick = { onPlay(); onDismiss() },
+                contentDescription = "Play track now"
+            )
+            ActionItem(
+                icon = Icons.Default.SkipNext, 
+                title = "Play Next", 
+                onClick = { onPlayNext(); onDismiss() },
+                contentDescription = "Add to next queue position"
+            )
+            ActionItem(
+                icon = Icons.AutoMirrored.Filled.QueueMusic, 
+                title = "Add to Queue", 
+                onClick = { onAddToQueue(); onDismiss() },
+                contentDescription = "Add track to playback queue"
             )
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-            ActionItem(icon = Icons.AutoMirrored.Filled.PlaylistAdd, title = "Add to Playlist", onClick = { onAddToPlaylist(); onDismiss() })
-            ActionItem(icon = Icons.Default.Share, title = "Share", onClick = { onShare(); onDismiss() })
+            if (track.album != null) {
+                ActionItem(
+                    icon = Icons.Default.Album, 
+                    title = "Go to Album", 
+                    onClick = { onGoToAlbum(); onDismiss() },
+                    contentDescription = "Navigate to album view"
+                )
+            }
+            if (track.artists.isNotEmpty()) {
+                ActionItem(
+                    icon = Icons.Default.Person, 
+                    title = "Go to Artist", 
+                    onClick = { onGoToArtist(); onDismiss() },
+                    contentDescription = "Navigate to artist view"
+                )
+            }
+            ActionItem(
+                icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                title = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
+                tint = if (isFavorite) MaterialTheme.colorScheme.error else null,
+                onClick = { onToggleFavorite(); onDismiss() },
+                contentDescription = if (isFavorite) "Remove track from favorites" else "Add track to favorites"
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+            ActionItem(
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd, 
+                title = "Add to Playlist", 
+                onClick = { onAddToPlaylist(); onDismiss() },
+                contentDescription = "Add track to a playlist"
+            )
+            ActionItem(
+                icon = Icons.Default.Share, 
+                title = "Share", 
+                onClick = { onShare(); onDismiss() },
+                contentDescription = "Share this track with others"
+            )
         }
     }
 }
@@ -115,7 +151,8 @@ private fun ActionItem(
     icon: ImageVector,
     title: String,
     onClick: () -> Unit,
-    tint: Color? = null
+    tint: Color? = null,
+    contentDescription: String? = null
 ) {
     Surface(onClick = onClick, color = Color.Transparent) {
         Row(
@@ -123,7 +160,8 @@ private fun ActionItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = icon, contentDescription = null,
+                imageVector = icon, 
+                contentDescription = contentDescription ?: title,
                 modifier = Modifier.size(24.dp),
                 tint = tint ?: MaterialTheme.colorScheme.onSurface
             )

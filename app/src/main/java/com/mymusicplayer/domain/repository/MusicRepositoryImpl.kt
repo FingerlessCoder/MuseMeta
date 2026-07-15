@@ -142,6 +142,10 @@ class MusicRepositoryImpl(
         trackDao.incrementPlayCount(trackId)
     }
 
+    override suspend fun deleteTrackById(trackId: Long) {
+        trackDao.deleteTrackById(trackId)
+    }
+
     override suspend fun rescanLibrary(
         excludedPaths: List<String>,
         scanDirectoryPath: String?,

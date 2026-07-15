@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.media3.common.AudioAttributes
 import java.io.File
 import androidx.media3.common.C
+import com.mymusicplayer.domain.model.Track
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
@@ -325,6 +326,58 @@ class MusicPlayerController(
         currentTrackIds = emptyList()
         currentTrackPaths = emptyList()
         updateState()
+    }
+
+    fun buildAndAddMediaItems(tracks: List<Track>, addAtIndex: Int? = null) {
+        val player = exoPlayer ?: return
+        val items = tracks.map { track ->
+            val fileUri = Uri.fromFile(File(track.filePath))
+            val artPath = track.album?.artPath
+            val artworkUri = if (!artPath.isNullOrBlank()) {
+                Uri.fromFile(File(artPath.removePrefix("file://")))
+            } else Uri.EMPTY
+            MediaItem.Builder()
+                .setUri(fileUri)
+                .setMediaMetadata(
+                    MediaMetadata.Builder()
+                        .setTitle(track.title)
+                        .setArtist(track.artists.joinToString(" · ") { it.name })
+                        .setArtworkUri(artworkUri)
+                        .build()
+                )
+                .build()
+        }
+        val trackIdsToAdd = tracks.map { it.id }
+        val pathsToAdd = tracks.map { it.filePath }
+        if (addAtIndex != null) {
+            items.forEachIndexed { i, item ->
+                player.addMediaItem(addAtIndex + i, item)
+            }
+            currentTrackIds = currentTrackIds.toMutableList().apply {
+                addAll(addAtIndex, trackIdsToAdd)
+            }
+            currentTrackPaths = currentTrackPaths.toMutableList().apply {
+                addAll(addAtIndex, pathsToAdd)
+            }
+        } else {
+            items.forEach { player.addMediaItem(it) }
+            currentTrackIds = currentTrackIds + trackIdsToAdd
+            currentTrackPaths = currentTrackPaths + pathsToAdd
+        }
+        updateState()
+    }
+
+    fun playNext(tracks: List<Track>) {
+        val player = exoPlayer ?: return
+        if (!currentTrackIds.containsAll(tracks.map { it.id })) {
+            val currentIndex = player.currentMediaItemIndex
+            buildAndAddMediaItems(tracks, currentIndex + 1)
+        }
+    }
+
+    fun addToQueue(tracks: List<Track>) {
+        val player = exoPlayer ?: return
+        buildAndAddMediaItems(tracks)
     }
 
     private fun updateState() {
