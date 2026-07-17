@@ -40,7 +40,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -1004,7 +1003,6 @@ private fun EllipsisSheetContent(
     onDismiss: () -> Unit
 ) {
     val settingsDataStore = koinInject<SettingsDataStore>()
-    val volumeNormalization by settingsDataStore.volumeNormalization.collectAsState(initial = false)
     val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
@@ -1121,15 +1119,6 @@ private fun EllipsisSheetContent(
             icon = Icons.Default.GraphicEq,
             title = "Equalizer",
             onClick = { onOpenEqualizer() }
-        )
-        SheetMenuItem(
-            icon = if (volumeNormalization) Icons.Default.Check else Icons.AutoMirrored.Filled.VolumeUp,
-            title = if (volumeNormalization) "Volume Leveling: On" else "Volume Leveling: Off",
-            tint = if (volumeNormalization) MaterialTheme.colorScheme.primary else null,
-            onClick = {
-                scope.launch { settingsDataStore.setVolumeNormalization(!volumeNormalization) }
-                onDismiss()
-            }
         )
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),

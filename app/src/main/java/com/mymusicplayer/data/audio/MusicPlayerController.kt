@@ -50,8 +50,6 @@ class MusicPlayerController(
 
     companion object {
         private const val TAG = "MusicPlayerController"
-        // +~6 dB makeup gain used for software volume leveling (conservative to avoid clipping).
-        const val NORMALIZATION_GAIN = 2.0f
     }
 
     private var exoPlayer: ExoPlayer? = null
@@ -61,7 +59,6 @@ class MusicPlayerController(
     private var eqEnabledCache = false
     private var eqPresetCache = "Normal"
     private var eqBandsCache = listOf(0, 0, 0, 0, 0)
-    private var volumeNormCache = false
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -160,9 +157,6 @@ class MusicPlayerController(
                     .let { if (it.size == 5) it else listOf(0, 0, 0, 0, 0) }
                 applyAudioSettings()
             }
-        }
-        timerScope.launch {
-            settingsDataStore.volumeNormalization.collectLatest { volumeNormCache = it; applyAudioSettings() }
         }
     }
 
@@ -446,15 +440,11 @@ class MusicPlayerController(
 
     private fun applyAudioSettings() {
         val eqOn = eqEnabledCache
-        val normOn = volumeNormCache
 
         // Software EQ: the processor is always wired into the pipeline, so band
         // changes apply regardless of hardware effect-engine availability.
         val bands = if (eqOn) eqBandsCache else listOf(0, 0, 0, 0, 0)
         eqProcessor.updateBands(bands)
-
-        // Volume normalization: software makeup gain when enabled (no hardware LE).
-        eqProcessor.setNormalizationGain(if (normOn) NORMALIZATION_GAIN else 1f)
     }
 
     private fun onTrackCompleted() {

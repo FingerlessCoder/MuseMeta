@@ -25,7 +25,6 @@ class SettingsDataStore(private val context: Context) {
         val EQUALIZER_BANDS = stringPreferencesKey("equalizer_bands")
         val MIN_FILE_SIZE = longPreferencesKey("min_file_size")
         val MAX_FILE_SIZE = longPreferencesKey("max_file_size")
-        val VOLUME_NORMALIZATION = booleanPreferencesKey("volume_normalization")
         val LAST_PLAYED_TRACK_ID = longPreferencesKey("last_played_track_id")
         val LAST_PLAYED_POSITION = longPreferencesKey("last_played_position")
         val EXCLUDED_DIRS = stringPreferencesKey("excluded_dirs")
@@ -65,20 +64,12 @@ class SettingsDataStore(private val context: Context) {
         prefs[MAX_FILE_SIZE] ?: Long.MAX_VALUE
     }
 
-    val volumeNormalization: Flow<Boolean> = context.dataStore.data.map { prefs ->
-        prefs[VOLUME_NORMALIZATION] ?: false
-    }
-
     val lastPlayedTrackId: Flow<Long?> = context.dataStore.data.map { prefs ->
         prefs[LAST_PLAYED_TRACK_ID]
     }
 
     val lastPlayedPosition: Flow<Long?> = context.dataStore.data.map { prefs ->
         prefs[LAST_PLAYED_POSITION]
-    }
-
-    suspend fun setVolumeNormalization(enabled: Boolean) {
-        context.dataStore.edit { prefs -> prefs[VOLUME_NORMALIZATION] = enabled }
     }
 
     suspend fun setDefaultSort(sort: String) {

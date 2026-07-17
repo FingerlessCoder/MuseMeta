@@ -11,7 +11,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Sort
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -113,11 +112,6 @@ fun SettingsScreen(
                     }
                 }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow(Icons.AutoMirrored.Filled.VolumeUp, "Volume Normalization",
-                    if (state.volumeNormalization) "On" else "Off",
-                    trailing = {
-                        Switch(checked = state.volumeNormalization, onCheckedChange = { viewModel.setVolumeNormalization(it) })
-                    })
             }
 
             SectionHeader("Playback")

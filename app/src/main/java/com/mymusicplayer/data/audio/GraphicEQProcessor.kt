@@ -11,14 +11,13 @@ import kotlin.math.PI
 import kotlin.math.pow
 
 /**
- * Software 5-band graphic equalizer + volume normalization, implemented as a Media3
+ * Software 5-band graphic equalizer, implemented as a Media3
  * [AudioProcessor]. Runs inside the ExoPlayer audio pipeline, so it works on devices
  * whose hardware [android.media.audiofx.Equalizer] HAL is unavailable (e.g. some Honor
  * firmware returns ERROR_INVALID_OPERATION when constructing the effect).
  *
  * Each band is a peaking (bell) IIR biquad filter; the five central frequencies match the
- * UI labels (60Hz, 230Hz, 910Hz, 3.6kHz, 14kHz). [normalizationGain] applies a flat
- * multiplier used for volume leveling.
+ * UI labels (60Hz, 230Hz, 910Hz, 3.6kHz, 14kHz).
  */
 @UnstableApi
 class GraphicEQProcessor : BaseAudioProcessor() {
@@ -29,9 +28,6 @@ class GraphicEQProcessor : BaseAudioProcessor() {
     // One filter state per channel (L, R, ...). Always sized to the configured channels.
     @Volatile
     private var filtersPerChannel: List<List<Biquad>> = emptyList()
-
-    @Volatile
-    private var normalizationGain: Float = 1f
 
     private var channelCount = 2
     private var sampleRate = 44100
@@ -46,11 +42,6 @@ class GraphicEQProcessor : BaseAudioProcessor() {
     fun updateBands(bandsMillibel: List<Int>) {
         lastBandDb = BAND_FREQS.indices.map { i -> mbToDb(bandsMillibel.getOrElse(i) { 0 }.toDouble()) }
         filtersPerChannel = List(channelCount) { buildCoeffs() }
-    }
-
-    /** Volume normalization target gain as a linear multiplier (1f = off). */
-    fun setNormalizationGain(gain: Float) {
-        normalizationGain = gain
     }
 
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
@@ -69,7 +60,6 @@ class GraphicEQProcessor : BaseAudioProcessor() {
 
         val out = replaceOutputBuffer(inputBuffer.remaining())
         val channels = filtersPerChannel
-        val norm = normalizationGain
         val hasFilters = channels.isNotEmpty() && channels.first().any { it.gainDb != 0.0 }
 
         when (inputAudioFormat.encoding) {
@@ -80,7 +70,6 @@ class GraphicEQProcessor : BaseAudioProcessor() {
                         if (hasFilters) {
                             for (f in channels[c]) s = f.process(s)
                         }
-                        s *= norm
                         out.putFloat(s.coerceIn(-1f, 1f))
                     }
                 }
@@ -92,7 +81,6 @@ class GraphicEQProcessor : BaseAudioProcessor() {
                         if (hasFilters) {
                             for (f in channels[c]) s = f.process(s)
                         }
-                        s *= norm
                         val clamped = (s.coerceIn(-1f, 1f) * 32767f).toInt()
                         out.putShort(clamped.toShort())
                     }

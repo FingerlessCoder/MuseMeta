@@ -14,7 +14,6 @@ data class SettingsUiState(
     val sortMode: String = "name",
     val equalizerEnabled: Boolean = false,
     val equalizerPreset: String = "Normal",
-    val volumeNormalization: Boolean = false,
     val sleepTimerMinutes: Int = 0,
     val sleepTimerRemainingSeconds: Int = 0,
     val scanDirectoryPath: String = "",
@@ -52,11 +51,6 @@ class SettingsViewModel(
         viewModelScope.launch {
             settingsDataStore.equalizerPreset.collect { preset ->
                 _uiState.value = _uiState.value.copy(equalizerPreset = preset)
-            }
-        }
-        viewModelScope.launch {
-            settingsDataStore.volumeNormalization.collect { norm ->
-                _uiState.value = _uiState.value.copy(volumeNormalization = norm)
             }
         }
         viewModelScope.launch {
@@ -106,10 +100,6 @@ class SettingsViewModel(
 
     fun setEqualizerPreset(preset: String) {
         viewModelScope.launch { settingsDataStore.setEqualizerPreset(preset) }
-    }
-
-    fun setVolumeNormalization(enabled: Boolean) {
-        viewModelScope.launch { settingsDataStore.setVolumeNormalization(enabled) }
     }
 
     fun setSleepTimer(minutes: Int) {
