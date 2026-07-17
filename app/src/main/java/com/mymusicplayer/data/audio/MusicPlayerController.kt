@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -159,15 +160,18 @@ class MusicPlayerController(
             }
         }
         // Restore the previously selected playback mode (shuffle / list / single).
+        // ExoPlayer access must happen on the main thread, so switch context here.
         timerScope.launch {
             settingsDataStore.playbackMode.collectLatest { saved ->
                 val player = exoPlayer ?: return@collectLatest
                 val mode = runCatching { PlaybackMode.valueOf(saved) }.getOrDefault(PlaybackMode.LIST)
-                player.shuffleModeEnabled = mode == PlaybackMode.SHUFFLE
-                player.repeatMode = when (mode) {
-                    PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_OFF
-                    PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
-                    PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
+                withContext(Dispatchers.Main) {
+                    player.shuffleModeEnabled = mode == PlaybackMode.SHUFFLE
+                    player.repeatMode = when (mode) {
+                        PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_OFF
+                        PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
+                        PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
+                    }
                 }
                 _playbackState.value = _playbackState.value.copy(playbackMode = mode)
             }
