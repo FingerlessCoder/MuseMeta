@@ -262,14 +262,14 @@ class MusicPlayerController(
         updateState()
     }
 
-    fun getCachedTrackInfo(trackId: Long): com.mymusicplayer.domain.model.Track? {
+    fun getCachedTrackInfo(trackId: Long): Track? {
         if (trackId <= 0) return null
         val cached = trackInfoCache[trackId] ?: return null
         val idx = currentTrackIds.indexOf(trackId)
         if (idx < 0) return null
         val path = currentTrackPaths.getOrNull(idx) ?: return null
 
-        return         com.mymusicplayer.domain.model.Track(
+        return Track(
             id = trackId,
             title = cached.title ?: "Unknown",
             artists = cached.artist?.let { a ->

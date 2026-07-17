@@ -1190,7 +1190,7 @@ private fun ArtistPickerSheetContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EditMetadataSheetContent(
-    track: com.mymusicplayer.domain.model.Track,
+    track: Track,
     currentArtPath: String?,
     onDismiss: () -> Unit,
     onShowConfirm: () -> Unit,
@@ -1846,7 +1846,7 @@ private fun formatDuration(ms: Long): String {
 
 private fun shareTrack(context: android.content.Context, track: Track?) {
     if (track == null) return
-    val file = java.io.File(track.filePath)
+    val file = File(track.filePath)
     if (!file.exists()) return
     val authority = "${context.packageName}.fileprovider"
     val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
