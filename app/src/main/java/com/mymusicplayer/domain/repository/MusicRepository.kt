@@ -22,8 +22,10 @@ interface MusicRepository {
     fun getTracksByAlbum(albumId: Long): Flow<List<Track>>
     fun getTracksByArtist(artistId: Long): Flow<List<Track>>
     fun getAllAlbums(): Flow<List<Album>>
+    fun getAllAlbums(sort: String): Flow<List<Album>>
     fun getAlbumById(id: Long): Flow<Album?>
     fun getAllArtists(): Flow<List<Artist>>
+    fun getAllArtists(sort: String): Flow<List<Artist>>
     fun getArtistById(id: Long): Flow<Artist?>
     fun getTracksForArtist(artistId: Long): Flow<List<Track>>
     fun getTracksInPlaylist(playlistId: Long): Flow<List<Track>>

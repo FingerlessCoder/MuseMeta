@@ -15,6 +15,18 @@ interface AlbumDao {
     @Query("SELECT * FROM albums ORDER BY title COLLATE NOCASE ASC")
     fun getAllAlbums(): Flow<List<AlbumEntity>>
 
+    @Query("""
+        SELECT * FROM albums
+        ORDER BY
+            CASE WHEN :sort = 'album_artist' THEN COALESCE(album_artist, '') END COLLATE NOCASE ASC,
+            CASE WHEN :sort = 'year' THEN year END DESC,
+            CASE WHEN :sort = 'track_count' THEN (SELECT COUNT(*) FROM tracks WHERE tracks.album_id = albums.id) END DESC,
+            CASE WHEN :sort = 'year_desc' THEN year END ASC,
+            CASE WHEN :sort = 'track_count_desc' THEN (SELECT COUNT(*) FROM tracks WHERE tracks.album_id = albums.id) END ASC,
+            CASE WHEN :sort = 'title_desc' THEN title END COLLATE NOCASE DESC
+    """)
+    fun getAllAlbumsSorted(sort: String = "title"): Flow<List<AlbumEntity>>
+
     @Query("SELECT * FROM albums WHERE id = :albumId")
     fun getAlbumById(albumId: Long): Flow<AlbumEntity?>
 

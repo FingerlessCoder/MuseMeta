@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -258,11 +260,22 @@ fun HomeScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    TextButton(onClick = { viewModel.playRandom() }) {
-                                        Icon(Icons.Default.Shuffle, contentDescription = null,
-                                            modifier = Modifier.size(16.dp))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text("Random Play", style = MaterialTheme.typography.labelLarge)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        AssistChip(
+                                            onClick = { viewModel.playRandom(); onNavigateToPlayer() },
+                                            label = { Text("Track", style = MaterialTheme.typography.labelSmall) },
+                                            leadingIcon = { Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                        )
+                                        AssistChip(
+                                            onClick = { viewModel.playRandomAlbum(onNavigateToPlayer) },
+                                            label = { Text("Album", style = MaterialTheme.typography.labelSmall) },
+                                            leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                        )
+                                        AssistChip(
+                                            onClick = { viewModel.playRandomArtist(onNavigateToPlayer) },
+                                            label = { Text("Artist", style = MaterialTheme.typography.labelSmall) },
+                                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                        )
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                         IconButton(onClick = { showSortSheet = true },
@@ -280,6 +293,36 @@ fun HomeScreen(
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (state.selectedTab == HomeTab.Tracks) {
+                        val genres = state.tracks
+                            .mapNotNull { it.genre?.takeIf { g -> g.isNotBlank() } }
+                            .distinct().sorted()
+                        if (genres.isNotEmpty()) {
+                            item(key = "genre_filter") {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .horizontalScroll(rememberScrollState())
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    FilterChip(
+                                        selected = state.genreFilter == null,
+                                        onClick = { viewModel.setGenreFilter(null) },
+                                        label = { Text("All") }
+                                    )
+                                    genres.forEach { genre ->
+                                        FilterChip(
+                                            selected = state.genreFilter == genre,
+                                            onClick = { viewModel.setGenreFilter(genre) },
+                                            label = { Text(genre) }
+                                        )
                                     }
                                 }
                             }
@@ -435,11 +478,14 @@ fun HomeScreen(
 
             if (showSortSheet) {
                 SortBottomSheet(
+                    selectedTab = state.selectedTab,
                     currentSort = state.sortMode,
+                    currentDir = state.sortDir,
                     onSelect = { sort ->
                         viewModel.setSortMode(sort)
                         showSortSheet = false
                     },
+                    onToggleDir = { dir -> viewModel.setSortDir(dir) },
                     onDismiss = { showSortSheet = false }
                 )
             }
@@ -451,17 +497,33 @@ fun HomeScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SortBottomSheet(
+    selectedTab: HomeTab,
     currentSort: String,
+    currentDir: String,
     onSelect: (String) -> Unit,
+    onToggleDir: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sortOptions = listOf(
-        Triple("By Name", "name", "Sort tracks alphabetically"),
-        Triple("Date Added", "date_added", "Sort by when tracks were added"),
-        Triple("Play Frequency", "play_count", "Sort by most played"),
-        Triple("By Year", "year", "Sort by release year"),
-        Triple("By Genre", "genre", "Sort by music genre")
-    )
+    val sortOptions: List<Triple<String, String, String>> = when (selectedTab) {
+        HomeTab.Tracks -> listOf(
+            Triple("By Name", "name", "Sort tracks alphabetically"),
+            Triple("Date Added", "date_added", "Sort by when tracks were added"),
+            Triple("Play Frequency", "play_count", "Sort by most played"),
+            Triple("By Year", "year", "Sort by release year"),
+            Triple("By Genre", "genre", "Sort by music genre"),
+            Triple("By Artist", "artist", "Sort by artist name"),
+            Triple("By Album", "album", "Sort by album title")
+        )
+        HomeTab.Albums -> listOf(
+            Triple("By Title", "title", "Sort albums alphabetically"),
+            Triple("By Album Artist", "album_artist", "Sort by album artist"),
+            Triple("By Year", "year", "Sort by release year"),
+            Triple("By Track Count", "track_count", "Sort by number of tracks")
+        )
+        HomeTab.Artists -> listOf(
+            Triple("By Name", "name", "Sort artists alphabetically")
+        )
+    }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
@@ -500,6 +562,28 @@ private fun SortBottomSheet(
                                 tint = MaterialTheme.colorScheme.primary)
                         }
                     }
+                }
+            }
+            if (selectedTab != HomeTab.Artists || currentSort != "name") {
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Direction", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                    FilterChip(
+                        selected = currentDir == "asc",
+                        onClick = { onToggleDir("asc") },
+                        label = { Text("Asc") },
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                    FilterChip(
+                        selected = currentDir == "desc",
+                        onClick = { onToggleDir("desc") },
+                        label = { Text("Desc") }
+                    )
                 }
             }
         }

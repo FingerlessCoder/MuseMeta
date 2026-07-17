@@ -26,7 +26,9 @@ data class HomeUiState(
     val playlists: List<Playlist> = emptyList(),
     val recentlyPlayed: List<Track> = emptyList(),
     val selectedTab: HomeTab = HomeTab.Tracks,
-    val sortMode: String = "name"
+    val sortMode: String = "name",
+    val sortDir: String = "asc",
+    val genreFilter: String? = null
 ) {
     val trackCount: Int get() = tracks.size
     val albumCount: Int get() = albums.size
@@ -36,8 +38,11 @@ data class HomeUiState(
     val recentlyPlayedCount: Int get() = recentlyPlayed.size
 
     val filteredTracks: List<Track>
-        get() = if (searchQuery.isBlank()) tracks
-        else tracks.filter { it.title.contains(searchQuery, ignoreCase = true) }
+        get() = when {
+            searchQuery.isNotBlank() -> tracks.filter { it.title.contains(searchQuery, ignoreCase = true) }
+            genreFilter != null -> tracks.filter { (it.genre ?: "Unknown").equals(genreFilter, ignoreCase = true) }
+            else -> tracks
+        }
 
     val filteredAlbums: List<Album>
         get() = if (searchQuery.isBlank()) albums
@@ -116,13 +121,59 @@ class HomeViewModel(
 
     fun selectTab(tab: HomeTab) {
         _uiState.value = _uiState.value.copy(selectedTab = tab)
+        applySortForTab(tab)
+    }
+
+    private fun applySortForTab(tab: HomeTab) {
+        val sort = _uiState.value.sortMode
+        val dir = _uiState.value.sortDir
+        when (tab) {
+            HomeTab.Albums -> refreshAlbums(sort, dir)
+            HomeTab.Artists -> refreshArtists(dir)
+            else -> refreshTracks(sort, dir)
+        }
     }
 
     fun setSortMode(sort: String) {
         _uiState.value = _uiState.value.copy(sortMode = sort)
+        applySortForTab(_uiState.value.selectedTab)
+    }
+
+    fun setSortDir(dir: String) {
+        _uiState.value = _uiState.value.copy(sortDir = dir)
+        applySortForTab(_uiState.value.selectedTab)
+    }
+
+    fun setGenreFilter(genre: String?) {
+        _uiState.value = _uiState.value.copy(genreFilter = genre)
+    }
+
+    private fun refreshTracks(sort: String, dir: String) {
+        val key = if (dir == "desc") "${sort}_desc" else sort
         viewModelScope.launch {
-            musicRepository.getAllTracks(sort).first { tracks ->
+            musicRepository.getAllTracks(key).first { tracks ->
                 _uiState.value = _uiState.value.copy(tracks = tracks)
+                true
+            }
+        }
+    }
+
+    private fun refreshAlbums(sort: String, dir: String) {
+        val key = if (dir == "desc" && sort in setOf("title", "year", "track_count")) "${sort}_desc"
+        else if (sort == "name") "title"
+        else sort
+        viewModelScope.launch {
+            musicRepository.getAllAlbums(key).first { albums ->
+                _uiState.value = _uiState.value.copy(albums = albums)
+                true
+            }
+        }
+    }
+
+    private fun refreshArtists(dir: String) {
+        viewModelScope.launch {
+            musicRepository.getAllArtists(if (dir == "desc") "name_desc" else "name").first { artists ->
+                _uiState.value = _uiState.value.copy(artists = artists)
                 true
             }
         }
@@ -156,6 +207,22 @@ class HomeViewModel(
         if (allTracks.isEmpty()) return
         val randomIndex = kotlin.random.Random.nextInt(allTracks.size)
         playTrack(allTracks[randomIndex])
+    }
+
+    fun playRandomAlbum(onNavigateToPlayer: () -> Unit = {}) {
+        val albums = uiState.value.albums
+        if (albums.isEmpty()) return
+        val album = albums[kotlin.random.Random.nextInt(albums.size)]
+        playAlbum(album)
+        onNavigateToPlayer()
+    }
+
+    fun playRandomArtist(onNavigateToPlayer: () -> Unit = {}) {
+        val artists = uiState.value.artists
+        if (artists.isEmpty()) return
+        val artist = artists[kotlin.random.Random.nextInt(artists.size)]
+        playArtistTracks(artist)
+        onNavigateToPlayer()
     }
 
     fun playAlbum(album: Album) {

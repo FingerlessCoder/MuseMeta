@@ -28,7 +28,22 @@ interface TrackDao {
             CASE WHEN :sort = 'duration' THEN t.duration END ASC,
             CASE WHEN :sort = 'rating' THEN t.rating END DESC,
             CASE WHEN :sort = 'year' THEN t.year END DESC,
-            CASE WHEN :sort = 'genre' THEN t.genre END ASC
+            CASE WHEN :sort = 'genre' THEN t.genre END ASC,
+            CASE WHEN :sort = 'artist'
+                THEN COALESCE((SELECT a.name FROM track_artists ta
+                    JOIN artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.id LIMIT 1), '') END COLLATE NOCASE ASC,
+            CASE WHEN :sort = 'album'
+                THEN COALESCE((SELECT al.title FROM albums al WHERE al.id = t.album_id), '') END COLLATE NOCASE ASC,
+            CASE WHEN :sort = 'name_desc' THEN t.title END COLLATE NOCASE DESC,
+            CASE WHEN :sort = 'year_desc' THEN t.year END ASC,
+            CASE WHEN :sort = 'genre_desc' THEN t.genre END DESC,
+            CASE WHEN :sort = 'artist_desc'
+                THEN COALESCE((SELECT a.name FROM track_artists ta
+                    JOIN artists a ON a.id = ta.artist_id
+                    WHERE ta.track_id = t.id LIMIT 1), '') END COLLATE NOCASE DESC,
+            CASE WHEN :sort = 'album_desc'
+                THEN COALESCE((SELECT al.title FROM albums al WHERE al.id = t.album_id), '') END COLLATE NOCASE DESC
     """)
     fun getAllTracks(sort: String = "name"): Flow<List<TrackEntity>>
 

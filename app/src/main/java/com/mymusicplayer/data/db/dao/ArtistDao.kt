@@ -39,9 +39,20 @@ interface ArtistDao {
         INNER JOIN track_artists ta ON a.id = ta.artist_id
         INNER JOIN tracks t ON ta.track_id = t.id
         GROUP BY a.id
-        ORDER BY a.name ASC
+        ORDER BY a.name COLLATE NOCASE ASC
     """)
     fun getAllArtistsWithCounts(): Flow<List<ArtistWithCounts>>
+
+    @Query("""
+        SELECT a.*, COUNT(DISTINCT ta.track_id) as track_count,
+               COUNT(DISTINCT t.album_id) as album_count
+        FROM artists a
+        INNER JOIN track_artists ta ON a.id = ta.artist_id
+        INNER JOIN tracks t ON ta.track_id = t.id
+        GROUP BY a.id
+        ORDER BY a.name COLLATE NOCASE DESC
+    """)
+    fun getAllArtistsWithCountsDesc(): Flow<List<ArtistWithCounts>>
 
     @Query("""
         SELECT a.* FROM artists a

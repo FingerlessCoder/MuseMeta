@@ -97,6 +97,22 @@ class MusicRepositoryImpl(
         }
     }
 
+    override fun getAllAlbums(sort: String): Flow<List<Album>> {
+        return albumDao.getAllAlbumsSorted(sort).map { entities ->
+            entities.map { entity ->
+                Album(
+                    id = entity.id,
+                    title = entity.title,
+                    albumArtist = entity.albumArtist,
+                    year = entity.year,
+                    artPath = entity.artPath,
+                    trackCount = 0,
+                    totalDuration = 0
+                )
+            }
+        }
+    }
+
     override fun getAlbumById(id: Long): Flow<Album?> {
         return albumDao.getAlbumById(id).map { entity ->
             entity?.let {
@@ -113,6 +129,21 @@ class MusicRepositoryImpl(
 
     override fun getAllArtists(): Flow<List<Artist>> {
         return artistDao.getAllArtistsWithCounts().map { entities ->
+            entities.map { entity ->
+                Artist(
+                    id = entity.id,
+                    name = entity.name,
+                    trackCount = entity.track_count,
+                    albumCount = entity.album_count
+                )
+            }
+        }
+    }
+
+    override fun getAllArtists(sort: String): Flow<List<Artist>> {
+        val source = if (sort == "name_desc") artistDao.getAllArtistsWithCountsDesc()
+        else artistDao.getAllArtistsWithCounts()
+        return source.map { entities ->
             entities.map { entity ->
                 Artist(
                     id = entity.id,
