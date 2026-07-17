@@ -105,22 +105,48 @@ fun HomeScreen(
                 val tracks = state.filteredTracks
 
                 val groupedTracks = remember(tracks, state.sortMode) {
-                    if (state.sortMode != "name") return@remember null
-                    val groups = mutableMapOf<String, MutableList<Track>>()
-                    for (track in tracks) {
-                        val c = track.title.firstOrNull()?.uppercaseChar() ?: '#'
-                        val letter = if (c in 'A'..'Z') c.toString() else "#"
-                        groups.getOrPut(letter) { mutableListOf() }.add(track)
+                    when (state.sortMode) {
+                        "name" -> {
+                            val groups = mutableMapOf<String, MutableList<Track>>()
+                            for (track in tracks) {
+                                val c = track.title.firstOrNull()?.uppercaseChar() ?: '#'
+                                val letter = if (c in 'A'..'Z') c.toString() else "#"
+                                groups.getOrPut(letter) { mutableListOf() }.add(track)
+                            }
+                            val sorted = linkedMapOf<String, List<Track>>()
+                            groups.keys.filter { it != "#" }.sorted().forEach { sorted[it] = groups[it]!! }
+                            if ("#" in groups) sorted["#"] = groups["#"]!!
+                            sorted
+                        }
+                        "year" -> {
+                            val groups = mutableMapOf<String, MutableList<Track>>()
+                            for (track in tracks) {
+                                val year = track.year?.toString() ?: "Unknown"
+                                groups.getOrPut(year) { mutableListOf() }.add(track)
+                            }
+                            val sorted = linkedMapOf<String, List<Track>>()
+                            groups.keys.filter { it != "Unknown" }.sortedDescending().forEach { sorted[it] = groups[it]!! }
+                            if ("Unknown" in groups) sorted["Unknown"] = groups["Unknown"]!!
+                            sorted
+                        }
+                        "genre" -> {
+                            val groups = mutableMapOf<String, MutableList<Track>>()
+                            for (track in tracks) {
+                                val genre = track.genre?.takeIf { it.isNotBlank() } ?: "Unknown"
+                                groups.getOrPut(genre) { mutableListOf() }.add(track)
+                            }
+                            val sorted = linkedMapOf<String, List<Track>>()
+                            groups.keys.filter { it != "Unknown" }.sorted().forEach { sorted[it] = groups[it]!! }
+                            if ("Unknown" in groups) sorted["Unknown"] = groups["Unknown"]!!
+                            sorted
+                        }
+                        else -> null
                     }
-                    val sorted = linkedMapOf<String, List<Track>>()
-                    groups.keys.filter { it != "#" }.sorted().forEach { sorted[it] = groups[it]!! }
-                    if ("#" in groups) sorted["#"] = groups["#"]!!
-                    sorted
                 }
 
                 val canShowBar = tracks.isNotEmpty()
                     && state.selectedTab == HomeTab.Tracks
-                    && state.sortMode == "name"
+                    && state.sortMode != "date_added" && state.sortMode != "play_count"
 
                 data class BarLayoutInfo(val topOffsetPx: Int, val heightPx: Int)
 
@@ -430,7 +456,9 @@ private fun SortBottomSheet(
     val sortOptions = listOf(
         Triple("By Name", "name", "Sort tracks alphabetically"),
         Triple("Date Added", "date_added", "Sort by when tracks were added"),
-        Triple("Play Frequency", "play_count", "Sort by most played")
+        Triple("Play Frequency", "play_count", "Sort by most played"),
+        Triple("By Year", "year", "Sort by release year"),
+        Triple("By Genre", "genre", "Sort by music genre")
     )
 
     ModalBottomSheet(onDismissRequest = onDismiss) {

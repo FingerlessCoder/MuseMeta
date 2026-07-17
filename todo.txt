@@ -84,3 +84,6 @@ TL;DR of the recommendation:
      └─────────────────────────────────────┴────────────────────────┴─────────────────────────┘
 	 
 fix or improve, icons,multiselect exit and select all,use drag to order
+
+[ ] Further library filtering (filter by genre, album artist, format)
+[ ] Refer Retro Music Player for more UI/UX improvements

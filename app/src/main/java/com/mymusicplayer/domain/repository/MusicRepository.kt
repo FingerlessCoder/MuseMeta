@@ -1,10 +1,18 @@
 package com.mymusicplayer.domain.repository
 
+import android.content.IntentSender
+import android.net.Uri
 import com.mymusicplayer.data.scanner.ScanProgress
 import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
 import kotlinx.coroutines.flow.Flow
+
+sealed class WriteResult {
+    object Success : WriteResult()
+    data class Error(val message: String) : WriteResult()
+    data class PermissionRequired(val intentSender: IntentSender) : WriteResult()
+}
 
 interface MusicRepository {
     fun getAllTracks(sort: String): Flow<List<Track>>
@@ -29,8 +37,25 @@ interface MusicRepository {
         minDuration: Long = 0L
     ): Flow<ScanProgress>
     suspend fun deleteTrackById(trackId: Long)
-    suspend fun updateAlbumArt(trackId: Long, imageBytes: ByteArray, applyToAll: Boolean = false)
     suspend fun updateLyricsPath(trackId: Long, path: String?)
+
+    /**
+     * Triggers an incremental scan for specific file paths.
+     */
+    fun triggerIncrementalScan(paths: List<String>)
+
+    /**
+     * Updates album art for a track. On Android 10+, uses MediaStore to write the artwork.
+     */
+    suspend fun updateAlbumArt(
+        trackId: Long,
+        imageBytes: ByteArray,
+        applyToAll: Boolean = false
+    ): WriteResult
+
+    /**
+     * Edits track metadata. On Android 10+, uses MediaStore to write the tags.
+     */
     suspend fun editTrackMetadata(
         trackId: Long,
         title: String?,
@@ -38,7 +63,16 @@ interface MusicRepository {
         albumTitle: String?,
         year: Int?,
         trackNumber: Int?,
-        genre: String?,
-        comment: String?
-    )
+        genre: String?
+    ): WriteResult
+
+    /**
+     * Updates metadata for all tracks in an album.
+     */
+    suspend fun batchUpdateTrackMetadata(
+        albumId: Long,
+        albumTitle: String?,
+        year: Int?,
+        genre: String?
+    ): WriteResult
 }

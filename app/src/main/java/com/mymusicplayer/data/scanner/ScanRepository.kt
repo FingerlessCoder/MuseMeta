@@ -119,39 +119,12 @@ class ScanRepository(
             val parsedResults = mutableListOf<Pair<ScannedAudioFile, ParsedMetadata?>>()
             var lastEmitMs = System.currentTimeMillis()
 
-            // Count files that need actual file I/O (filesystem-scanned) vs. MediaStore files
-            val mediaStoreCount = audioFiles.count { it.hasEmbeddedMetadata }
-            val fileSystemCount = totalFiles - mediaStoreCount
-            if (mediaStoreCount > 0) {
-                Log.d(TAG, "Using embedded MediaStore metadata for $mediaStoreCount files " +
-                        "(skipping jAudiotagger); $fileSystemCount files need filesystem parsing")
-            }
-
             audioFiles.chunked(PARALLEL_PARSERS).forEachIndexed { batchIndex, batch ->
                 val deferred = batch.map { file ->
                     async(Dispatchers.IO) {
-                        val meta = if (file.hasEmbeddedMetadata) {
-                            // MediaStore already indexed this file — construct metadata
-                            // from the system database, no file I/O needed.
-                            ParsedMetadata(
-                                title = file.title ?: File(file.path).nameWithoutExtension,
-                                artists = metadataParser.parseArtists(file.artist ?: "Unknown Artist"),
-                                albumTitle = file.album,
-                                albumArtist = file.albumArtist,
-                                year = file.year,
-                                trackNumber = file.trackNumber,
-                                discNumber = null,
-                                genre = file.genre,
-                                comment = null,
-                                duration = file.duration ?: 0L,
-                                bitrate = file.bitrate,
-                                sampleRate = null,
-                                format = file.mimeType,
-                                albumArtBytes = null
-                            )
-                        } else {
-                            metadataParser.parse(file.path, extractAlbumArt = false)
-                        }
+                        // ALWAYS parse metadata directly from the file to ensure accuracy
+                        // and avoid stale data from system MediaStore.
+                        val meta = metadataParser.parse(file.path, extractAlbumArt = false)
                         file to meta
                     }
                 }
@@ -193,12 +166,29 @@ class ScanRepository(
         awaitClose { }
     }
 
+    suspend fun scanPaths(paths: List<String>) {
+        if (paths.isEmpty()) return
+
+        val msFiles = mediaStoreScanner.scanByPaths(paths)
+        if (msFiles.isEmpty()) return
+
+        val parsedResults = msFiles.map { file ->
+            val metadata = metadataParser.parse(file.path, extractAlbumArt = false)
+            file to metadata
+        }
+
+        writeBatch(parsedResults, msFiles.map { it.path }.toSet(), isFullScan = false)
+    }
+
     private suspend fun writeBatch(
         parsedResults: List<Pair<ScannedAudioFile, ParsedMetadata?>>,
         scannedPaths: Set<String>,
-        minDuration: Long = 0L
+        minDuration: Long = 0L,
+        isFullScan: Boolean = true
     ) {
-        trackDao.deleteRemovedTracks(scannedPaths.toList())
+        if (isFullScan) {
+            trackDao.deleteRemovedTracks(scannedPaths.toList())
+        }
 
         val albumCache = mutableMapOf<String, Long>()
         // Track file path + content URI for each album (URI needed for scoped storage on Android 10+)
@@ -211,30 +201,45 @@ class ScanRepository(
 
         validTracks.chunked(50).forEach { chunk ->
             for ((file, metadata, albumId) in chunk) {
-                val existingId = trackDao.getTrackIdByPath(file.path)
-                val trackEntity = TrackEntity(
-                    title = metadata.title,
-                    albumId = albumId,
-                    duration = metadata.duration,
-                    trackNumber = metadata.trackNumber,
-                    discNumber = metadata.discNumber,
-                    year = metadata.year,
-                    genre = metadata.genre,
-                    comment = metadata.comment,
-                    filePath = file.path,
-                    fileSize = file.size,
-                    bitrate = metadata.bitrate,
-                    sampleRate = metadata.sampleRate,
-                    format = metadata.format,
-                    dateAdded = System.currentTimeMillis(),
-                    rawArtistTag = metadata.artists.joinToString(" / ")
-                )
-
+                val existingTrack = trackDao.getTrackByPathOnce(file.path)
                 val trackId: Long
-                if (existingId != null) {
-                    trackDao.updateTrack(trackEntity.copy(id = existingId))
-                    trackId = existingId
+
+                if (existingTrack != null) {
+                    val updated = existingTrack.copy(
+                        title = metadata.title,
+                        albumId = albumId,
+                        duration = metadata.duration,
+                        trackNumber = metadata.trackNumber,
+                        discNumber = metadata.discNumber,
+                        year = metadata.year,
+                        genre = metadata.genre,
+                        comment = metadata.comment,
+                        fileSize = file.size,
+                        bitrate = metadata.bitrate,
+                        sampleRate = metadata.sampleRate,
+                        format = metadata.format,
+                        rawArtistTag = metadata.artists.joinToString(" / ")
+                    )
+                    trackDao.updateTrack(updated)
+                    trackId = existingTrack.id
                 } else {
+                    val trackEntity = TrackEntity(
+                        title = metadata.title,
+                        albumId = albumId,
+                        duration = metadata.duration,
+                        trackNumber = metadata.trackNumber,
+                        discNumber = metadata.discNumber,
+                        year = metadata.year,
+                        genre = metadata.genre,
+                        comment = metadata.comment,
+                        filePath = file.path,
+                        fileSize = file.size,
+                        bitrate = metadata.bitrate,
+                        sampleRate = metadata.sampleRate,
+                        format = metadata.format,
+                        dateAdded = System.currentTimeMillis(),
+                        rawArtistTag = metadata.artists.joinToString(" / ")
+                    )
                     trackId = trackDao.insertTrack(trackEntity)
                 }
 

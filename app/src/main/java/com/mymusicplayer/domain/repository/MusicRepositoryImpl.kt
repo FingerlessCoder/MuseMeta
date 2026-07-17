@@ -1,6 +1,13 @@
 package com.mymusicplayer.domain.repository
 
+import android.media.MediaScannerConnection
+import android.content.ContentValues
+import android.content.Intent
+import android.app.RecoverableSecurityException
 import android.content.Context
+import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.util.Log
 import com.mymusicplayer.data.db.dao.AlbumDao
 import java.io.File
@@ -22,6 +29,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import com.mymusicplayer.service.ScanService
+import java.io.FileOutputStream
 class MusicRepositoryImpl(
     private val context: Context,
     private val trackDao: TrackDao,
@@ -163,34 +172,244 @@ class MusicRepositoryImpl(
         trackId: Long,
         imageBytes: ByteArray,
         applyToAll: Boolean
-    ) {
-        withContext(Dispatchers.IO) {
-            val track = trackDao.getTrackByIdOnce(trackId) ?: return@withContext
-            val albumId = track.albumId ?: return@withContext
+    ): WriteResult {
+        return withContext(Dispatchers.IO) {
+            val track = trackDao.getTrackByIdOnce(trackId) ?: return@withContext WriteResult.Error("Track not found")
+            val albumId = track.albumId ?: return@withContext WriteResult.Error("Album not found")
 
-            // Normalize: downscale large images and re-encode to JPEG so embedding
-            // succeeds across formats and doesn't bloat the audio files.
             val resized = resizeArtwork(imageBytes)
 
-            // Best-effort: embed into the audio file(s). The DB/cache update below
-            // always runs, so the UI reflects the new cover even if a file write fails.
             val targets = if (applyToAll) {
-                trackDao.getTracksByAlbum(albumId).first()
+                trackDao.getTracksByAlbumOnce(albumId)
             } else {
                 listOf(track)
             }
-            for (t in targets) {
-                val ok = metadataParser.writeAlbumArt(t.filePath, resized)
-                if (!ok) Log.w("MusicRepository", "Embedded art write failed for ${t.filePath}")
+
+            val result = performSafeWrite(targets) { tempFile ->
+                metadataParser.writeAlbumArt(tempFile.absolutePath, resized, context.cacheDir)
             }
 
-            // Single source of truth for the UI: shared album cache + DB.
-            val artDir = File(context.cacheDir, "album_art")
-            artDir.mkdirs()
-            val artFile = File(artDir, "$albumId.jpg")
-            artFile.writeBytes(resized)
-            albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+            if (result is WriteResult.Success) {
+                // Update cache and DB
+                val artDir = File(context.cacheDir, "album_art")
+                artDir.mkdirs()
+                val artFile = File(artDir, "$albumId.jpg")
+                artFile.writeBytes(resized)
+                albumDao.updateAlbumArt(albumId, artFile.absolutePath)
+            }
+
+            result
         }
+    }
+
+    override suspend fun editTrackMetadata(
+        trackId: Long,
+        title: String?,
+        artists: List<String>?,
+        albumTitle: String?,
+        year: Int?,
+        trackNumber: Int?,
+        genre: String?
+    ): WriteResult {
+        return withContext(Dispatchers.IO) {
+            val track = trackDao.getTrackByIdOnce(trackId) ?: return@withContext WriteResult.Error("Track not found")
+
+            val result = performSafeWrite(listOf(track)) { tempFile ->
+                metadataParser.writeMetadata(
+                    filePath = tempFile.absolutePath,
+                    title = title,
+                    artists = artists,
+                    albumTitle = albumTitle,
+                    year = year,
+                    trackNumber = trackNumber,
+                    genre = genre
+                )
+            }
+
+            if (result is WriteResult.Success) {
+                // Resolve album: a renamed album reuses an existing one (case-insensitive)
+                // or creates a new one, and the track is re-linked to it.
+                var albumId = track.albumId
+                if (albumTitle != null) {
+                    val existingAlbum = albumDao.getAlbumByTitleNormalized(albumTitle)
+                    albumId = existingAlbum?.id ?: albumDao.insertAlbum(
+                        AlbumEntity(title = albumTitle, year = year ?: track.year)
+                    )
+                }
+
+                val updated = track.copy(
+                    title = title ?: track.title,
+                    albumId = albumId,
+                    year = year ?: track.year,
+                    trackNumber = trackNumber ?: track.trackNumber,
+                    genre = genre ?: track.genre
+                )
+                trackDao.updateTrack(updated)
+
+                if (artists != null) {
+                    artistDao.deleteArtistsForTrack(trackId)
+                    for (artistName in artists) {
+                        val existing = artistDao.getArtistByName(artistName)
+                        val artistId = if (existing != null) {
+                            existing.id
+                        } else {
+                            artistDao.insertArtist(ArtistEntity(name = artistName))
+                        }
+                        artistDao.insertTrackArtistRelation(
+                            TrackArtistEntity(
+                                trackId = trackId,
+                                artistId = artistId,
+                                role = "ARTIST"
+                            )
+                        )
+                    }
+                }
+            }
+            result
+        }
+    }
+
+    override suspend fun batchUpdateTrackMetadata(
+        albumId: Long,
+        albumTitle: String?,
+        year: Int?,
+        genre: String?
+    ): WriteResult {
+        return withContext(Dispatchers.IO) {
+            val tracks = trackDao.getTracksByAlbumOnce(albumId)
+            if (tracks.isEmpty()) return@withContext WriteResult.Error("No tracks found in album")
+
+            val result = performSafeWrite(tracks) { tempFile ->
+                metadataParser.writeMetadata(
+                    filePath = tempFile.absolutePath,
+                    albumTitle = albumTitle,
+                    year = year,
+                    genre = genre
+                )
+            }
+
+            if (result is WriteResult.Success) {
+                // Resolve/Update Album
+                var targetAlbumId = albumId
+                if (albumTitle != null) {
+                    val existingAlbum = albumDao.getAlbumByTitleNormalized(albumTitle)
+                    targetAlbumId = existingAlbum?.id ?: albumDao.insertAlbum(
+                        AlbumEntity(title = albumTitle, year = year ?: tracks.first().year)
+                    )
+                }
+
+                for (track in tracks) {
+                    val updated = track.copy(
+                        albumId = targetAlbumId,
+                        year = year ?: track.year,
+                        genre = genre ?: track.genre
+                    )
+                    trackDao.updateTrack(updated)
+                }
+                
+                // If the album was renamed to a new ID, we might have leftover empty albums.
+                // Room/DAO usually handles this if we have cleanup logic, but here we just update.
+            }
+            result
+        }
+    }
+
+    override fun triggerIncrementalScan(paths: List<String>) {
+        if (paths.isEmpty()) return
+        val intent = Intent(context, ScanService::class.java).apply {
+            action = ScanService.ACTION_SCAN_PATHS
+            putStringArrayListExtra(ScanService.EXTRA_PATHS, ArrayList(paths))
+        }
+        context.startService(intent)
+    }
+
+    private suspend fun performSafeWrite(
+        targets: List<TrackEntity>,
+        writeBlock: (File) -> Boolean
+    ): WriteResult {
+        // Correctly map targets to URIs
+        val targetsWithUris = targets.mapNotNull { track ->
+            getUriForPath(track.filePath)?.let { track to it }
+        }
+        
+        if (targetsWithUris.isEmpty() && targets.isNotEmpty()) {
+            return WriteResult.Error("Could not resolve MediaStore URIs for tracks")
+        }
+
+        val allUris = targetsWithUris.map { it.second }
+
+        try {
+            for ((track, uri) in targetsWithUris) {
+                val extension = File(track.filePath).extension.ifBlank { "mp3" }
+                val tempFile = File(context.cacheDir, "temp_write_${System.currentTimeMillis()}.$extension")
+                
+                try {
+                    val originalFile = File(track.filePath)
+                    if (!originalFile.exists()) {
+                        Log.w("MusicRepository", "File not found on disk: ${track.filePath}")
+                        continue
+                    }
+
+                    // 1. Copy original file to temp
+                    originalFile.copyTo(tempFile, overwrite = true)
+
+                    // 2. Apply modifications to temp file
+                    if (!writeBlock(tempFile)) {
+                        Log.e("MusicRepository", "jAudiotagger failed to write to temp file: ${tempFile.absolutePath}")
+                        return WriteResult.Error("Failed to write tags to temporary file for ${track.title}")
+                    }
+
+                    // 3. Write temp file back to original URI
+                    context.contentResolver.openOutputStream(uri, "w")?.use { output ->
+                        tempFile.inputStream().use { input ->
+                            input.copyTo(output)
+                        }
+                    } ?: return WriteResult.Error("Failed to open output stream for ${track.title}")
+
+                    Log.d("MusicRepository", "Successfully overwritten: ${track.filePath}")
+
+                } finally {
+                    tempFile.delete()
+                }
+            }
+            
+            // Notify system MediaStore about the changes
+            val paths = targets.map { it.filePath }.toTypedArray()
+            MediaScannerConnection.scanFile(context, paths, null) { path, uri ->
+                Log.d("MusicRepository", "System scan completed for $path: $uri")
+            }
+
+            // Trigger internal incremental scan for affected files
+            triggerIncrementalScan(targets.map { it.filePath })
+
+            return WriteResult.Success
+        } catch (securityException: SecurityException) {
+            Log.d("MusicRepository", "Caught SecurityException, requesting permission", securityException)
+            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val pendingIntent = MediaStore.createWriteRequest(context.contentResolver, allUris)
+                WriteResult.PermissionRequired(pendingIntent.intentSender)
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val recoverableSecurityException = securityException as? RecoverableSecurityException
+                    ?: return WriteResult.Error(securityException.message ?: "Security Exception")
+                WriteResult.PermissionRequired(recoverableSecurityException.userAction.actionIntent.intentSender)
+            } else {
+                WriteResult.Error("Write permission denied: ${securityException.message}")
+            }
+        } catch (e: Exception) {
+            Log.e("MusicRepository", "Error during safe write", e)
+            return WriteResult.Error(e.message ?: "Unknown write error")
+        }
+    }
+
+    override suspend fun rescanLibrary(
+        excludedPaths: List<String>,
+        scanDirectoryPath: String?,
+        minFileSize: Long,
+        minDuration: Long
+    ): Flow<ScanProgress> {
+        return scanRepository.scanLibrary(
+            excludedPaths, scanDirectoryPath, minFileSize, minDuration
+        )
     }
 
     private fun resizeArtwork(bytes: ByteArray, maxSize: Int = 1024): ByteArray {
@@ -216,85 +435,19 @@ class MusicRepositoryImpl(
         }
     }
 
-    override suspend fun rescanLibrary(
-        excludedPaths: List<String>,
-        scanDirectoryPath: String?,
-        minFileSize: Long,
-        minDuration: Long
-    ): Flow<ScanProgress> {
-        return scanRepository.scanLibrary(
-            excludedPaths, scanDirectoryPath, minFileSize, minDuration
-        )
-    }
+    private fun getUriForPath(path: String): Uri? {
+        val projection = arrayOf(MediaStore.Audio.Media._ID)
+        val selection = "${MediaStore.Audio.Media.DATA} = ?"
+        val selectionArgs = arrayOf(path)
+        val collection = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
 
-    override suspend fun editTrackMetadata(
-        trackId: Long,
-        title: String?,
-        artists: List<String>?,
-        albumTitle: String?,
-        year: Int?,
-        trackNumber: Int?,
-        genre: String?,
-        comment: String?
-    ) {
-        withContext(Dispatchers.IO) {
-            val track = trackDao.getTrackByIdOnce(trackId) ?: return@withContext
-
-            // Best-effort: write embedded tags into the audio file. The SQLite
-            // update below always runs so the library reflects the edit even if
-            // the file is read-only or the format can't be tagged.
-            val fileWritten = metadataParser.writeMetadata(
-                filePath = track.filePath,
-                title = title,
-                artists = artists,
-                albumTitle = albumTitle,
-                year = year,
-                trackNumber = trackNumber,
-                genre = genre,
-                comment = comment
-            )
-            if (!fileWritten) {
-                Log.w("MusicRepository", "Embedded tag write failed for ${track.filePath}; updating database only")
-            }
-
-            // Resolve album: a renamed album reuses an existing one (case-insensitive)
-            // or creates a new one, and the track is re-linked to it.
-            var albumId = track.albumId
-            if (albumTitle != null) {
-                val existingAlbum = albumDao.getAlbumByTitleNormalized(albumTitle)
-                albumId = existingAlbum?.id ?: albumDao.insertAlbum(
-                    AlbumEntity(title = albumTitle, year = year ?: track.year)
-                )
-            }
-
-            val updated = track.copy(
-                title = title ?: track.title,
-                albumId = albumId,
-                year = year ?: track.year,
-                trackNumber = trackNumber ?: track.trackNumber,
-                genre = genre ?: track.genre,
-                comment = comment ?: track.comment
-            )
-            trackDao.updateTrack(updated)
-
-            if (artists != null) {
-                artistDao.deleteArtistsForTrack(trackId)
-                for (artistName in artists) {
-                    val existing = artistDao.getArtistByName(artistName)
-                    val artistId = if (existing != null) {
-                        existing.id
-                    } else {
-                        artistDao.insertArtist(ArtistEntity(name = artistName))
-                    }
-                    artistDao.insertTrackArtistRelation(
-                        TrackArtistEntity(
-                            trackId = trackId,
-                            artistId = artistId,
-                            role = "ARTIST"
-                        )
-                    )
-                }
-            }
+        return context.contentResolver.query(
+            collection, projection, selection, selectionArgs, null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) {
+                val id = cursor.getLong(cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID))
+                Uri.withAppendedPath(collection, id.toString())
+            } else null
         }
     }
 

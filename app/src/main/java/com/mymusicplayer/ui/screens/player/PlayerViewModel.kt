@@ -18,7 +18,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import android.content.IntentSender
+import com.mymusicplayer.domain.repository.WriteResult
 import kotlinx.coroutines.launch
+
 data class PlayerUiState(
     val currentTrack: Track? = null,
     val isPlaying: Boolean = false,
@@ -36,7 +39,9 @@ data class PlayerUiState(
     val lyricsError: String? = null,
     val queueTracks: List<Track> = emptyList(),
     val sleepTimerMinutes: Int = 0,
-    val sleepTimerRemainingSeconds: Int = 0
+    val sleepTimerRemainingSeconds: Int = 0,
+    val pendingWriteIntent: IntentSender? = null,
+    val writeError: String? = null
 )
 
 class PlayerViewModel(
@@ -351,6 +356,8 @@ class PlayerViewModel(
         musicPlayerController.clearQueue()
     }
 
+    private var lastAttemptedWrite: (suspend () -> WriteResult)? = null
+
     fun editTrackMetadata(
         trackId: Long,
         title: String?,
@@ -359,37 +366,80 @@ class PlayerViewModel(
         year: Int?,
         trackNumber: Int?,
         genre: String?,
-        comment: String?
+        applyToAll: Boolean = false
     ) {
-        viewModelScope.launch {
-            musicRepository.editTrackMetadata(
+        val currentTrack = _uiState.value.currentTrack
+        val action: suspend () -> WriteResult = {
+            val result = musicRepository.editTrackMetadata(
                 trackId = trackId,
                 title = title,
                 artists = artists,
                 albumTitle = albumTitle,
                 year = year,
                 trackNumber = trackNumber,
-                genre = genre,
-                comment = comment
+                genre = genre
             )
-            // Refresh the displayed track so the player reflects the edit immediately
-            val updated = musicRepository.getTrackById(trackId).first()
-            if (updated != null) {
-                _uiState.value = _uiState.value.copy(currentTrack = updated)
+            
+            if (result is WriteResult.Success && applyToAll && currentTrack?.album?.id != null) {
+                // Also update other tracks in the same album
+                musicRepository.batchUpdateTrackMetadata(
+                    albumId = currentTrack.album.id,
+                    albumTitle = albumTitle,
+                    year = year,
+                    genre = genre
+                )
+            } else {
+                result
             }
         }
+        executeWriteAction(trackId, action)
     }
 
     fun updateAlbumArt(imageBytes: ByteArray, applyToAll: Boolean = false) {
         val trackId = _uiState.value.currentTrack?.id ?: return
-        viewModelScope.launch {
+        val action: suspend () -> WriteResult = {
             musicRepository.updateAlbumArt(trackId, imageBytes, applyToAll)
-            // Refresh the displayed track so the new cover shows immediately
-            val updated = musicRepository.getTrackById(trackId).first()
-            if (updated != null) {
-                _uiState.value = _uiState.value.copy(currentTrack = updated)
+        }
+        executeWriteAction(trackId, action)
+    }
+
+    private fun executeWriteAction(trackId: Long, action: suspend () -> WriteResult) {
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(writeError = null)
+            when (val result = action()) {
+                is WriteResult.Success -> {
+                    lastAttemptedWrite = null
+                    // Refresh the displayed track so the player reflects the edit immediately
+                    val updated = musicRepository.getTrackById(trackId).first()
+                    if (updated != null) {
+                        _uiState.value = _uiState.value.copy(currentTrack = updated)
+                    }
+                }
+                is WriteResult.PermissionRequired -> {
+                    lastAttemptedWrite = action
+                    _uiState.value = _uiState.value.copy(pendingWriteIntent = result.intentSender)
+                }
+                is WriteResult.Error -> {
+                    lastAttemptedWrite = null
+                    _uiState.value = _uiState.value.copy(writeError = result.message)
+                }
             }
         }
+    }
+
+    fun onWritePermissionResult(granted: Boolean) {
+        val action = lastAttemptedWrite
+        _uiState.value = _uiState.value.copy(pendingWriteIntent = null)
+        if (granted && action != null) {
+            val trackId = _uiState.value.currentTrack?.id ?: return
+            executeWriteAction(trackId, action)
+        } else {
+            lastAttemptedWrite = null
+        }
+    }
+
+    fun clearWriteError() {
+        _uiState.value = _uiState.value.copy(writeError = null)
     }
 
     override fun onCleared() {

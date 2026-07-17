@@ -41,6 +41,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -74,7 +76,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -90,6 +94,26 @@ fun PlayerScreen(
     val settingsDataStore: SettingsDataStore = koinInject()
     val playerTheme by settingsDataStore.playerTheme.collectAsState(initial = 0)
 
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        viewModel.onWritePermissionResult(result.resultCode == android.app.Activity.RESULT_OK)
+    }
+
+    LaunchedEffect(state.pendingWriteIntent) {
+        state.pendingWriteIntent?.let { intentSender ->
+            val request = IntentSenderRequest.Builder(intentSender).build()
+            writePermissionLauncher.launch(request)
+        }
+    }
+
+    LaunchedEffect(state.writeError) {
+        state.writeError?.let { error ->
+            android.widget.Toast.makeText(context, error, android.widget.Toast.LENGTH_LONG).show()
+            viewModel.clearWriteError()
+        }
+    }
+
     var showEllipsisSheet by remember { mutableStateOf(false) }
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showPlaylistSheet by remember { mutableStateOf(false) }
@@ -97,6 +121,28 @@ fun PlayerScreen(
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showArtistPicker by remember { mutableStateOf(false) }
     var showEditMetadata by remember { mutableStateOf(false) }
+    var showEditMetadataConfirm by remember { mutableStateOf(false) }
+
+    if (showEditMetadataConfirm) {
+        AlertDialog(
+            onDismissRequest = { showEditMetadataConfirm = false },
+            title = { Text("Unsaved Changes") },
+            text = { Text("You have unsaved metadata changes. Are you sure you want to discard them?") },
+            confirmButton = {
+                TextButton(onClick = { 
+                    showEditMetadataConfirm = false
+                    showEditMetadata = false 
+                }) {
+                    Text("Discard", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditMetadataConfirm = false }) {
+                    Text("Continue Editing")
+                }
+            }
+        )
+    }
 
     val bgArtPath = state.currentTrack?.album?.artPath
 
@@ -261,17 +307,48 @@ fun PlayerScreen(
     // ── Edit Metadata Sheet ──
     val editTrack = state.currentTrack
     if (showEditMetadata && editTrack != null) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val sheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { 
+                // Blocks internal dismissal (swipe down)
+                if (it == SheetValue.Hidden) {
+                    showEditMetadataConfirm = true
+                    false
+                } else true
+            }
+        )
+        
+        // Intercept back press while sheet is visible
+        BackHandler(enabled = showEditMetadata) {
+            showEditMetadataConfirm = true
+        }
+        
+        // Custom dismissal logic to prevent swipe-to-close if there are changes
+        // Since we can't easily detect changes here without lifting state, 
+        // we use the onDismiss callback provided to the content.
+        
         ModalBottomSheet(
-            onDismissRequest = { showEditMetadata = false },
+            onDismissRequest = { 
+                // Handled via onDismiss in Content or confirmation dialog
+            },
             sheetState = sheetState,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            properties = ModalBottomSheetProperties(
+                shouldDismissOnBackPress = false
+            )
         ) {
+            // Use a local state to track changes within the sheet's scope
+            // This is needed because ModalBottomSheet can still be dismissed via swipe
+            // if we don't handle it carefully. 
+            // However, since we can't easily block the internal swipe-to-dismiss of 
+            // ModalBottomSheet without 'confirmValueChange' in sheetState, 
+            // we will add that to the sheetState.
             EditMetadataSheetContent(
                 track = editTrack,
                 currentArtPath = editTrack.album?.artPath,
                 onDismiss = { showEditMetadata = false },
-                onSave = { title, artists, albumTitle, year, trackNumber, genre, comment ->
+                onShowConfirm = { showEditMetadataConfirm = true },
+                onSave = { title, artists, albumTitle, year, trackNumber, genre, applyToAll ->
                     viewModel.editTrackMetadata(
                         trackId = editTrack.id,
                         title = title,
@@ -280,12 +357,16 @@ fun PlayerScreen(
                         year = year,
                         trackNumber = trackNumber,
                         genre = genre,
-                        comment = comment
+                        applyToAll = applyToAll
                     )
                     showEditMetadata = false
                 },
                 onSaveArtwork = { bytes, applyToAll ->
                     viewModel.updateAlbumArt(bytes, applyToAll)
+                    // Note: updateAlbumArt handles WriteResult, 
+                    // which might require permission dialog.
+                    // We don't close the sheet immediately to let user see feedback?
+                    // Actually, if we want to follow the pattern, we could close it.
                     showEditMetadata = false
                 }
             )
@@ -1112,6 +1193,7 @@ private fun EditMetadataSheetContent(
     track: com.mymusicplayer.domain.model.Track,
     currentArtPath: String?,
     onDismiss: () -> Unit,
+    onShowConfirm: () -> Unit,
     onSave: (
         title: String?,
         artists: List<String>?,
@@ -1119,7 +1201,7 @@ private fun EditMetadataSheetContent(
         year: Int?,
         trackNumber: Int?,
         genre: String?,
-        comment: String?
+        applyToAll: Boolean
     ) -> Unit,
     onSaveArtwork: (ByteArray, Boolean) -> Unit
 ) {
@@ -1129,9 +1211,20 @@ private fun EditMetadataSheetContent(
     var yearText by remember { mutableStateOf(track.year?.toString() ?: "") }
     var trackNumberText by remember { mutableStateOf(track.trackNumber?.toString() ?: "") }
     var genreText by remember { mutableStateOf(track.genre ?: "") }
-    var commentText by remember { mutableStateOf(track.comment ?: "") }
     var selectedArtBytes by remember { mutableStateOf<ByteArray?>(null) }
     var applyToAll by remember { mutableStateOf(false) }
+
+    val hasChanges = remember(
+        title, artistsText, albumText, yearText, trackNumberText, genreText, selectedArtBytes
+    ) {
+        title != track.title ||
+        artistsText != track.artists.joinToString(", ") { it.name } ||
+        albumText != (track.album?.title ?: "") ||
+        yearText != (track.year?.toString() ?: "") ||
+        trackNumberText != (track.trackNumber?.toString() ?: "") ||
+        genreText != (track.genre ?: "") ||
+        selectedArtBytes != null
+    }
 
     val context = LocalContext.current
     val previewArtFile = remember { File(context.cacheDir, "cover_preview_${track.id}.jpg") }
@@ -1248,7 +1341,6 @@ private fun EditMetadataSheetContent(
         EditField(label = "Year", value = yearText, onValueChange = { yearText = it }, singleLine = true)
         EditField(label = "Track Number", value = trackNumberText, onValueChange = { trackNumberText = it }, singleLine = true)
         EditField(label = "Genre", value = genreText, onValueChange = { genreText = it })
-        EditField(label = "Comment", value = commentText, onValueChange = { commentText = it })
 
         Spacer(Modifier.height(16.dp))
         Row(
@@ -1258,7 +1350,13 @@ private fun EditMetadataSheetContent(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             OutlinedButton(
-                onClick = onDismiss,
+                onClick = {
+                    if (hasChanges) {
+                        onShowConfirm()
+                    } else {
+                        onDismiss()
+                    }
+                },
                 modifier = Modifier.weight(1f).height(48.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
@@ -1278,7 +1376,7 @@ private fun EditMetadataSheetContent(
                         yearText.trim().toIntOrNull()?.takeIf { it != track.year },
                         trackNumberText.trim().toIntOrNull()?.takeIf { it != track.trackNumber },
                         genreText.trim().ifBlank { null }?.takeIf { it != track.genre },
-                        commentText.trim().ifBlank { null }?.takeIf { it != track.comment }
+                        applyToAll
                     )
                 },
                 modifier = Modifier.weight(1f).height(48.dp),

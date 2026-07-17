@@ -26,7 +26,9 @@ interface TrackDao {
             CASE WHEN :sort = 'date_added' THEN t.date_added END DESC,
             CASE WHEN :sort = 'play_count' THEN t.play_count END DESC,
             CASE WHEN :sort = 'duration' THEN t.duration END ASC,
-            CASE WHEN :sort = 'rating' THEN t.rating END DESC
+            CASE WHEN :sort = 'rating' THEN t.rating END DESC,
+            CASE WHEN :sort = 'year' THEN t.year END DESC,
+            CASE WHEN :sort = 'genre' THEN t.genre END ASC
     """)
     fun getAllTracks(sort: String = "name"): Flow<List<TrackEntity>>
 
@@ -80,6 +82,9 @@ interface TrackDao {
     @Query("SELECT * FROM tracks WHERE album_id = :albumId ORDER BY COALESCE(disc_number, 1), COALESCE(track_number, 9999)")
     fun getTracksByAlbum(albumId: Long): Flow<List<TrackEntity>>
 
+    @Query("SELECT * FROM tracks WHERE album_id = :albumId ORDER BY COALESCE(disc_number, 1), COALESCE(track_number, 9999)")
+    suspend fun getTracksByAlbumOnce(albumId: Long): List<TrackEntity>
+
     @Query("""
         SELECT t.* FROM tracks t
         INNER JOIN track_artists ta ON t.id = ta.track_id
@@ -123,6 +128,9 @@ interface TrackDao {
 
     @Query("SELECT id FROM tracks WHERE file_path = :filePath LIMIT 1")
     suspend fun getTrackIdByPath(filePath: String): Long?
+
+    @Query("SELECT * FROM tracks WHERE file_path = :filePath LIMIT 1")
+    suspend fun getTrackByPathOnce(filePath: String): TrackEntity?
 
     @Query("DELETE FROM tracks WHERE file_path NOT IN (:existingPaths)")
     suspend fun deleteRemovedTracks(existingPaths: List<String>)

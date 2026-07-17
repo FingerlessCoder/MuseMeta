@@ -8,6 +8,7 @@ import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.Tag
 import org.jaudiotagger.tag.images.Artwork
 import org.jaudiotagger.tag.images.ArtworkFactory
+import org.jaudiotagger.tag.images.AndroidArtwork
 import java.io.File
 
 data class ParsedMetadata(
@@ -114,11 +115,14 @@ class MetadataParser {
         albumTitle: String? = null,
         year: Int? = null,
         trackNumber: Int? = null,
-        genre: String? = null,
-        comment: String? = null
+        genre: String?
     ): Boolean {
         return try {
             val file = File(filePath)
+            if (!file.exists()) {
+                Log.e(TAG, "File does not exist: $filePath")
+                return false
+            }
             val audioFile: AudioFile = AudioFileIO.read(file)
             val tag = audioFile.tag ?: audioFile.createDefaultTag()
 
@@ -128,29 +132,35 @@ class MetadataParser {
             year?.let { tag.setField(tag.createField(FieldKey.YEAR, it.toString())) }
             trackNumber?.let { tag.setField(tag.createField(FieldKey.TRACK, it.toString())) }
             genre?.let { tag.setField(tag.createField(FieldKey.GENRE, it)) }
-            comment?.let { tag.setField(tag.createField(FieldKey.COMMENT, it)) }
 
             audioFile.tag = tag
             audioFile.commit()
-            Log.d(TAG, "Metadata written to: $filePath")
+            Log.d(TAG, "Metadata written successfully to: $filePath")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error writing metadata to $filePath: ${e.message}")
+            Log.e(TAG, "Error writing metadata to $filePath", e)
             false
         }
     }
 
-    fun writeAlbumArt(filePath: String, imageBytes: ByteArray): Boolean {
+    fun writeAlbumArt(filePath: String, imageBytes: ByteArray, cacheDir: File): Boolean {
         return try {
             val file = File(filePath)
             val audioFile: AudioFile = AudioFileIO.read(file)
             val tag = audioFile.tag ?: audioFile.createDefaultTag()
-            val artwork = ArtworkFactory.getNew()
-            artwork.setBinaryData(imageBytes)
-            artwork.setMimeType(inferMimeType(imageBytes))
+            
+            tag.deleteArtworkField()
+            
+            val artworkFile = File.createTempFile("artwork_", ".jpg", cacheDir)
+            artworkFile.writeBytes(imageBytes)
+            
+            val artwork = AndroidArtwork.createArtworkFromFile(artworkFile)
             tag.setField(artwork)
+            
             audioFile.tag = tag
             audioFile.commit()
+            
+            artworkFile.delete()
             Log.d(TAG, "Album art written to: $filePath")
             true
         } catch (e: Exception) {

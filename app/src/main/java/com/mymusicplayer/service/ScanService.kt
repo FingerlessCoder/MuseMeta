@@ -33,6 +33,8 @@ class ScanService : Service(), KoinComponent {
 
     companion object {
         const val ACTION_START_SCAN = "com.mymusicplayer.action.START_SCAN"
+        const val ACTION_SCAN_PATHS = "com.mymusicplayer.action.SCAN_PATHS"
+        const val EXTRA_PATHS = "extra_paths"
         const val CHANNEL_ID = "scan_service"
         const val NOTIFICATION_ID = 2
         private const val TAG = "ScanService"
@@ -49,6 +51,14 @@ class ScanService : Service(), KoinComponent {
                 // Cancel any running scan before starting a new one
                 scanJob?.cancel()
                 startScan()
+            }
+            ACTION_SCAN_PATHS -> {
+                val paths = intent.getStringArrayListExtra(EXTRA_PATHS)
+                if (paths != null) {
+                    serviceScope.launch {
+                        scanRepository.scanPaths(paths)
+                    }
+                }
             }
         }
         return START_NOT_STICKY
