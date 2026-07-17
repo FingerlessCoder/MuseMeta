@@ -52,6 +52,10 @@ class MusicPlayerController(
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
 
+    // Full playback queue (in ExoPlayer order) exposed to the UI for the "Up Next" sheet.
+    private val _queueTracks = MutableStateFlow<List<Track>>(emptyList())
+    val queueTracks: StateFlow<List<Track>> = _queueTracks.asStateFlow()
+
     private val timerScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val _sleepTimerRemainingSeconds = MutableStateFlow(0)
     val sleepTimerRemainingSeconds: StateFlow<Int> = _sleepTimerRemainingSeconds.asStateFlow()
@@ -383,6 +387,9 @@ class MusicPlayerController(
     private fun updateState() {
         val player = exoPlayer ?: return
         val currentIndex = player.currentMediaItemIndex
+
+        // Rebuild the full queue list (in ExoPlayer order) for the "Up Next" sheet.
+        _queueTracks.value = currentTrackIds.mapNotNull { id -> getCachedTrackInfo(id) }
 
         val mode = when {
             player.shuffleModeEnabled -> PlaybackMode.SHUFFLE

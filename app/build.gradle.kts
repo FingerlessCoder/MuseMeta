@@ -39,6 +39,12 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.all {
+            it.useJUnitPlatform()
+        }
+    }
+
     kotlin {
         jvmToolchain(17)
         compilerOptions {
@@ -110,6 +116,7 @@ implementation(libs.androidx.media)
 
     // Testing
     testImplementation(libs.junit.jupiter)
+    testImplementation(libs.junit.platform.launcher)
     testImplementation(libs.mockk)
     testImplementation(libs.turbine)
     testImplementation(libs.coroutines.test)
@@ -117,6 +124,7 @@ implementation(libs.androidx.media)
 
     // Android test deps (for Room in-memory tests)
     androidTestImplementation(libs.junit.jupiter)
+    androidTestImplementation(libs.junit.platform.launcher)
     androidTestImplementation(libs.room.testing)
     androidTestImplementation("androidx.test:core:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")

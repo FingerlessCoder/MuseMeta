@@ -109,6 +109,12 @@ class PlayerViewModel(
                 _uiState.value = _uiState.value.copy(sleepTimerRemainingSeconds = remaining)
             }
         }
+
+        viewModelScope.launch {
+            musicPlayerController.queueTracks.collectLatest { tracks ->
+                _uiState.value = _uiState.value.copy(queueTracks = tracks)
+            }
+        }
     }
 
     private fun checkCachedLyrics(track: Track) {
