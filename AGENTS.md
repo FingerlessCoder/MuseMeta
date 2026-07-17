@@ -30,11 +30,26 @@
 adb uninstall com.mymusicplayer.musemeta
 adb install app/build/outputs/apk/debug/app-debug.apk
 
-# Tests
+# Build a signed release AAB (for Play Store or sideload sharing)
+./gradlew bundleRelease
+
+# Unit tests (JVM only — see Testing)
 ./gradlew test
 ```
 
 **Gradle properties**: `org.gradle.jvmargs` includes `-Djava.version=21` and `--add-opens java.base/java.lang=ALL-UNNAMED` — required for JDK 26.
+
+**Release signing is NOT configured.** `buildTypes.release` has no `signingConfig`. `assembleRelease` produces an *unsigned* APK that won't install. To produce an installable release APK for local sharing, temporarily add `signingConfig = signingConfigs.getByName("debug")` to the release block, build `assembleRelease`, then revert. Do NOT commit that line. For real distribution, generate a proper upload keystore.
+
+## Debug-build performance tax (verified gotcha)
+
+A debug build (`assembleDebug` / Run "app") is **visibly less smooth** than release — Compose enables extra recomposition checks in debuggable builds and ART does not optimize. This is a build-type artifact, NOT a code bug.
+
+**Never use debug Run as the smoothness acceptance test.** Verify UI perf with:
+- Android Studio "Run app as profileable", OR
+- a release build (`assembleRelease` with temp debug signing) installed on device.
+
+If it's smooth there, the code is fine. This fooled a full debugging session once — the "jank" was the debug tax all along.
 
 ## Why Koin (not Hilt)
 
@@ -43,8 +58,6 @@ Hilt needs KSP/KAPT annotation processing. Neither works with this toolchain:
 - **KAPT**: `kotlin-kapt` conflicts with AGP 9.x built-in Kotlin support
 
 **Solution**: Koin 4.0.3 (pure Kotlin DI, no annotation processors). Services use `KoinComponent` + `by inject()`. ViewModels resolve via `koinViewModel()` from `koin-androidx-compose`.
-
-**STALE CODE**: `app/proguard-rules.pro` still has `-keep`/`-dontwarn` for `Hilt_*` classes (lines 13-21). These can be removed — they match nothing since the Koin migration.
 
 ## Architecture
 
@@ -64,7 +77,7 @@ com.mymusicplayer
 │   └── scanner/                MediaStoreScanner, FileSystemScanner, MetadataParser, ScanRepository
 ├── di/
 │   ├── AppModule.kt            Koin module: repos, controllers, VMs
-│   └── DatabaseModule.kt       Koin module: Room DB + DAOs
+│   └── DatabaseModule.kt       Koin module: Room DB + 4 DAOs
 ├── domain/
 │   ├── model/                  Track, Album, Artist, Playlist, EqualizerPreset
 │   ├── repository/             MusicRepository (interface + impl)
@@ -114,7 +127,8 @@ Services use `KoinComponent` + `by inject()` (no constructor injection for Andro
 2. On grant → auto-start `ScanService` with `ACTION_START_SCAN`
 3. `POST_NOTIFICATIONS` requested as nice-to-have on TIRAMISU+
 4. `FOREGROUND_SERVICE_DATA_SYNC` (API 34+) for scan, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` for music
-5. `MANAGE_EXTERNAL_STORAGE` declared but no longer requested for scanning (scoped storage)
+
+Both foreground service types are correctly declared on their `<service>` elements in the manifest, with matching permission declarations. No `MANAGE_EXTERNAL_STORAGE` is used or requested (scoped storage only).
 
 ## Scan System
 
@@ -128,17 +142,20 @@ Services use `KoinComponent` + `by inject()` (no constructor injection for Andro
 
 - **Media3 ExoPlayer** via `MusicPlayerController` singleton
 - `PlaybackMode` enum: `SHUFFLE` / `LIST` / `SINGLE` — cycled via notification button
+- `PlaybackMode` is persisted across restarts via `SettingsDataStore` (`PLAYBACK_MODE` key); restore happens in `MusicPlayerController.initialize()`
 - Favourite toggle via notification custom command
 - Notification has custom layout with mode cycle + favourite buttons, dynamic album art
 - `MusicService` extends `MediaSessionService` with custom `MediaSession.Callback` for custom commands
+- **Threading**: ExoPlayer mutations (`shuffleModeEnabled`, `repeatMode`) MUST run on the main thread. The restore block in `initialize()` wraps them in `withContext(Dispatchers.Main)` — a previous crash ("Player is accessed on the wrong thread") came from doing this on `Dispatchers.Default`.
 
 ## Testing
 
 - JUnit 5 (Jupiter) + MockK + Turbine + coroutines-test in `libs.versions.toml`
 - 2 test files under `app/src/test/`:
-  - `MetadataParserTest.kt` — pure unit tests for `parseArtists()` (17 tests)
-  - `TrackDaoTest.kt` — Room in-memory DB, AndroidJUnit4 runner
+  - `MetadataParserTest.kt` — pure unit tests for `parseArtists()` (JVM, runs under `./gradlew test`)
+  - `TrackDaoTest.kt` — Room in-memory DB, **AndroidJUnit4 instrumentation test** — does NOT run under `./gradlew test`; needs `./gradlew connectedAndroidTest` + a device/emulator
 - No androidTest/ files
+- Known pre-existing failure: `PlayerViewModelQueueTest` fails on an unmodified tree (unrelated to feature work). Do not treat it as a regression you introduced.
 
 ## ProGuard / R8
 
@@ -146,20 +163,22 @@ Services use `KoinComponent` + `by inject()` (no constructor injection for Andro
 - **Release**: `isMinifyEnabled = true`, uses `proguard-android-optimize.txt` + `proguard-rules.pro`
 - jAudiotagger: `-keep class org.jaudiotagger.** { *; }` + dontwarn AWT/Swing classes
 - Room entities: `-keep class com.mymusicplayer.data.db.entity.** { *; }`
-- Stale Hilt entries (lines 13-21 in proguard-rules.pro) — safe to remove
+- Kotlinx Serialization: `-keepclassmembers class kotlinx.serialization.json.** { *; }`
+- No Hilt-related rules remain (the project never shipped Hilt config).
 
 ## MultiDex
 
-Enabled in `defaultConfig` (`multiDexEnabled = true`) with `multiDexKeepProguard = file("multidex-keep.pro")`. `MusicPlayerApp.attachBaseContext` calls `MultiDex.install(this)`. Even with AGP 9.x + minSdk 29, D8 may split dex — the Honor device (`HRY-LX1T`) may miss secondary dex classes.
+Enabled in `defaultConfig` (`multiDexEnabled = true`) with `multiDexKeepProguard = file("multidex-keep.pro")`. `MusicPlayerApp.attachBaseContext` calls `MultiDex.install(this)`.
 
 ## Key Files
 
-- `app/build.gradle.kts` — Plugin + dependency config
+- `app/build.gradle.kts` — Plugin + dependency config (build types, signing)
 - `gradle/libs.versions.toml` — Version catalog
+- `app/proguard-rules.pro` — ProGuard keep rules
 - `app/multidex-keep.pro` — Primary dex keep rules
-- `app/proguard-rules.pro` — ProGuard (has stale Hilt entries)
-- `app/src/main/AndroidManifest.xml` — Permissions + services
+- `app/src/main/AndroidManifest.xml` — Permissions + services + foreground types
 - `app/src/main/java/com/mymusicplayer/di/AppModule.kt` — All Koin bindings
+- `app/src/main/java/com/mymusicplayer/data/audio/MusicPlayerController.kt` — Player + persistence + threading
 - `.sisyphus/plans/android-music-player.md` — Build debugging history
 
 ## Key Dependencies
