@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
@@ -34,7 +35,6 @@ import java.io.File
 @Composable
 fun MultiSelectScreen(
     onBack: () -> Unit,
-    onNavigateToPlayer: () -> Unit = {},
     viewModel: MultiSelectViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -60,7 +60,7 @@ fun MultiSelectScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {

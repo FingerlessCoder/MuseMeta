@@ -48,8 +48,7 @@ fun NavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
 
         composable(Screen.MultiSelect.route) {
             MultiSelectScreen(
-                onBack = { navController.popBackStack() },
-                onNavigateToPlayer = { navController.navigate(Screen.NowPlaying.route) }
+                onBack = { navController.popBackStack() }
             )
         }
 
