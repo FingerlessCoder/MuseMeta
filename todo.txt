@@ -1,24 +1,6 @@
 TODO
 ====
 
-1. AlphabetIndexBar activeLetter highlight not working
-   - snapshotFlow + LaunchedEffect tracking firstVisibleItem via visibleItemsInfo
-   - firstVisibleItemIndex always 1 when sticky header pinned
-   - visibleItemsInfo includes items behind header with negative offset
-   - Current filter: index > 1 && offset + size > 0
-   - Still returning -1 after scroll — theory: snapshotFlow not triggering?
-   - Need: test on device to verify; consider fallback approach or different detection
-
-2. Track images (album art) — FIX APPLIED
-   - Switched all Coil loading from "file://${artPath}" string to File(artPath)
-   - This eliminates potential URI parsing issues in Coil
-   - Test on device to verify
-   - If still broken: check if scanner actually extracts art (adb logcat), or if files lack embedded art
-
-3. [deferred] Investigate album cover images in AlbumGridItem and player
-   - Same fix applied (File(artPath))
-
-
 index bar highlight -1 //fixed
 track image //fixed
 some times crash,idk probably some lifespan violation or codec error in the middle of process //fixed
@@ -29,7 +11,7 @@ now let think what to improve
  //-favourite (combine with favourite),now got image from track already
  //-my playlists
  //-recently play (need to know last track album cover,replace with it)
-2.players
+//2.players
  //-move up abit, curr position too low,even caused metadata loaded and title text too large pushed all bottom element down lead to controller component bottom been clipped some
  //-read and load metadata is slow ,it takes 2 second to load track metadata cover,title,author
  //-cover view support support swipe left right to play previous or right
@@ -71,21 +53,7 @@ now let think what to improve
 //fix:dynamic island
 // adapt to play store rules,keep MANAGE EXTERNAL STORAGE in manifest
 
-TL;DR of the recommendation:                                                                
-                                                                                                 
-     ┌─────────────────────────────────────┬────────────────────────┬─────────────────────────┐  
-     │Do first (zero deps)                 │Then after              │Skip for now             │  
-     ├─────────────────────────────────────┼────────────────────────┼─────────────────────────┤  
-     │1. Play next in mini player (~5min)  │Favorites screen        │Lyrics download (3-6h)   │  
-     ├─────────────────────────────────────┼────────────────────────┼─────────────────────────┤  
-     │2. Enable Material You (~10min)      │Recently Played screen  │Multi-select ops (2-4h)  │  
-     ├─────────────────────────────────────┼────────────────────────┼─────────────────────────┤  
-     │3. Cover swipe prev/next (~1-2h)     │Album + Artist pages    │                         │  
-     └─────────────────────────────────────┴────────────────────────┴─────────────────────────┘
-	 
-fix or improve, icons,multiselect exit and select all,use drag to order
-
 [ ] Further library filtering (filter by genre, album artist, format)
 [ ] Refer Retro Music Player for more UI/UX improvements
 
-// lyrics, if romanized
+lyrics, if romanized
