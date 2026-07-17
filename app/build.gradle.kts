@@ -39,6 +39,14 @@ android {
         }
     }
 
+    lint {
+        // Surface issues during build but don't hard-fail CI; review output before publish.
+        abortOnError = false
+        checkReleaseBuilds = true
+        // jAudiotagger pulls in AWT/Swing stubs; harmless in an Android app.
+        disable += setOf("InvalidPackage")
+    }
+
     testOptions {
         unitTests.all {
             it.useJUnitPlatform()

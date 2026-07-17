@@ -113,6 +113,18 @@ class HomeViewModel(
                 _uiState.value = state
             }
         }
+
+        viewModelScope.launch {
+            settingsDataStore.defaultSort.collect { raw ->
+                val (mode, dir) = if (raw.endsWith("_desc")) {
+                    raw.removeSuffix("_desc") to "desc"
+                } else {
+                    raw to "asc"
+                }
+                _uiState.value = _uiState.value.copy(sortMode = mode, sortDir = dir)
+                applySortForTab(_uiState.value.selectedTab)
+            }
+        }
     }
 
     fun setSearchQuery(query: String) {

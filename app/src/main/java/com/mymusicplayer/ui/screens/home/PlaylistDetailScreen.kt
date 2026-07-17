@@ -659,17 +659,17 @@ private fun AddTrackToPlaylistSheet(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (track.album?.artPath != null) {
-                                        SubcomposeAsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(File(track.album.artPath)).crossfade(true).build(),
-                                            contentDescription = null,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop,
-                                            error = {
-                                                Icon(Icons.Default.MusicNote, contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                                            }
-                                        )
+                                    SubcomposeAsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(File(track.album.artPath)).crossfade(true).build(),
+                                        contentDescription = null,
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop,
+                                        error = {
+                                            Icon(Icons.Default.MusicNote, contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
+                                        }
+                                    )
                                     } else {
                                         Icon(Icons.Default.MusicNote, contentDescription = null,
                                             tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))

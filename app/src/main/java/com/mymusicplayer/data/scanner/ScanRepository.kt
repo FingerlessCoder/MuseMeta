@@ -318,8 +318,20 @@ class ScanRepository(
                         bytes = extractArtWithMediaRetriever(filePath, fileUri)
                     }
                     if (bytes != null) {
+                        val resized = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.let { bmp ->
+                            val opts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+                            val scale = (512f / maxOf(opts.outWidth, opts.outHeight, 1)).coerceAtMost(1f)
+                            val out = java.io.ByteArrayOutputStream()
+                            val final = if (scale < 1f) {
+                                android.graphics.Bitmap.createScaledBitmap(bmp, (opts.outWidth * scale).toInt(), (opts.outHeight * scale).toInt(), true)
+                            } else bmp
+                            final.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, out)
+                            if (final != bmp) final.recycle()
+                            out.toByteArray()
+                        } ?: bytes
                         val artFile = File(artDir, "${albumId}.jpg")
-                        artFile.writeBytes(bytes)
+                        artFile.writeBytes(resized)
                         albumDao.updateAlbumArt(albumId, artFile.absolutePath)
                     }
                 }
