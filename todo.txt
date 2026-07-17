@@ -46,11 +46,12 @@ now let think what to improve
  not direct play that,list content row,but i think artist can use tab all, by album
 // 4.search bar add a cross clear all at right side
 // 5.sleep timer ios like scroll is not loop, caused only able to select from 20-80m ,not fully cover the option range from 10-90m 
-6.multiselect should go to another screen so that having operation option or bottom bar operation
- -1st icon related to playlists (modal bottom, opt:next play,add to current playing playlist)
- -add to my playlists (modal bottom,opt:create new,favourite,other existing playlist)
- -delete(always remember a warning confirm modal)
- -other advance(favourite,share)
+//6.multiselect should go to another screen so that having operation option or bottom bar operation
+ //-1st icon related to playlists (modal bottom, opt:next play,add to current playing playlist)
+ //-add to my playlists (modal bottom,opt:create new,favourite,other existing playlist)
+ //-delete(always remember a warning confirm modal)
+ //-other advance(favourite,share)
+ -share should share binary,not text of title
  //- add to playlist
 7.filter control in other tab not yet handled
  -random play can keep, same only,but probably arrange from album,and artist only

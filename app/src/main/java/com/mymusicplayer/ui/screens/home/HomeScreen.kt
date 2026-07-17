@@ -8,8 +8,6 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -37,10 +35,6 @@ import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.AlphabetIndexBar
 import com.mymusicplayer.ui.components.computeIndexLetters
 import com.mymusicplayer.ui.components.computeSectionIndices
-import com.mymusicplayer.ui.components.MoreActionsSheet
-import com.mymusicplayer.ui.components.MultiSelectBar
-import com.mymusicplayer.ui.components.PlaylistActionsSheet
-import com.mymusicplayer.ui.components.PlaylistSelectorSheet
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -60,10 +54,6 @@ fun HomeScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var showSortSheet by remember { mutableStateOf(false) }
-    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
-    var showPlaylistActionsSheet by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var showMoreActionsSheet by remember { mutableStateOf(false) }
 
     val favoriteArt = state.favoriteTracks.firstOrNull()?.album?.artPath
     val playlistArt = state.tracks.firstOrNull()?.album?.artPath
@@ -242,20 +232,11 @@ fun HomeScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (state.multiSelectEnabled) {
-                                        if (state.selectedTrackIds.isNotEmpty()) {
-                                            Text("${state.selectedTrackIds.size} selected",
-                                                style = MaterialTheme.typography.labelLarge,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(start = 16.dp))
-                                        }
-                                    } else {
-                                        TextButton(onClick = { viewModel.playRandom() }) {
-                                            Icon(Icons.Default.Shuffle, contentDescription = null,
-                                                modifier = Modifier.size(16.dp))
-                                            Spacer(Modifier.width(4.dp))
-                                            Text("Random Play", style = MaterialTheme.typography.labelLarge)
-                                        }
+                                    TextButton(onClick = { viewModel.playRandom() }) {
+                                        Icon(Icons.Default.Shuffle, contentDescription = null,
+                                            modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text("Random Play", style = MaterialTheme.typography.labelLarge)
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                                         IconButton(onClick = { showSortSheet = true },
@@ -264,19 +245,12 @@ fun HomeScreen(
                                                 contentDescription = "Sort",
                                                 modifier = Modifier.size(20.dp))
                                         }
-                                        IconButton(onClick = {
-                                            if (!state.multiSelectEnabled) {
-                                                viewModel.toggleMultiSelect()
-                                                onNavigateToMultiSelect()
-                                            }
-                                        },
+                                        IconButton(onClick = { onNavigateToMultiSelect() },
                                             modifier = Modifier.size(36.dp)) {
                                             Icon(
-                                                if (state.multiSelectEnabled) Icons.Default.CheckBox
-                                                else Icons.Default.CheckBoxOutlineBlank,
+                                                Icons.Default.CheckBoxOutlineBlank,
                                                 contentDescription = "Multi-select",
-                                                tint = if (state.multiSelectEnabled) MaterialTheme.colorScheme.primary
-                                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -298,24 +272,22 @@ fun HomeScreen(
                                         SectionHeaderRow(letter = letter)
                                     }
                                     items(group, key = { it.id }) { track ->
-                                        TrackContentRow(track = track,
-                                            isMultiSelect = state.multiSelectEnabled,
-                                            isSelected = track.id in state.selectedTrackIds,
+                                        TrackContentRow(
+                                            track = track,
                                             onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                            onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
                                             context = context,
-                                            showIndexBar = barLayout != null)
+                                            showIndexBar = barLayout != null
+                                        )
                                     }
                                 }
                             } else {
                                 items(tracks, key = { it.id }) { track ->
-                                    TrackContentRow(track = track,
-                                        isMultiSelect = state.multiSelectEnabled,
-                                        isSelected = track.id in state.selectedTrackIds,
+                                    TrackContentRow(
+                                        track = track,
                                         onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
-                                        onToggleSelect = { viewModel.toggleTrackSelection(track.id) },
                                         context = context,
-                                        showIndexBar = barLayout != null)
+                                        showIndexBar = barLayout != null
+                                    )
                                 }
                             }
                         }
@@ -444,16 +416,6 @@ fun HomeScreen(
                 )
             }
 
-            if (showAddToPlaylistSheet) {
-                com.mymusicplayer.ui.components.PlaylistSelectorSheet(
-                    trackIds = state.selectedTrackIds.toList(),
-                    onDismiss = { showAddToPlaylistSheet = false },
-                    onAdded = {
-                        showAddToPlaylistSheet = false
-                        viewModel.toggleMultiSelect()
-                    }
-                )
-            }
         }
     }
 }
@@ -582,19 +544,18 @@ private fun SectionHeaderRow(letter: String) {
 }
 
 @Composable
-private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Boolean,
-                            onPlay: () -> Unit, onToggleSelect: () -> Unit,
-                            context: android.content.Context,
-                            showIndexBar: Boolean = false) {
+private fun TrackContentRow(
+    track: Track,
+    onPlay: () -> Unit,
+    context: android.content.Context,
+    showIndexBar: Boolean = false
+) {
     Row(
         modifier = Modifier.fillMaxWidth()
-            .clickable { if (isMultiSelect) onToggleSelect() else onPlay() }
+            .clickable(onClick = onPlay)
             .padding(start = 12.dp, top = 8.dp, end = if (showIndexBar) 44.dp else 12.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isMultiSelect) {
-            Checkbox(checked = isSelected, onCheckedChange = { onToggleSelect() }, modifier = Modifier.padding(end = 8.dp))
-        }
         Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
             if (track.album?.artPath != null) {
@@ -629,12 +590,10 @@ private fun TrackContentRow(track: Track, isMultiSelect: Boolean, isSelected: Bo
                 overflow = TextOverflow.Ellipsis
             )
         }
-        if (!isMultiSelect) {
-            Icon(Icons.Default.PlayArrow, contentDescription = "Play track",
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
-        }
+        Icon(Icons.Default.PlayArrow, contentDescription = "Play track",
+            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
     }
-    HorizontalDivider(modifier = Modifier.padding(start = if (isMultiSelect) 72.dp else 68.dp, end = 12.dp))
+    HorizontalDivider(modifier = Modifier.padding(start = 68.dp, end = 12.dp))
 }
 
 @Composable

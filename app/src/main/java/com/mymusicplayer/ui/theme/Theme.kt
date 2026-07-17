@@ -103,9 +103,16 @@ fun MuseMetaTheme(
         onTertiaryContainer = accentPalette.onTertiaryContainer
     )
     val colorScheme = if (amoledBlack) {
-        JustBlackColorScheme
+        withAccent.copy(
+            background = Color.Black,
+            onBackground = Color.White,
+            surface = Color.Black,
+            onSurface = Color.White,
+            surfaceVariant = Color(0xFF121212),
+            onSurfaceVariant = Color(0xFFE0E0E0)
+        )
     } else {
-        baseScheme
+        withAccent
     }
     val view = LocalView.current
     if (!view.isInEditMode) {
