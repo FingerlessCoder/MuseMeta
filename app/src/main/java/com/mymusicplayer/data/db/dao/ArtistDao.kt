@@ -61,6 +61,13 @@ interface ArtistDao {
     """)
     suspend fun getArtistsForTrack(trackId: Long): List<ArtistEntity>
 
+    @Query("""
+        SELECT a.*, ta.track_id as track_id
+        FROM artists a
+        INNER JOIN track_artists ta ON a.id = ta.artist_id
+    """)
+    suspend fun getAllArtistRelations(): List<ArtistRelation>
+
     @Query("DELETE FROM track_artists WHERE track_id = :trackId")
     suspend fun deleteArtistsForTrack(trackId: Long)
 
@@ -73,4 +80,14 @@ data class ArtistWithCounts(
     val name: String,
     val track_count: Int,
     val album_count: Int
+)
+
+/**
+ * A track-to-artist pairing used to bulk-load artist relations in a single query
+ * (avoids the per-track N+1 lookup that previously happened during library mapping).
+ */
+data class ArtistRelation(
+    val id: Long,
+    val name: String,
+    val track_id: Long
 )

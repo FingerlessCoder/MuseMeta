@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -616,15 +617,14 @@ private fun TrackContentRow(
         Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
             if (track.album?.artPath != null) {
-                SubcomposeAsyncImage(
-                    model = ImageRequest.Builder(context).data(File(track.album.artPath)).crossfade(true).build(),
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data(File(track.album.artPath))
+                        .crossfade(true)
+                        .build(),
                     contentDescription = track.title,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    error = {
-                        Icon(Icons.Default.MusicNote, contentDescription = "Album art not available",
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
-                    }
+                    contentScale = ContentScale.Crop
                 )
             } else {
                 Icon(Icons.Default.MusicNote, contentDescription = "Music track icon",
@@ -634,13 +634,16 @@ private fun TrackContentRow(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = buildString {
+            val subtitle = remember(track.artists, track.album?.title) {
+                buildString {
                     append(track.artists.joinToString(", ") { it.name }.ifBlank { "Unknown Artist" })
                     if (track.album != null) {
                         append(" | ${track.album.title}")
                     }
-                },
+                }
+            }
+            Text(
+                text = subtitle,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                 maxLines = 1,

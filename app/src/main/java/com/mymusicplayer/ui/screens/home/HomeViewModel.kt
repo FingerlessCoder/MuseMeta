@@ -28,7 +28,13 @@ data class HomeUiState(
     val selectedTab: HomeTab = HomeTab.Tracks,
     val sortMode: String = "name",
     val sortDir: String = "asc",
-    val genreFilter: String? = null
+    val genreFilter: String? = null,
+    // Pre-computed from the fields above (not getters) so they aren't
+    // re-evaluated on every UI recomposition during scroll.
+    val filteredTracks: List<Track> = emptyList(),
+    val filteredAlbums: List<Album> = emptyList(),
+    val filteredArtists: List<Artist> = emptyList(),
+    val artistArtMap: Map<Long, String?> = emptyMap()
 ) {
     val trackCount: Int get() = tracks.size
     val albumCount: Int get() = albums.size
@@ -36,29 +42,6 @@ data class HomeUiState(
     val favoriteCount: Int get() = favoriteTracks.size
     val playlistCount: Int get() = playlists.size
     val recentlyPlayedCount: Int get() = recentlyPlayed.size
-
-    val filteredTracks: List<Track>
-        get() = when {
-            searchQuery.isNotBlank() -> tracks.filter { it.title.contains(searchQuery, ignoreCase = true) }
-            genreFilter != null -> tracks.filter { (it.genre ?: "Unknown").equals(genreFilter, ignoreCase = true) }
-            else -> tracks
-        }
-
-    val filteredAlbums: List<Album>
-        get() = if (searchQuery.isBlank()) albums
-        else albums.filter { it.title.contains(searchQuery, ignoreCase = true) }
-
-    val filteredArtists: List<Artist>
-        get() = if (searchQuery.isBlank()) artists
-        else artists.filter { it.name.contains(searchQuery, ignoreCase = true) }
-
-    val artistArtMap: Map<Long, String?>
-        get() = artists.associate { artist ->
-            val artPath = tracks
-                .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
-                ?.album?.artPath
-            artist.id to artPath
-        }
 }
 
 class HomeViewModel(
@@ -70,6 +53,33 @@ class HomeViewModel(
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    /**
+     * Recomputes the derived (filtered / artist-art) fields from the base
+     * fields. All state mutations must pass through this so the stored derived
+     * lists stay consistent and are never stale after a partial copy().
+     */
+    private fun HomeUiState.withDerived(): HomeUiState {
+        val query = searchQuery
+        val genre = genreFilter
+        return copy(
+            filteredTracks = when {
+                query.isNotBlank() -> tracks.filter { it.title.contains(query, ignoreCase = true) }
+                genre != null -> tracks.filter { (it.genre ?: "Unknown").equals(genre, ignoreCase = true) }
+                else -> tracks
+            },
+            filteredAlbums = if (query.isBlank()) albums
+                else albums.filter { it.title.contains(query, ignoreCase = true) },
+            filteredArtists = if (query.isBlank()) artists
+                else artists.filter { it.name.contains(query, ignoreCase = true) },
+            artistArtMap = artists.associate { artist ->
+                val artPath = tracks
+                    .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
+                    ?.album?.artPath
+                artist.id to artPath
+            }
+        )
+    }
 
     init {
         viewModelScope.launch {
@@ -86,11 +96,21 @@ class HomeViewModel(
                 CombinedContent(tracks, albums, artists, favorites, playlistEntities)
             }.combine(settingsDataStore.scanCompletedOnce) { content: CombinedContent, scanDone: Boolean ->
                 val hasContent = content.tracks.isNotEmpty() || content.albums.isNotEmpty()
+                val query = _uiState.value.searchQuery
+                val genre = _uiState.value.genreFilter
+                val tracks = content.tracks
+                val albums = content.albums
+                val artists = content.artists
+                val filteredTracks = when {
+                    query.isNotBlank() -> tracks.filter { it.title.contains(query, ignoreCase = true) }
+                    genre != null -> tracks.filter { (it.genre ?: "Unknown").equals(genre, ignoreCase = true) }
+                    else -> tracks
+                }
                 HomeUiState(
                     isLoading = !hasContent && !scanDone,
-                    tracks = content.tracks,
-                    albums = content.albums,
-                    artists = content.artists,
+                    tracks = tracks,
+                    albums = albums,
+                    artists = artists,
                     favoriteTracks = content.favorites,
                     playlists = content.playlistEntities.map { entity ->
                         Playlist(
@@ -101,13 +121,25 @@ class HomeViewModel(
                             smartRuleJson = entity.smartRuleJson
                         )
                     },
-                    recentlyPlayed = content.tracks
+                    recentlyPlayed = tracks
                         .filter { it.lastPlayed != null && it.lastPlayed > 0L }
                         .sortedByDescending { it.lastPlayed }
                         .take(10),
                     sortMode = _uiState.value.sortMode,
                     selectedTab = _uiState.value.selectedTab,
-                    searchQuery = _uiState.value.searchQuery
+                    searchQuery = query,
+                    genreFilter = genre,
+                    filteredTracks = filteredTracks,
+                    filteredAlbums = if (query.isBlank()) albums
+                        else albums.filter { it.title.contains(query, ignoreCase = true) },
+                    filteredArtists = if (query.isBlank()) artists
+                        else artists.filter { it.name.contains(query, ignoreCase = true) },
+                    artistArtMap = artists.associate { artist ->
+                        val artPath = tracks
+                            .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
+                            ?.album?.artPath
+                        artist.id to artPath
+                    }
                 )
             }.collect { state ->
                 _uiState.value = state
@@ -128,7 +160,7 @@ class HomeViewModel(
     }
 
     fun setSearchQuery(query: String) {
-        _uiState.value = _uiState.value.copy(searchQuery = query)
+        _uiState.value = _uiState.value.copy(searchQuery = query).withDerived()
     }
 
     fun selectTab(tab: HomeTab) {
@@ -157,14 +189,14 @@ class HomeViewModel(
     }
 
     fun setGenreFilter(genre: String?) {
-        _uiState.value = _uiState.value.copy(genreFilter = genre)
+        _uiState.value = _uiState.value.copy(genreFilter = genre).withDerived()
     }
 
     private fun refreshTracks(sort: String, dir: String) {
         val key = if (dir == "desc") "${sort}_desc" else sort
         viewModelScope.launch {
             musicRepository.getAllTracks(key).first { tracks ->
-                _uiState.value = _uiState.value.copy(tracks = tracks)
+                _uiState.value = _uiState.value.copy(tracks = tracks).withDerived()
                 true
             }
         }
@@ -176,7 +208,7 @@ class HomeViewModel(
         else sort
         viewModelScope.launch {
             musicRepository.getAllAlbums(key).first { albums ->
-                _uiState.value = _uiState.value.copy(albums = albums)
+                _uiState.value = _uiState.value.copy(albums = albums).withDerived()
                 true
             }
         }
@@ -185,7 +217,7 @@ class HomeViewModel(
     private fun refreshArtists(dir: String) {
         viewModelScope.launch {
             musicRepository.getAllArtists(if (dir == "desc") "name_desc" else "name").first { artists ->
-                _uiState.value = _uiState.value.copy(artists = artists)
+                _uiState.value = _uiState.value.copy(artists = artists).withDerived()
                 true
             }
         }

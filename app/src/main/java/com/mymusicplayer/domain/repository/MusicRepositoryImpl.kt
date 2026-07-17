@@ -42,15 +42,11 @@ class MusicRepositoryImpl(
 ) : MusicRepository {
 
     override fun getAllTracks(sort: String): Flow<List<Track>> {
-        return trackDao.getAllTracks(sort).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return trackDao.getAllTracks(sort).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun searchTracks(query: String): Flow<List<Track>> {
-        return trackDao.searchTracks(query).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return trackDao.searchTracks(query).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun getSmartSortedTracks(): Flow<List<Track>> {
@@ -62,23 +58,19 @@ class MusicRepositoryImpl(
             ratingWeight = 0.25,
             now = now,
             decayDays = decayDays
-        ).map { entities -> entities.map { it.toDomain() } }
+        ).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun getTrackById(id: Long): Flow<Track?> {
-        return trackDao.getTrackById(id).map { it?.toDomain() }
+        return trackDao.getTrackById(id).map { it?.let { entity -> mapTrackSingle(entity) } }
     }
 
     override fun getTracksByAlbum(albumId: Long): Flow<List<Track>> {
-        return trackDao.getTracksByAlbum(albumId).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return trackDao.getTracksByAlbum(albumId).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun getTracksByArtist(artistId: Long): Flow<List<Track>> {
-        return trackDao.getTracksByArtist(artistId).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return trackDao.getTracksByArtist(artistId).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun getAllAlbums(): Flow<List<Album>> {
@@ -164,20 +156,17 @@ class MusicRepositoryImpl(
     }
 
     override fun getTracksForArtist(artistId: Long): Flow<List<Track>> {
-        return trackDao.getTracksByArtist(artistId).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return trackDao.getTracksByArtist(artistId).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun getTracksInPlaylist(playlistId: Long): Flow<List<Track>> {
-        return playlistDao.getTracksInPlaylist(playlistId).map { entities ->
-            entities.map { it.toDomain() }
-        }
+        return playlistDao.getTracksInPlaylist(playlistId).map { entities -> mapTracksBulk(entities) }
     }
 
     override fun getFavoriteTracks(): Flow<List<Track>> {
         return trackDao.getSmartSortedTracks().map { entities ->
-            entities.filter { it.rating >= 4 }.map { it.toDomain() }
+            val favorites = entities.filter { it.rating >= 4 }
+            mapTracksBulk(favorites)
         }
     }
 
@@ -482,40 +471,58 @@ class MusicRepositoryImpl(
         }
     }
 
-    private suspend fun TrackEntity.toDomain(): Track {
-        val albumEntity = albumId?.let { albumDao.getAlbumByIdOnce(it) }
-        val artistEntities = artistDao.getArtistsForTrack(id)
-
-        return Track(
-            id = id,
-            title = title,
-            artists = artistEntities.map {
-                Artist(id = it.id, name = it.name)
-            },
-            album = albumEntity?.let {
-                Album(
-                    id = it.id,
-                    title = it.title,
-                    albumArtist = it.albumArtist,
-                    year = it.year,
-                    artPath = it.artPath
-                )
-            },
-            duration = duration,
-            trackNumber = trackNumber,
-            discNumber = discNumber,
-            year = year,
-            genre = genre,
-            comment = comment,
-            filePath = filePath,
-            fileSize = fileSize,
-            format = format,
-            dateAdded = dateAdded,
-            lastPlayed = lastPlayed,
-            playCount = playCount,
-            rating = rating,
-            lyricsPath = lyricsPath,
-            rawArtistTag = rawArtistTag
+    /**
+     * Maps a list of track entities to domain models in a single pass.
+     * Loads all albums and all track→artist relations once (2 queries total)
+     * instead of 2 queries per track, eliminating the N+1 bottleneck that made
+     * the library load slow.
+     */
+    private suspend fun mapTracksBulk(entities: List<TrackEntity>): List<Track> {
+        if (entities.isEmpty()) return emptyList()
+        val albumMap = albumDao.getAllAlbumsOnce().associateBy { it.id }
+        val artistRelations = artistDao.getAllArtistRelations()
+        val artistsByTrack = artistRelations.groupBy(
+            keySelector = { it.track_id },
+            valueTransform = { Artist(id = it.id, name = it.name) }
         )
+        return entities.map { entity ->
+            Track(
+                id = entity.id,
+                title = entity.title,
+                artists = artistsByTrack[entity.id].orEmpty(),
+                album = entity.albumId?.let { albumMap[it] }?.let { album ->
+                    Album(
+                        id = album.id,
+                        title = album.title,
+                        albumArtist = album.albumArtist,
+                        year = album.year,
+                        artPath = album.artPath
+                    )
+                },
+                duration = entity.duration,
+                trackNumber = entity.trackNumber,
+                discNumber = entity.discNumber,
+                year = entity.year,
+                genre = entity.genre,
+                comment = entity.comment,
+                filePath = entity.filePath,
+                fileSize = entity.fileSize,
+                format = entity.format,
+                dateAdded = entity.dateAdded,
+                lastPlayed = entity.lastPlayed,
+                playCount = entity.playCount,
+                rating = entity.rating,
+                lyricsPath = entity.lyricsPath,
+                rawArtistTag = entity.rawArtistTag
+            )
+        }
+    }
+
+    /**
+     * Maps a single track entity (used where only one track is needed and a
+     * full bulk pass would be wasteful). Keeps the original per-track queries.
+     */
+    private suspend fun mapTrackSingle(entity: TrackEntity): Track {
+        return mapTracksBulk(listOf(entity)).first()
     }
 }
