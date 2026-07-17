@@ -34,6 +34,7 @@ class SettingsDataStore(private val context: Context) {
         val AMOLED_BLACK_THEME = booleanPreferencesKey("amoled_black_theme")
         val ACCENT_COLOR_INDEX = intPreferencesKey("accent_color_index")
         val PLAYER_THEME = intPreferencesKey("player_theme")
+        val PLAYBACK_MODE = stringPreferencesKey("playback_mode")
     }
 
     val sleepTimerDuration: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -139,6 +140,10 @@ class SettingsDataStore(private val context: Context) {
         prefs[PLAYER_THEME] ?: 0
     }
 
+    val playbackMode: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[PLAYBACK_MODE] ?: "LIST"
+    }
+
     suspend fun setAmoledBlackTheme(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[AMOLED_BLACK_THEME] = enabled }
     }
@@ -149,6 +154,10 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setPlayerTheme(theme: Int) {
         context.dataStore.edit { prefs -> prefs[PLAYER_THEME] = theme }
+    }
+
+    suspend fun setPlaybackMode(mode: String) {
+        context.dataStore.edit { prefs -> prefs[PLAYBACK_MODE] = mode }
     }
 
     suspend fun setScanFileSizeFilter(minKb: Long) {

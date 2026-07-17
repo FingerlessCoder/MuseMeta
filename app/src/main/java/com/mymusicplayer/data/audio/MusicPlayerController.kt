@@ -158,6 +158,20 @@ class MusicPlayerController(
                 applyAudioSettings()
             }
         }
+        // Restore the previously selected playback mode (shuffle / list / single).
+        timerScope.launch {
+            settingsDataStore.playbackMode.collectLatest { saved ->
+                val player = exoPlayer ?: return@collectLatest
+                val mode = runCatching { PlaybackMode.valueOf(saved) }.getOrDefault(PlaybackMode.LIST)
+                player.shuffleModeEnabled = mode == PlaybackMode.SHUFFLE
+                player.repeatMode = when (mode) {
+                    PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_OFF
+                    PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
+                    PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
+                }
+                _playbackState.value = _playbackState.value.copy(playbackMode = mode)
+            }
+        }
     }
 
     fun play(
@@ -279,6 +293,7 @@ class MusicPlayerController(
         }
 
         _playbackState.value = _playbackState.value.copy(playbackMode = nextMode)
+        timerScope.launch { settingsDataStore.setPlaybackMode(nextMode.name) }
     }
 
     fun getCurrentPosition(): Long {
