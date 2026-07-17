@@ -58,3 +58,68 @@ now let think what to improve
 [ ] Refer Retro Music Player for more UI/UX improvements
 
 lyrics, if romanized
+
+// == CODE QUALITY IMPROVEMENTS (from review, gen 2) ==
+// HIGH VALUE
+[ ] Split MusicPlayerController god-object:
+    - extract PlaybackModeStore (read/write SettingsDataStore, pure)
+    - extract PlayerInitializer (restore block + withContext(Dispatchers.Main))
+    - keep MusicPlayerController as ExoPlayer facade only
+[ ] Roll SubcomposeAsyncImage -> AsyncImage in MultiSelectScreen (~line 299) and other list rows
+    (already done in TrackContentRow; inconsistent otherwise)
+[ ] Break HomeScreen into tab composables (AllTracks / Albums / Artists);
+    keep groupedTracks only inside the tab that needs it (avoid O(N) regroup on whole screen)
+
+// MEDIUM VALUE
+[ ] Fix remaining deprecation warnings (build shows them, not errors):
+    - AppModule.kt: old Koin viewModel{} DSL -> org.koin.core.module.dsl.viewModel
+    - SettingsScreen.kt:151: Icons.Filled.OpenInNew -> Icons.AutoMirrored.Filled.OpenInNew
+    - Theme.kt:121: statusBarColor deprecated -> enableEdgeToEdge / SystemUiController
+[ ] Dead screens: 7 empty ui/screens/* folders
+    (albums/artists/playlists/tracks/library/metadata/organize)
+    - implement real ones OR delete empty folders so nav doesn't imply they exist
+[ ] PlayerViewModelQueueTest: pre-existing failure on unmodified tree
+    - fix it OR @Ignore with reason so ./gradlew test is green
+
+// LOW VALUE
+[ ] Verify MetadataParserTest count (AGENTS.md says 17; confirm real number)
+
+// NOTE: architecture is sound (layered data/domain/ui/di/service). Not spaghetti.
+// Hot spots only: MusicPlayerController + HomeScreen. Current push is warning-free
+// after MultiSelectScreen fix. Remaining warnings are the deprecation items above.
+
+// == PERFORMANCE ==
+[ ] Verify release build (not debug) is the real smoothness baseline.
+    Debug Run carries a Compose perf tax that looks like jank but isn't a code bug.
+[ ] Roll AsyncImage + Coil disk cache to all list screens
+    (Favorites, RecentlyPlayed, PlaylistDetail, Artist/Album detail) — only Home done.
+[ ] PlayerScreen metadata load takes ~2s (cover/title/artist). Cache or preload
+    album art so NowPlaying doesn't stall on open.
+[ ] Large-library paging: if All Tracks still janky on huge libraries,
+    add windowed/paged LazyColumn instead of loading all N tracks at once.
+[ ] Alphabet index-bar jump: confirm it's O(1) scroll, not re-grouping all tracks.
+
+// == UI / UX ==
+[ ] PlayerScreen: current position too low; metadata loads late and title text too
+    large pushes bottom controls down -> controller clipped. Re-layout + constrain.
+[ ] PlayerScreen: support swipe left/right on cover to prev/next track.
+[ ] PlayerScreen: auto horizontal-scroll (marquee) for long clipped title.
+[ ] PlayerScreen: dynamic-island style now-playing pill / expand animation.
+[ ] Sleep timer: iOS-like wheel currently can't cover full 10-90m range (stuck 20-80).
+    Fix range or switch to free scrub.
+[ ] Mini player: add play-next button to the right of play/pause.
+[ ] Home mini cards: favourite, my playlists, recently played (use last track cover).
+[ ] Material You theming (dynamic color) — currently fixed dark Material3.
+[ ] Search bar: add clear (X) button at right (some screens already have it, standardize).
+[ ] Playlist detail: drag-to-reorder tracks (currently not supported).
+[ ] Artist tab profile image: use an album cover as placeholder (local, no network fetch).
+
+// == FEATURES ==
+[ ] Lyrics: auto-find + download LRC for songs (not pure instrumental); show synced.
+[ ] Metadata write: edit track metadata (title/artist/album) with persistence;
+    option to update album cover across tracks.
+[ ] New screens: Album page, Artist page (tab by all / by album).
+[ ] Player hamburger: view album, view artist (single + multi-artist), edit metadata.
+[ ] MediaSession: customized notification buttons; tap-to-open behavior.
+[ ] Further library filtering: by genre, album artist, format.
+[ ] Refer Retro Music Player (github.com/RetroMusicPlayer) for mature UI/UX patterns.
