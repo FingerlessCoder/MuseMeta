@@ -27,7 +27,7 @@ import org.koin.dsl.module
 
 val appModule = module {
     single<MusicRepository> { MusicRepositoryImpl(androidContext(), get(), get(), get(), get(), get(), get()) }
-    single { MusicPlayerController(androidContext()) }
+    single { MusicPlayerController(androidContext(), get<SettingsDataStore>()) }
     single { AudioFocusManager(androidContext()) }
     single { MediaStoreScanner(get()) }
     single { FileSystemScanner() }

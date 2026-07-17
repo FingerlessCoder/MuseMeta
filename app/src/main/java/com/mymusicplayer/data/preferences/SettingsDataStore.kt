@@ -22,6 +22,7 @@ class SettingsDataStore(private val context: Context) {
         val DEFAULT_SORT = stringPreferencesKey("default_sort")
         val EQUALIZER_ENABLED = booleanPreferencesKey("equalizer_enabled")
         val EQUALIZER_PRESET = stringPreferencesKey("equalizer_preset")
+        val EQUALIZER_BANDS = stringPreferencesKey("equalizer_bands")
         val MIN_FILE_SIZE = longPreferencesKey("min_file_size")
         val MAX_FILE_SIZE = longPreferencesKey("max_file_size")
         val VOLUME_NORMALIZATION = booleanPreferencesKey("volume_normalization")
@@ -50,6 +51,10 @@ class SettingsDataStore(private val context: Context) {
 
     val equalizerPreset: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[EQUALIZER_PRESET] ?: "Normal"
+    }
+
+    val equalizerBands: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[EQUALIZER_BANDS] ?: "0;0;0;0;0"
     }
 
     val minFileSize: Flow<Long> = context.dataStore.data.map { prefs ->
@@ -86,6 +91,10 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setEqualizerPreset(preset: String) {
         context.dataStore.edit { prefs -> prefs[EQUALIZER_PRESET] = preset }
+    }
+
+    suspend fun setEqualizerBands(bands: String) {
+        context.dataStore.edit { prefs -> prefs[EQUALIZER_BANDS] = bands }
     }
 
     suspend fun setFileSizeFilter(min: Long, max: Long) {

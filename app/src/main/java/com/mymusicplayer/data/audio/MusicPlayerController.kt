@@ -2,11 +2,15 @@ package com.mymusicplayer.data.audio
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
+import android.media.audiofx.Equalizer
+import android.media.audiofx.LoudnessEnhancer
 import android.net.Uri
 import android.util.Log
 import androidx.media3.common.AudioAttributes
 import java.io.File
 import androidx.media3.common.C
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -21,7 +25,9 @@ import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 enum class PlaybackMode {
     SHUFFLE,
@@ -40,7 +46,8 @@ data class PlaybackState(
 )
 
 class MusicPlayerController(
-    private val context: Context
+    private val context: Context,
+    private val settingsDataStore: SettingsDataStore
 ) {
 
     companion object {
@@ -48,6 +55,15 @@ class MusicPlayerController(
     }
 
     private var exoPlayer: ExoPlayer? = null
+
+    private var equalizer: Equalizer? = null
+    private var loudnessEnhancer: LoudnessEnhancer? = null
+    private var effectsUnsupported = false
+    private var audioSettingsJob: Job? = null
+    private var eqEnabledCache = false
+    private var eqPresetCache = "Normal"
+    private var eqBandsCache = listOf(0, 0, 0, 0, 0)
+    private var volumeNormCache = false
 
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState: StateFlow<PlaybackState> = _playbackState.asStateFlow()
@@ -126,7 +142,38 @@ class MusicPlayerController(
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     updateState()
                 }
+
+                override fun onAudioSessionIdChanged(audioSessionId: Int) {
+                    if (audioSessionId != AudioManager.ERROR) {
+                        // ExoPlayer issues a NEW session id on every track transition.
+                        // The old Equalizer/LoudnessEnhancer are bound to the previous
+                        // session and become dead — release them so setupAudioEffects
+                        // rebinds to the current session, otherwise band changes after
+                        // the first track have no audible effect.
+                        releaseAudioEffects()
+                        setupAudioEffects(audioSessionId)
+                        applyAudioSettings()
+                    }
+                }
             })
+        }
+
+        audioSettingsJob?.cancel()
+        audioSettingsJob = timerScope.launch {
+            settingsDataStore.equalizerEnabled.collectLatest { eqEnabledCache = it; applyAudioSettings() }
+        }
+        timerScope.launch {
+            settingsDataStore.equalizerPreset.collectLatest { eqPresetCache = it; applyAudioSettings() }
+        }
+        timerScope.launch {
+            settingsDataStore.equalizerBands.collectLatest {
+                eqBandsCache = it.split(";").mapNotNull { v -> v.toIntOrNull() }.take(5)
+                    .let { if (it.size == 5) it else listOf(0, 0, 0, 0, 0) }
+                applyAudioSettings()
+            }
+        }
+        timerScope.launch {
+            settingsDataStore.volumeNormalization.collectLatest { volumeNormCache = it; applyAudioSettings() }
         }
     }
 
@@ -406,6 +453,96 @@ class MusicPlayerController(
             queueIndex = currentIndex,
             playbackMode = mode
         )
+    }
+
+    private fun releaseAudioEffects() {
+        if (equalizer != null || loudnessEnhancer != null) {
+            Log.d(TAG, "Releasing audio effects (session rebind)")
+        }
+        equalizer?.runCatching { release() }
+        equalizer = null
+        loudnessEnhancer?.runCatching { release() }
+        loudnessEnhancer = null
+    }
+
+    private fun setupAudioEffects(sessionId: Int) {
+        // Some OEM firmware (e.g. Honor) does not expose the global Equalizer /
+        // LoudnessEnhancer effect engine to apps — construction throws
+        // ERROR_INVALID_OPERATION. Attempt once; never retry (would spam the HAL).
+        if (effectsUnsupported) return
+        runCatching {
+            if (equalizer == null) {
+                equalizer = Equalizer(0, sessionId).apply { enabled = false }
+            }
+            if (loudnessEnhancer == null) {
+                loudnessEnhancer = LoudnessEnhancer(sessionId).apply { enabled = false }
+            }
+            Log.d(
+                TAG,
+                "Audio effects attached: sessionId=$sessionId eqBands=${equalizer?.numberOfBands} " +
+                    "leSupported=${loudnessEnhancer != null}"
+            )
+        }.onFailure { e ->
+            effectsUnsupported = true
+            Log.w(TAG, "Audio effects unsupported on this device — EQ/volume leveling disabled", e)
+            equalizer?.release(); equalizer = null
+            loudnessEnhancer?.release(); loudnessEnhancer = null
+        }
+    }
+
+    /**
+     * Media3's onAudioSessionIdChanged callback is not reliably delivered on all
+     * devices, so effects can stay null forever. Ensure they exist using the
+     * player's current audioSessionId before applying settings.
+     */
+    private fun ensureAudioEffects() {
+        if (effectsUnsupported) return
+        if (equalizer != null || loudnessEnhancer != null) return
+        val sessionId = runCatching { exoPlayer?.audioSessionId }.getOrNull()
+        if (sessionId == null || sessionId == AudioManager.ERROR) {
+            // Session not ready yet — construct against session 0; rebinds on change.
+            setupAudioEffects(0)
+        } else {
+            setupAudioEffects(sessionId)
+        }
+    }
+
+    private fun applyAudioSettings() {
+        val eqOn = eqEnabledCache
+        val normOn = volumeNormCache
+
+        ensureAudioEffects()
+
+        Log.d(TAG, "applyAudioSettings: eqOn=$eqOn normOn=$normOn bands=$eqBandsCache")
+
+        equalizer?.let { eq ->
+            runCatching {
+                eq.enabled = eqOn
+                if (eqOn) applyEqualizerBands(eq, eqBandsCache)
+            }.onFailure { Log.w(TAG, "Failed to apply equalizer bands", it) }
+        } ?: Log.w(TAG, "applyAudioSettings: Equalizer null — effects not attached")
+
+        loudnessEnhancer?.let { le ->
+            runCatching {
+                le.enabled = normOn
+                if (normOn) le.setTargetGain(600)
+            }.onFailure { Log.w(TAG, "Failed to apply volume normalization", it) }
+        } ?: Log.w(TAG, "applyAudioSettings: LoudnessEnhancer null — effects not attached")
+    }
+
+    private fun applyEqualizerBands(eq: Equalizer, uiBands: List<Int>) {
+        val deviceBands = eq.numberOfBands.toInt()
+        if (deviceBands <= 0) return
+        val lower = eq.bandLevelRange[0].toInt()
+        val upper = eq.bandLevelRange[1].toInt()
+        val uiCount = uiBands.size.coerceAtLeast(1)
+        for (i in 0 until deviceBands) {
+            val uiIndex = if (deviceBands > 1) {
+                (i.toFloat() / (deviceBands - 1) * (uiCount - 1)).roundToInt().coerceIn(0, uiCount - 1)
+            } else 0
+            val gain = uiBands.getOrElse(uiIndex) { 0 }.coerceIn(lower, upper)
+            eq.setBandLevel(i.toShort(), gain.toShort())
+        }
     }
 
     private fun onTrackCompleted() {

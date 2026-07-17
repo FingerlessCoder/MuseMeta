@@ -40,6 +40,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -69,6 +70,7 @@ import com.mymusicplayer.data.audio.PlaybackMode
 import com.mymusicplayer.data.lyrics.LyricLine
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
+import com.mymusicplayer.ui.components.EqualizerPanel
 import com.mymusicplayer.ui.components.MarqueeText
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
@@ -77,6 +79,8 @@ import androidx.compose.ui.platform.LocalDensity
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
+
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -115,6 +119,7 @@ fun PlayerScreen(
     }
 
     var showEllipsisSheet by remember { mutableStateOf(false) }
+    var showEqualizerPanel by remember { mutableStateOf(false) }
     var showSleepTimerSheet by remember { mutableStateOf(false) }
     var showPlaylistSheet by remember { mutableStateOf(false) }
     var showLyricsView by remember { mutableStateOf(false) }
@@ -279,8 +284,28 @@ fun PlayerScreen(
                     showEllipsisSheet = false
                     showEditMetadata = true
                 },
+                onOpenEqualizer = {
+                    showEllipsisSheet = false
+                    showEqualizerPanel = true
+                },
                 onDismiss = { showEllipsisSheet = false }
             )
+        }
+    }
+
+    // ── Equalizer Panel Sheet ──
+    if (showEqualizerPanel) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showEqualizerPanel = false },
+            sheetState = sheetState,
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        ) {
+            EqualizerPanel(
+                settingsDataStore = settingsDataStore,
+                onDismiss = { showEqualizerPanel = false }
+            )
+            Spacer(Modifier.height(16.dp))
         }
     }
 
@@ -975,8 +1000,12 @@ private fun EllipsisSheetContent(
     onViewAlbum: () -> Unit,
     onViewArtist: () -> Unit,
     onEditMetadata: () -> Unit,
+    onOpenEqualizer: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val settingsDataStore = koinInject<SettingsDataStore>()
+    val volumeNormalization by settingsDataStore.volumeNormalization.collectAsState(initial = false)
+    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1087,6 +1116,20 @@ private fun EllipsisSheetContent(
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+        SheetMenuItem(
+            icon = Icons.Default.GraphicEq,
+            title = "Equalizer",
+            onClick = { onOpenEqualizer() }
+        )
+        SheetMenuItem(
+            icon = if (volumeNormalization) Icons.Default.Check else Icons.AutoMirrored.Filled.VolumeUp,
+            title = if (volumeNormalization) "Volume Leveling: On" else "Volume Leveling: Off",
+            tint = if (volumeNormalization) MaterialTheme.colorScheme.primary else null,
+            onClick = {
+                scope.launch { settingsDataStore.setVolumeNormalization(!volumeNormalization) }
+                onDismiss()
+            }
         )
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),

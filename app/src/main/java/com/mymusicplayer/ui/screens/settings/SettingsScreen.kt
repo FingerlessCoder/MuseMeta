@@ -25,6 +25,21 @@ import androidx.compose.ui.unit.dp
 import com.mymusicplayer.ui.theme.AccentPalettes
 import org.koin.androidx.compose.koinViewModel
 
+private val sortFields = listOf("name", "date_added", "play_count", "year", "genre", "artist", "album")
+
+private val sortOptions: List<Pair<String, String>> =
+    sortFields.flatMap { field ->
+        listOf(
+            "$field" to "${field.replace("_", " ")} ↑",
+            "${field}_desc" to "${field.replace("_", " ")} ↓"
+        )
+    }
+
+private fun sortLabel(raw: String): String {
+    val (field, dir) = if (raw.endsWith("_desc")) raw.removeSuffix("_desc") to "↓" else raw to "↑"
+    return "${field.replace("_", " ")} $dir".replaceFirstChar { it.uppercase() }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -34,6 +49,7 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     var showSortMenu by remember { mutableStateOf(false) }
+    var showEqMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -62,12 +78,17 @@ fun SettingsScreen(
                     { viewModel.setScanMinFileSize(it) }, { viewModel.setScanMinDuration(it) })
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 SettingRow(Icons.AutoMirrored.Filled.Sort, "Default Sort",
-                    state.sortMode.replace("_", " ").replaceFirstChar { it.uppercase() },
+                    sortLabel(state.sortMode),
                     onClick = { showSortMenu = true })
                 DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                    listOf("name", "date_added", "play_count", "rating", "duration").forEach { mode ->
-                        DropdownMenuItem(text = { Text(mode.replace("_", " ").replaceFirstChar { it.uppercase() }) },
-                            onClick = { viewModel.setSortMode(mode); showSortMenu = false })
+                    sortOptions.forEach { (field, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = { viewModel.setSortMode(field); showSortMenu = false },
+                            leadingIcon = if (state.sortMode == field) ({
+                                Icon(Icons.Default.Check, contentDescription = null)
+                            }) else null
+                        )
                     }
                 }
             }
@@ -78,7 +99,19 @@ fun SettingsScreen(
                     if (state.equalizerEnabled) "Enabled (${state.equalizerPreset})" else "Disabled",
                     trailing = {
                         Switch(checked = state.equalizerEnabled, onCheckedChange = { viewModel.setEqualizerEnabled(it) })
-                    })
+                    },
+                    onClick = { if (state.equalizerEnabled) showEqMenu = true })
+                DropdownMenu(expanded = showEqMenu, onDismissRequest = { showEqMenu = false }) {
+                    listOf("Normal", "Flat", "Rock", "Pop", "Bass Boost", "Classical", "Jazz", "Vocal").forEach { preset ->
+                        DropdownMenuItem(
+                            text = { Text(preset) },
+                            onClick = { viewModel.setEqualizerPreset(preset); showEqMenu = false },
+                            leadingIcon = if (state.equalizerPreset == preset) ({
+                                Icon(Icons.Default.Check, contentDescription = null)
+                            }) else null
+                        )
+                    }
+                }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 SettingRow(Icons.AutoMirrored.Filled.VolumeUp, "Volume Normalization",
                     if (state.volumeNormalization) "On" else "Off",
