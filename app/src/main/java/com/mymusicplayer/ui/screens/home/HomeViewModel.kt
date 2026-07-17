@@ -225,6 +225,17 @@ class HomeViewModel(
         onNavigateToPlayer()
     }
 
+    fun playRandomForCurrentTab(onNavigateToPlayer: () -> Unit = {}) {
+        when (uiState.value.selectedTab) {
+            HomeTab.Albums -> playRandomAlbum(onNavigateToPlayer)
+            HomeTab.Artists -> playRandomArtist(onNavigateToPlayer)
+            else -> {
+                playRandom()
+                onNavigateToPlayer()
+            }
+        }
+    }
+
     fun playAlbum(album: Album) {
         viewModelScope.launch {
             musicRepository.getTracksByAlbum(album.id).first { tracks ->

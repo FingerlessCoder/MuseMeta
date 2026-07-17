@@ -261,20 +261,15 @@ fun HomeScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        val (label, icon) = when (state.selectedTab) {
+                                            HomeTab.Tracks -> "Track" to Icons.Default.Shuffle
+                                            HomeTab.Albums -> "Album" to Icons.Default.Album
+                                            HomeTab.Artists -> "Artist" to Icons.Default.Person
+                                        }
                                         AssistChip(
-                                            onClick = { viewModel.playRandom(); onNavigateToPlayer() },
-                                            label = { Text("Track", style = MaterialTheme.typography.labelSmall) },
-                                            leadingIcon = { Icon(Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                        )
-                                        AssistChip(
-                                            onClick = { viewModel.playRandomAlbum(onNavigateToPlayer) },
-                                            label = { Text("Album", style = MaterialTheme.typography.labelSmall) },
-                                            leadingIcon = { Icon(Icons.Default.Album, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                                        )
-                                        AssistChip(
-                                            onClick = { viewModel.playRandomArtist(onNavigateToPlayer) },
-                                            label = { Text("Artist", style = MaterialTheme.typography.labelSmall) },
-                                            leadingIcon = { Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(14.dp)) }
+                                            onClick = { viewModel.playRandomForCurrentTab(onNavigateToPlayer) },
+                                            label = { Text("Random $label", style = MaterialTheme.typography.labelSmall) },
+                                            leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) }
                                         )
                                     }
                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
