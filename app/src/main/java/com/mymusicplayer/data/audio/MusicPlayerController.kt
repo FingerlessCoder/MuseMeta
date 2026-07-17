@@ -455,8 +455,6 @@ class MusicPlayerController(
 
         // Volume normalization: software makeup gain when enabled (no hardware LE).
         eqProcessor.setNormalizationGain(if (normOn) NORMALIZATION_GAIN else 1f)
-
-        Log.d(TAG, "applyAudioSettings: eqOn=$eqOn normOn=$normOn bands=$eqBandsCache")
     }
 
     private fun onTrackCompleted() {

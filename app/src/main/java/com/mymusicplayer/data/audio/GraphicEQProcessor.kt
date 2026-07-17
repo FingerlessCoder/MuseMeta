@@ -26,51 +26,42 @@ class GraphicEQProcessor : BaseAudioProcessor() {
     // UI band center frequencies (Hz) — must match EQ_FREQUENCIES in EqualizerPanel.
     private val BAND_FREQS = doubleArrayOf(60.0, 230.0, 910.0, 3600.0, 14000.0)
 
-    // One filter state per channel (L, R, ...). Rebuilt on configure / band change.
+    // One filter state per channel (L, R, ...). Always sized to the configured channels.
     @Volatile
     private var filtersPerChannel: List<List<Biquad>> = emptyList()
 
     @Volatile
     private var normalizationGain: Float = 1f
 
-    @Volatile
-    private var active: Boolean = false
-
     private var channelCount = 2
     private var sampleRate = 44100
 
+    // Last-set band gains (dB) so onConfigure can rebuild filters for the new channel count.
+    @Volatile
+    private var lastBandDb: List<Double> = List(BAND_FREQS.size) { 0.0 }
+
+    private fun buildCoeffs(): List<Biquad> =
+        BAND_FREQS.mapIndexed { i, freq -> Biquad.peaking(sampleRate.toDouble(), freq, lastBandDb[i]) }
+
     fun updateBands(bandsMillibel: List<Int>) {
-        val coeffs = BAND_FREQS.mapIndexed { i, freq ->
-            val mb = bandsMillibel.getOrElse(i) { 0 }.toDouble()
-            Biquad.peaking(sampleRate.toDouble(), freq, mbToDb(mb))
-        }
-        // Replicate the same 5 filters across every channel.
-        filtersPerChannel = List(channelCount) { coeffs }
-        recomputeActive()
+        lastBandDb = BAND_FREQS.indices.map { i -> mbToDb(bandsMillibel.getOrElse(i) { 0 }.toDouble()) }
+        filtersPerChannel = List(channelCount) { buildCoeffs() }
     }
 
     /** Volume normalization target gain as a linear multiplier (1f = off). */
     fun setNormalizationGain(gain: Float) {
         normalizationGain = gain
-        recomputeActive()
-    }
-
-    private fun recomputeActive() {
-        val bandsNonZero = filtersPerChannel.firstOrNull()?.any { it.gainDb != 0.0 } ?: false
-        active = bandsNonZero || normalizationGain != 1f
     }
 
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
         channelCount = inputAudioFormat.channelCount
         sampleRate = inputAudioFormat.sampleRate
-        // Resize the per-channel filter list to the new channel count, reusing coeffs.
-        if (filtersPerChannel.firstOrNull()?.size == BAND_FREQS.size) {
-            filtersPerChannel = List(channelCount) { filtersPerChannel.first() }
-        } else {
-            filtersPerChannel = emptyList()
-        }
-        // When inactive we report NOT_SET so the sink skips us (pass-through, zero cost).
-        return if (active) inputAudioFormat else AudioFormat.NOT_SET
+        // Rebuild filters for the new format, reusing the last-set band gains.
+        filtersPerChannel = List(channelCount) { buildCoeffs() }
+        // Always active: gating (flat vs EQ) is handled per-sample in queueInput, not by
+        // returning NOT_SET here — otherwise the sink bypasses the processor entirely and
+        // band changes would never reach the audio.
+        return inputAudioFormat
     }
 
     override fun queueInput(inputBuffer: ByteBuffer) {
@@ -79,7 +70,7 @@ class GraphicEQProcessor : BaseAudioProcessor() {
         val out = replaceOutputBuffer(inputBuffer.remaining())
         val channels = filtersPerChannel
         val norm = normalizationGain
-        val hasFilters = channels.isNotEmpty()
+        val hasFilters = channels.isNotEmpty() && channels.first().any { it.gainDb != 0.0 }
 
         when (inputAudioFormat.encoding) {
             C.ENCODING_PCM_FLOAT -> {
@@ -112,7 +103,7 @@ class GraphicEQProcessor : BaseAudioProcessor() {
         out.flip()
     }
 
-    override fun isActive(): Boolean = active
+    override fun isActive(): Boolean = true
 
     private fun mbToDb(mb: Double): Double = mb / 100.0
 
