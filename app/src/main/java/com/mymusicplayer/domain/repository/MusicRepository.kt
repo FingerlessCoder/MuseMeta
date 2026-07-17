@@ -30,6 +30,7 @@ interface MusicRepository {
     ): Flow<ScanProgress>
     suspend fun deleteTrackById(trackId: Long)
     suspend fun updateAlbumArt(trackId: Long, imageBytes: ByteArray, applyToAll: Boolean = false)
+    suspend fun updateLyricsPath(trackId: Long, path: String?)
     suspend fun editTrackMetadata(
         trackId: Long,
         title: String?,

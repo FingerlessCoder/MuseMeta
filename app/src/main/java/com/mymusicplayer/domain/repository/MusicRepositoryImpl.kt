@@ -153,6 +153,12 @@ class MusicRepositoryImpl(
         trackDao.deleteTrackById(trackId)
     }
 
+    override suspend fun updateLyricsPath(trackId: Long, path: String?) {
+        withContext(Dispatchers.IO) {
+            trackDao.updateLyricsPath(trackId, path)
+        }
+    }
+
     override suspend fun updateAlbumArt(
         trackId: Long,
         imageBytes: ByteArray,

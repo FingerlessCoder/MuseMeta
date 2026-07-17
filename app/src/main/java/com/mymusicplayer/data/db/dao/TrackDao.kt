@@ -115,6 +115,9 @@ interface TrackDao {
     @Query("UPDATE tracks SET rating = :rating WHERE id = :trackId")
     suspend fun updateRating(trackId: Long, rating: Int)
 
+    @Query("UPDATE tracks SET lyrics_path = :path WHERE id = :trackId")
+    suspend fun updateLyricsPath(trackId: Long, path: String?)
+
     @Query("SELECT DISTINCT file_path FROM tracks")
     suspend fun getAllFilePaths(): List<String>
 

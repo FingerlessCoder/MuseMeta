@@ -2,10 +2,17 @@ package com.mymusicplayer.ui.screens.player
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.audio.PlaybackMode
+import com.mymusicplayer.data.lyrics.LrcParser
+import com.mymusicplayer.data.lyrics.LyricLine
+import com.mymusicplayer.data.lyrics.LyricsCache
+import com.mymusicplayer.data.lyrics.LyricsFetchResult
+import com.mymusicplayer.data.lyrics.LyricsFetcher
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,7 +29,11 @@ data class PlayerUiState(
     val playbackMode: PlaybackMode = PlaybackMode.LIST,
     val isFavorite: Boolean = false,
     val selectedTab: Int = 0,
+    val syncedLyrics: List<LyricLine>? = null,
+    val currentLyricIndex: Int = -1,
     val lyricsText: String? = null,
+    val lyricsLoading: Boolean = false,
+    val lyricsError: String? = null,
     val queueTracks: List<Track> = emptyList(),
     val sleepTimerMinutes: Int = 0,
     val sleepTimerRemainingSeconds: Int = 0
@@ -30,17 +41,19 @@ data class PlayerUiState(
 
 class PlayerViewModel(
     private val musicPlayerController: MusicPlayerController,
-    private val musicRepository: MusicRepository
+    private val musicRepository: MusicRepository,
+    private val lyricsFetcher: LyricsFetcher
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
-    private var playbackUpdateJob: kotlinx.coroutines.Job? = null
+    private var playbackUpdateJob: Job? = null
+    private var lyricsFetchJob: Job? = null
+
     init {
         viewModelScope.launch {
             musicPlayerController.playbackState.collect { state ->
-                // Track the track ID that changed for play count recording
                 val newTrackId = if (state.currentTrackId != null &&
                     state.currentTrackId != _uiState.value.currentTrack?.id) {
                     state.currentTrackId
@@ -56,14 +69,11 @@ class PlayerViewModel(
                     state.currentTrackId != _uiState.value.currentTrack?.id) {
                     val trackId = state.currentTrackId
 
-                    // Always fetch rating/favorite from DB (getCachedTrackInfo returns rating=0)
                     val dbTrack = musicRepository.getTrackById(trackId).first()
                     _uiState.value = _uiState.value.copy(
                         isFavorite = (dbTrack?.rating ?: 0) >= 4
                     )
 
-                    // Prefer the full DB track (has correct album id/title + artists);
-                    // fall back to cached MediaSession info only if DB has no record yet.
                     val cachedInfo = musicPlayerController.getCachedTrackInfo(trackId)
                     dbTrack ?: cachedInfo
                 } else {
@@ -80,6 +90,10 @@ class PlayerViewModel(
                     playbackMode = state.playbackMode,
                     sleepTimerMinutes = _uiState.value.sleepTimerMinutes
                 )
+
+                if (newTrackId != null && currentTrack != null) {
+                    checkCachedLyrics(currentTrack)
+                }
             }
         }
 
@@ -92,14 +106,184 @@ class PlayerViewModel(
         }
     }
 
+    private fun checkCachedLyrics(track: Track) {
+        lyricsFetchJob?.cancel()
+        lyricsFetchJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                syncedLyrics = null,
+                currentLyricIndex = -1,
+                lyricsText = null,
+                lyricsLoading = false,
+                lyricsError = null
+            )
+
+            val trackId = track.id
+            val context = lyricsFetcher.context
+
+            val cached = LyricsCache.loadLyrics(context, trackId)
+            if (cached != null) {
+                val result = LrcParser.parse(cached)
+                if (result.lines.isNotEmpty()) {
+                    _uiState.value = _uiState.value.copy(syncedLyrics = result.lines)
+                    return@launch
+                }
+                if (cached.isNotBlank()) {
+                    _uiState.value = _uiState.value.copy(lyricsText = cached)
+                    return@launch
+                }
+            }
+
+            val dbTrack = musicRepository.getTrackById(trackId).first()
+            val lyricsPath = dbTrack?.lyricsPath
+            if (lyricsPath != null) {
+                val file = java.io.File(lyricsPath)
+                if (file.exists()) {
+                    val content = file.readText()
+                    val result = LrcParser.parse(content)
+                    if (result.lines.isNotEmpty()) {
+                        _uiState.value = _uiState.value.copy(syncedLyrics = result.lines)
+                        return@launch
+                    }
+                    if (content.isNotBlank()) {
+                        _uiState.value = _uiState.value.copy(lyricsText = content)
+                        return@launch
+                    }
+                }
+            }
+
+        }
+    }
+
+    fun triggerLyricsFetch() {
+        val track = _uiState.value.currentTrack ?: return
+
+        lyricsFetchJob?.cancel()
+        lyricsFetchJob = viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(
+                syncedLyrics = null,
+                currentLyricIndex = -1,
+                lyricsText = null,
+                lyricsLoading = true,
+                lyricsError = null
+            )
+
+            val trackId = track.id
+            val context = lyricsFetcher.context
+
+            val cached = LyricsCache.loadLyrics(context, trackId)
+            if (cached != null) {
+                val result = LrcParser.parse(cached)
+                if (result.lines.isNotEmpty()) {
+                    _uiState.value = _uiState.value.copy(
+                        syncedLyrics = result.lines,
+                        lyricsLoading = false
+                    )
+                    return@launch
+                }
+                if (cached.isNotBlank()) {
+                    _uiState.value = _uiState.value.copy(
+                        lyricsText = cached,
+                        lyricsLoading = false
+                    )
+                    return@launch
+                }
+            }
+
+            val dbTrack = musicRepository.getTrackById(trackId).first()
+            val lyricsPath = dbTrack?.lyricsPath
+            if (lyricsPath != null) {
+                val file = java.io.File(lyricsPath)
+                if (file.exists()) {
+                    val content = file.readText()
+                    val result = LrcParser.parse(content)
+                    if (result.lines.isNotEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            syncedLyrics = result.lines,
+                            lyricsLoading = false
+                        )
+                        return@launch
+                    }
+                    if (content.isNotBlank()) {
+                        _uiState.value = _uiState.value.copy(
+                            lyricsText = content,
+                            lyricsLoading = false
+                        )
+                        return@launch
+                    }
+                }
+            }
+
+            val artistName = track.artists.joinToString(", ") { it.name }
+            val albumName = track.album?.title
+            val duration = track.duration
+
+            when (val fetchResult = lyricsFetcher.fetchLyrics(
+                trackName = track.title,
+                artistName = artistName,
+                albumName = albumName,
+                durationMs = duration
+            )) {
+                is LyricsFetchResult.Success -> {
+                    val lrcContent = fetchResult.syncedLrc
+                    if (lrcContent != null) {
+                        val result = LrcParser.parse(lrcContent)
+                        if (result.lines.isNotEmpty()) {
+                            LyricsCache.saveLyrics(context, trackId, lrcContent)
+                            musicRepository.updateLyricsPath(
+                                trackId, LyricsCache.getLyricsFile(context, trackId).absolutePath
+                            )
+                            _uiState.value = _uiState.value.copy(
+                                syncedLyrics = result.lines,
+                                lyricsLoading = false
+                            )
+                            return@launch
+                        }
+                    }
+                    val plain = fetchResult.plainLyrics
+                    if (!plain.isNullOrBlank()) {
+                        _uiState.value = _uiState.value.copy(
+                            lyricsText = plain,
+                            lyricsLoading = false
+                        )
+                        return@launch
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        lyricsError = if (fetchResult.isInstrumental) null else "No lyrics found",
+                        lyricsLoading = false,
+                        lyricsText = if (fetchResult.isInstrumental) "♫ Instrumental" else null
+                    )
+                }
+                is LyricsFetchResult.NotFound -> {
+                    _uiState.value = _uiState.value.copy(
+                        lyricsError = "No lyrics found",
+                        lyricsLoading = false
+                    )
+                }
+                is LyricsFetchResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        lyricsError = fetchResult.message,
+                        lyricsLoading = false
+                    )
+                }
+            }
+        }
+    }
+
     private fun startPositionUpdates() {
         playbackUpdateJob?.cancel()
         playbackUpdateJob = viewModelScope.launch {
             while (true) {
                 kotlinx.coroutines.delay(250)
+                val pos = musicPlayerController.getCurrentPosition()
+                val dur = musicPlayerController.getDuration()
+                val lyrics = _uiState.value.syncedLyrics
+                val lyricIndex = if (lyrics != null) {
+                    LrcParser.findLineIndex(lyrics, pos)
+                } else -1
                 _uiState.value = _uiState.value.copy(
-                    currentPosition = musicPlayerController.getCurrentPosition(),
-                    duration = musicPlayerController.getDuration()
+                    currentPosition = pos,
+                    duration = dur,
+                    currentLyricIndex = lyricIndex
                 )
             }
         }

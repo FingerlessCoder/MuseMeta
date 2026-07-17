@@ -64,6 +64,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import java.io.File
 import com.mymusicplayer.data.audio.PlaybackMode
+import com.mymusicplayer.data.lyrics.LyricLine
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.MarqueeText
@@ -158,10 +159,15 @@ fun PlayerScreen(
                 when {
                     showLyricsView -> {
                         LyricsFullView(
+                            syncedLyrics = state.syncedLyrics,
+                            currentLyricIndex = state.currentLyricIndex,
                             lyricsText = state.lyricsText,
+                            lyricsLoading = state.lyricsLoading,
+                            lyricsError = state.lyricsError,
                             artPath = bgArtPath,
                             currentTrack = state.currentTrack,
-                            onTap = { showLyricsView = false }
+                            onTap = { showLyricsView = false },
+                            onRetry = { viewModel.triggerLyricsFetch() }
                         )
                     }
                     playerTheme == 1 && !showLyricsView -> {
@@ -468,34 +474,61 @@ private fun PlayerContent(
 
             Spacer(Modifier.height(12.dp))
 
-            // ── Lyrics Preview Row + Add Capsule ──
-            if (state.lyricsText != null || state.currentTrack != null) {
+            if (state.currentTrack != null) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 24.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = state.lyricsText?.take(80) ?: "No lyrics available",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        onClick = { /* TODO: add lyrics */ }
-                    ) {
+                    val previewText = when {
+                        state.lyricsLoading -> "Loading lyrics..."
+                        state.syncedLyrics != null -> {
+                            val currentLine = state.currentLyricIndex
+                                .takeIf { it >= 0 && it < state.syncedLyrics.size }
+                                ?.let { state.syncedLyrics[it] }
+                            currentLine?.text?.take(80) ?: "Lyrics available"
+                        }
+                        state.lyricsText != null -> state.lyricsText.take(80)
+                        state.lyricsError != null -> state.lyricsError
+                        else -> null
+                    }
+                    if (previewText != null) {
                         Text(
-                            text = "Add",
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
-                            color = MaterialTheme.colorScheme.primary
+                            text = previewText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(Modifier.width(8.dp))
+                    }
+                    val buttonLabel = when {
+                        state.lyricsLoading -> null
+                        state.syncedLyrics != null || state.lyricsText != null -> "Lyrics"
+                        state.lyricsError != null -> "Retry"
+                        else -> "Add"
+                    }
+                    if (buttonLabel != null) {
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            onClick = {
+                                if (state.syncedLyrics != null || state.lyricsText != null) {
+                                    onTapCover()
+                                } else {
+                                    viewModel.triggerLyricsFetch()
+                                }
+                            }
+                        ) {
+                            Text(
+                                text = buttonLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -631,19 +664,36 @@ private fun PlayerContent(
 
 @Composable
 private fun LyricsFullView(
+    syncedLyrics: List<LyricLine>?,
+    currentLyricIndex: Int,
     lyricsText: String?,
+    lyricsLoading: Boolean,
+    lyricsError: String?,
     artPath: String?,
     currentTrack: Track?,
-    onTap: () -> Unit
+    onTap: () -> Unit,
+    onRetry: () -> Unit
 ) {
     val context = LocalContext.current
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(Unit) {
+        if (syncedLyrics != null && currentLyricIndex >= 0) {
+            listState.scrollToItem((currentLyricIndex - 1).coerceAtLeast(0))
+        }
+    }
+
+    LaunchedEffect(currentLyricIndex) {
+        if (currentLyricIndex >= 0 && syncedLyrics != null) {
+            listState.animateScrollToItem((currentLyricIndex - 1).coerceAtLeast(0))
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .clickable { onTap() }
     ) {
-        // Background: blurred album art
         if (artPath != null) {
             AsyncImage(
                 model = ImageRequest.Builder(context).data(File(artPath)).crossfade(true).build(),
@@ -653,7 +703,6 @@ private fun LyricsFullView(
             )
         }
 
-        // Gradient overlay for readability
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -668,15 +717,12 @@ private fun LyricsFullView(
                 )
         )
 
-        // Lyrics content
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 32.dp, vertical = 48.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Track info header
             currentTrack?.let { track ->
                 Text(
                     text = track.title,
@@ -703,48 +749,121 @@ private fun LyricsFullView(
                 Spacer(Modifier.height(24.dp))
             }
 
-            // Lyrics text
-            if (lyricsText != null) {
-                Text(
-                    text = lyricsText,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                    textAlign = TextAlign.Center,
-                    lineHeight = 28.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                )
-            } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            Icons.Default.MusicNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            text = "No lyrics available",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Tap to return to player",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
+            when {
+                lyricsLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = "Loading lyrics...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                }
+                syncedLyrics != null -> {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        itemsIndexed(syncedLyrics) { index, line ->
+                            val isCurrent = index == currentLyricIndex
+                            val alpha = when {
+                                isCurrent -> 1f
+                                index < currentLyricIndex -> 0.4f
+                                else -> 0.6f
+                            }
+                            Text(
+                                text = line.text,
+                                style = if (isCurrent) {
+                                    MaterialTheme.typography.titleMedium.copy(
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                } else {
+                                    MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp)
+                                },
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha),
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp, horizontal = 8.dp)
+                            )
+                        }
+                    }
+                }
+                lyricsText != null -> {
+                    Text(
+                        text = lyricsText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 28.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    )
+                }
+                lyricsError != null -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                Icons.Default.MusicNote,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                text = lyricsError,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(Modifier.height(16.dp))
+                            OutlinedButton(onClick = onRetry) {
+                                Text("Retry")
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "Tap to return to player",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Tap to return to player",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f)
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // Hint at bottom
         Text(
             text = "Tap anywhere to return",
             style = MaterialTheme.typography.labelSmall,

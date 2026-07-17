@@ -2,6 +2,7 @@ package com.mymusicplayer.di
 
 import com.mymusicplayer.data.audio.AudioFocusManager
 import com.mymusicplayer.data.audio.MusicPlayerController
+import com.mymusicplayer.data.lyrics.LyricsFetcher
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.data.scanner.FileSystemScanner
 import com.mymusicplayer.data.scanner.MediaStoreScanner
@@ -33,11 +34,12 @@ val appModule = module {
     single { MetadataParser() }
     single { ScanRepository(androidContext(), get(), get(), get(), get(), get(), get()) }
     single { SettingsDataStore(androidContext()) }
+    single { LyricsFetcher(androidContext()) }
     factory { androidContext().contentResolver }
 
     viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get()) }
     viewModel { MultiSelectViewModel(get(), get()) }
-    viewModel { PlayerViewModel(get(), get()) }
+    viewModel { PlayerViewModel(get(), get(), get()) }
     viewModel { SearchViewModel(get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }
     viewModel { ScanViewModel(get(), get()) }
