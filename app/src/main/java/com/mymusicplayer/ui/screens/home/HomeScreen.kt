@@ -55,7 +55,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    var showSortSheet by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
 
     val favoriteArt = state.favoriteTracks.firstOrNull()?.album?.artPath
     val playlistArt = state.tracks.firstOrNull()?.album?.artPath
@@ -272,12 +272,28 @@ fun HomeScreen(
                                             leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp)) }
                                         )
                                     }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        IconButton(onClick = { showSortSheet = true },
-                                            modifier = Modifier.size(36.dp)) {
-                                            Icon(Icons.Default.ImportExport,
-                                                contentDescription = "Sort",
-                                                modifier = Modifier.size(20.dp))
+                                     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Box {
+                                            IconButton(
+                                                onClick = { showSortMenu = !showSortMenu },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(Icons.Default.ImportExport,
+                                                    contentDescription = "Sort",
+                                                    modifier = Modifier.size(20.dp))
+                                            }
+                                            SortDropdownMenu(
+                                                expanded = showSortMenu,
+                                                selectedTab = state.selectedTab,
+                                                currentSort = state.sortMode,
+                                                currentDir = state.sortDir,
+                                                onSelect = { sort, dir ->
+                                                    viewModel.setSortMode(sort)
+                                                    viewModel.setSortDir(dir)
+                                                    showSortMenu = false
+                                                },
+                                                onDismiss = { showSortMenu = false }
+                                            )
                                         }
                                         IconButton(onClick = { onNavigateToMultiSelect() },
                                             modifier = Modifier.size(36.dp)) {
@@ -439,21 +455,7 @@ fun HomeScreen(
                         }
                     }
                 }
-            }
-
-            if (showSortSheet) {
-                SortBottomSheet(
-                    selectedTab = state.selectedTab,
-                    currentSort = state.sortMode,
-                    currentDir = state.sortDir,
-                    onSelect = { sort ->
-                        viewModel.setSortMode(sort)
-                        showSortSheet = false
-                    },
-                    onToggleDir = { dir -> viewModel.setSortDir(dir) },
-                    onDismiss = { showSortSheet = false }
-                )
-            }
+                }
 
         }
     }
@@ -461,99 +463,75 @@ fun HomeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SortBottomSheet(
+private fun SortDropdownMenu(
+    expanded: Boolean,
     selectedTab: HomeTab,
     currentSort: String,
     currentDir: String,
-    onSelect: (String) -> Unit,
-    onToggleDir: (String) -> Unit,
+    onSelect: (String, String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sortOptions: List<Triple<String, String, String>> = when (selectedTab) {
-        HomeTab.Tracks -> listOf(
-            Triple("By Name", "name", "Sort tracks alphabetically"),
-            Triple("Date Added", "date_added", "Sort by when tracks were added"),
-            Triple("Play Frequency", "play_count", "Sort by most played"),
-            Triple("By Year", "year", "Sort by release year"),
-            Triple("By Genre", "genre", "Sort by music genre"),
-            Triple("By Artist", "artist", "Sort by artist name"),
-            Triple("By Album", "album", "Sort by album title")
-        )
-        HomeTab.Albums -> listOf(
-            Triple("By Title", "title", "Sort albums alphabetically"),
-            Triple("By Album Artist", "album_artist", "Sort by album artist"),
-            Triple("By Year", "year", "Sort by release year"),
-            Triple("By Track Count", "track_count", "Sort by number of tracks")
-        )
-        HomeTab.Artists -> listOf(
-            Triple("By Name", "name", "Sort artists alphabetically")
-        )
-    }
-
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.padding(bottom = 32.dp)) {
-            Text(
-                "Sort by",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        modifier = Modifier.width(220.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
+        val sortOptions: List<SortOption> = when (selectedTab) {
+            HomeTab.Tracks -> listOf(
+                SortOption("Name ↑", "name", "asc"),
+                SortOption("Name ↓", "name", "desc"),
+                SortOption("Date Added ↓", "date_added", "desc"),
+                SortOption("Play Count ↓", "play_count", "desc"),
+                SortOption("Year ↑", "year", "asc"),
+                SortOption("Year ↓", "year", "desc"),
+                SortOption("Genre ↑", "genre", "asc"),
+                SortOption("Genre ↓", "genre", "desc"),
+                SortOption("Artist ↑", "artist", "asc"),
+                SortOption("Artist ↓", "artist", "desc"),
+                SortOption("Album ↑", "album", "asc"),
+                SortOption("Album ↓", "album", "desc")
             )
-            sortOptions.forEach { (label, value, description) ->
-                val isSelected = currentSort == value
-                Surface(
-                    onClick = { onSelect(value) },
-                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            else Color.Transparent,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 24.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                label,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                            Text(
-                                description,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (isSelected) {
-                            Icon(Icons.Default.Check, contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary)
-                        }
+            HomeTab.Albums -> listOf(
+                SortOption("Title ↑", "title", "asc"),
+                SortOption("Title ↓", "title", "desc"),
+                SortOption("Album Artist ↑", "album_artist", "asc"),
+                SortOption("Album Artist ↓", "album_artist", "desc"),
+                SortOption("Year ↑", "year", "asc"),
+                SortOption("Year ↓", "year", "desc"),
+                SortOption("Track Count ↓", "track_count", "desc")
+            )
+            HomeTab.Artists -> listOf(
+                SortOption("Name ↑", "name", "asc"),
+                SortOption("Name ↓", "name", "desc")
+            )
+        }
+
+        sortOptions.forEach { option ->
+            val isSelected = currentSort == option.sort && currentDir == option.dir
+            DropdownMenuItem(
+                text = { Text(option.label) },
+                onClick = { onSelect(option.sort, option.dir) },
+                leadingIcon = if (isSelected) {
+                    {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
-                }
-            }
-            if (selectedTab != HomeTab.Artists || currentSort != "name") {
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("Direction", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    FilterChip(
-                        selected = currentDir == "asc",
-                        onClick = { onToggleDir("asc") },
-                        label = { Text("Asc") },
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    FilterChip(
-                        selected = currentDir == "desc",
-                        onClick = { onToggleDir("desc") },
-                        label = { Text("Desc") }
-                    )
-                }
-            }
+                } else null,
+                colors = MenuDefaults.itemColors(
+                    textColor = if (isSelected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface
+                )
+            )
         }
     }
 }
+
+data class SortOption(val label: String, val sort: String, val dir: String)
 
 @Composable
 private fun CompactMiniCard(label: String, count: Int, artPath: String?, onClick: () -> Unit = {}, modifier: Modifier = Modifier) {
