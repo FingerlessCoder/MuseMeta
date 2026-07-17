@@ -29,7 +29,6 @@ now let think what to improve
  //-favourite (combine with favourite),now got image from track already
  //-my playlists
  //-recently play (need to know last track album cover,replace with it)
- all require a next screens
 2.players
  //-move up abit, curr position too low,even caused metadata loaded and title text too large pushed all bottom element down lead to controller component bottom been clipped some
  //-read and load metadata is slow ,it takes 2 second to load track metadata cover,title,author
@@ -43,15 +42,15 @@ now let think what to improve
 //3.new screen page for invidual
  //- album page
  //- artists page
- not direct play that,list content row,but i think artist can use tab all, by album
-// 4.search bar add a cross clear all at right side
-// 5.sleep timer ios like scroll is not loop, caused only able to select from 20-80m ,not fully cover the option range from 10-90m 
+ //not direct play that,list content row,but i think artist can use tab all, by album
+//4.search bar add a cross clear all at right side
+//5.sleep timer ios like scroll is not loop, caused only able to select from 20-80m ,not fully cover the option range from 10-90m
 //6.multiselect should go to another screen so that having operation option or bottom bar operation
  //-1st icon related to playlists (modal bottom, opt:next play,add to current playing playlist)
  //-add to my playlists (modal bottom,opt:create new,favourite,other existing playlist)
  //-delete(always remember a warning confirm modal)
  //-other advance(favourite,share)
- -share should share binary,not text of title
+ //-share should share binary,not text of title
  //- add to playlist
 7.filter control in other tab not yet handled
  -random play can keep, same only,but probably arrange from album,and artist only
@@ -60,9 +59,8 @@ now let think what to improve
 8.artist tab the profile pic, dont know how to handle
  -got idea liao might refer how retromusicplayer do,but idk how they do, 2 methods i think of, 1st is a short script search,2nd is just use any of the album cover for artist
 //9.mini player, current only play/pause, add play next button at right of play/pause button
-10.UI design theme use material you
- -im a little fraustrated ,discovered retro music player so late. so mature. but i have to persuade myself im doing based on mi music but enhance metadata and just refer to their design https://github.com/RetroMusicPlayer/RetroMusicPlayer
- -glassmorphism
+//10.UI design theme use material you
+ //-im a little fraustrated ,discovered retro music player so late. so mature. but i have to persuade myself im doing based on mi music but enhance metadata and just refer to their design https://github.com/RetroMusicPlayer/RetroMusicPlayer
 //11.media session
  //-customized button 
  //-open by tap it 

@@ -117,14 +117,31 @@ class MultiSelectViewModel(
     fun shareSelected(context: android.content.Context) {
         val tracks = _uiState.value.selectedTracks
         if (tracks.isEmpty()) return
-        val text = tracks.joinToString("\n") { track ->
-            "${track.title} - ${track.artists.joinToString(", ") { it.name }}"
+        val authority = "${context.packageName}.fileprovider"
+        if (tracks.size == 1) {
+            val track = tracks.first()
+            val file = java.io.File(track.filePath)
+            if (!file.exists()) return
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "audio/*"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "Share track"))
+        } else {
+            val uris = tracks.mapNotNull { track ->
+                val file = java.io.File(track.filePath)
+                if (!file.exists()) return@mapNotNull null
+                androidx.core.content.FileProvider.getUriForFile(context, authority, file)
+            }
+            if (uris.isEmpty()) return
+            val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
+                type = "audio/*"
+                putExtra(android.content.Intent.EXTRA_STREAM, java.util.ArrayList(uris))
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            context.startActivity(android.content.Intent.createChooser(intent, "Share tracks"))
         }
-        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(android.content.Intent.EXTRA_TEXT, text)
-            putExtra(android.content.Intent.EXTRA_SUBJECT, "${tracks.size} track${if (tracks.size != 1) "s" else ""}")
-        }
-        context.startActivity(android.content.Intent.createChooser(intent, "Share tracks"))
     }
 }

@@ -1626,10 +1626,14 @@ private fun formatDuration(ms: Long): String {
 
 private fun shareTrack(context: android.content.Context, track: Track?) {
     if (track == null) return
-    val text = "Listening to ${track.title} by ${track.artists.joinToString(", ") { it.name }} on MuseMeta"
+    val file = java.io.File(track.filePath)
+    if (!file.exists()) return
+    val authority = "${context.packageName}.fileprovider"
+    val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-        type = "text/plain"
-        putExtra(android.content.Intent.EXTRA_TEXT, text)
+        type = "audio/*"
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(android.content.Intent.createChooser(intent, "Share track"))
 }
