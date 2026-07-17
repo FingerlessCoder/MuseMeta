@@ -12,7 +12,7 @@ data class LrcParseResult(
 
 object LrcParser {
 
-    private val LINE_REGEX = Regex("""\[(\d{1,3}):(\d{2})[\.:](\d{2,3})\](.*)""")
+    private val LINE_REGEX = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{2,3}))?\](.*)""")
     private val METADATA_REGEX = Regex("""\[([a-z]+):(.*)\]""", RegexOption.IGNORE_CASE)
 
     fun parse(lrcContent: String): LrcParseResult {

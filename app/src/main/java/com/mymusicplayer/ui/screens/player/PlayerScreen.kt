@@ -167,7 +167,8 @@ fun PlayerScreen(
                             artPath = bgArtPath,
                             currentTrack = state.currentTrack,
                             onTap = { showLyricsView = false },
-                            onRetry = { viewModel.triggerLyricsFetch() }
+                            onRetry = { viewModel.triggerLyricsFetch() },
+                            onSeekTo = { viewModel.seekTo(it) }
                         )
                     }
                     playerTheme == 1 && !showLyricsView -> {
@@ -672,7 +673,8 @@ private fun LyricsFullView(
     artPath: String?,
     currentTrack: Track?,
     onTap: () -> Unit,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
+    onSeekTo: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -799,6 +801,7 @@ private fun LyricsFullView(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 6.dp, horizontal = 8.dp)
+                                    .clickable { onSeekTo(line.timestampMs) }
                             )
                         }
                     }
