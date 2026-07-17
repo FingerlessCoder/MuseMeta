@@ -294,36 +294,6 @@ fun HomeScreen(
                         }
                     }
 
-                    if (state.selectedTab == HomeTab.Tracks) {
-                        val genres = state.tracks
-                            .mapNotNull { it.genre?.takeIf { g -> g.isNotBlank() } }
-                            .distinct().sorted()
-                        if (genres.isNotEmpty()) {
-                            item(key = "genre_filter") {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .horizontalScroll(rememberScrollState())
-                                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    FilterChip(
-                                        selected = state.genreFilter == null,
-                                        onClick = { viewModel.setGenreFilter(null) },
-                                        label = { Text("All") }
-                                    )
-                                    genres.forEach { genre ->
-                                        FilterChip(
-                                            selected = state.genreFilter == genre,
-                                            onClick = { viewModel.setGenreFilter(genre) },
-                                            label = { Text(genre) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-
                     when (state.selectedTab) {
                         HomeTab.Tracks -> {
                             if (tracks.isEmpty()) {
