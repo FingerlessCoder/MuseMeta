@@ -114,10 +114,11 @@ fun ArtistDetailScreen(
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
-                            if (state.artistArtPath != null) {
+                            val artistArtPath = state.artistArtPath
+                            if (artistArtPath != null) {
                                 SubcomposeAsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
-                                        .data(File(state.artistArtPath))
+                                        .data(File(artistArtPath))
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = state.artist?.name,
