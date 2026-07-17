@@ -114,11 +114,30 @@ fun ArtistDetailScreen(
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                Icons.Default.Person, contentDescription = null,
-                                modifier = Modifier.size(56.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                            )
+                            if (state.artistArtPath != null) {
+                                SubcomposeAsyncImage(
+                                    model = ImageRequest.Builder(LocalContext.current)
+                                        .data(File(state.artistArtPath))
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = state.artist?.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop,
+                                    error = {
+                                        Icon(
+                                            Icons.Default.Person, contentDescription = null,
+                                            modifier = Modifier.size(56.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Default.Person, contentDescription = null,
+                                    modifier = Modifier.size(56.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
                         }
                         Spacer(Modifier.height(16.dp))
                         Text(

@@ -46,6 +46,14 @@ data class HomeUiState(
     val filteredArtists: List<Artist>
         get() = if (searchQuery.isBlank()) artists
         else artists.filter { it.name.contains(searchQuery, ignoreCase = true) }
+
+    val artistArtMap: Map<Long, String?>
+        get() = artists.associate { artist ->
+            val artPath = tracks
+                .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
+                ?.album?.artPath
+            artist.id to artPath
+        }
 }
 
 class HomeViewModel(

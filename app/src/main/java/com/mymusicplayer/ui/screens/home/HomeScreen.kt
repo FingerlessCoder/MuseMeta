@@ -355,7 +355,9 @@ fun HomeScreen(
                                             horizontalArrangement = Arrangement.SpaceEvenly
                                         ) {
                                             row.forEach { artist ->
-                                                ArtistGridItem(artist = artist,
+                                                ArtistGridItem(
+                                                    artist = artist,
+                                                    artPath = state.artistArtMap[artist.id],
                                                     onClick = { onNavigateToArtist(artist.id) },
                                                     modifier = Modifier.weight(1f))
                                             }
@@ -653,12 +655,25 @@ private fun AlbumGridItem(album: Album, onClick: () -> Unit, modifier: Modifier 
 }
 
 @Composable
-private fun ArtistGridItem(artist: Artist, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun ArtistGridItem(artist: Artist, artPath: String?, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(modifier = Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
             .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
-            Icon(Icons.Default.Person, contentDescription = "Artist profile", modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            if (artPath != null) {
+                SubcomposeAsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current).data(File(artPath)).crossfade(true).build(),
+                    contentDescription = artist.name,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    error = {
+                        Icon(Icons.Default.Person, contentDescription = "Artist profile", modifier = Modifier.size(32.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    }
+                )
+            } else {
+                Icon(Icons.Default.Person, contentDescription = "Artist profile", modifier = Modifier.size(32.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            }
         }
         Spacer(Modifier.height(4.dp))
         Text(artist.name, maxLines = 1, overflow = TextOverflow.Ellipsis,

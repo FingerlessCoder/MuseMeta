@@ -16,6 +16,7 @@ data class ArtistDetailUiState(
     val artist: Artist? = null,
     val tracks: List<Track> = emptyList(),
     val albums: List<Album> = emptyList(),
+    val artistArtPath: String? = null,
     val isLoading: Boolean = true
 )
 
@@ -37,9 +38,11 @@ class ArtistDetailViewModel(
         viewModelScope.launch {
             musicRepository.getTracksForArtist(artistId).collect { tracks ->
                 val albums = tracks.mapNotNull { it.album }.distinctBy { it.id }
+                val artistArtPath = albums.firstOrNull { it.artPath != null }?.artPath
                 _uiState.value = _uiState.value.copy(
                     tracks = tracks,
                     albums = albums,
+                    artistArtPath = artistArtPath,
                     isLoading = false
                 )
             }

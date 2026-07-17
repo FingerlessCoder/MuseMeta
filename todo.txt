@@ -34,12 +34,13 @@ now let think what to improve
  //-other advance(favourite,share)
  //-share should share binary,not text of title
  //- add to playlist
-7.filter control in other tab not yet handled
+7.playlist filter control in other tab not yet handled
  -random play can keep, same only,but probably arrange from album,and artist only
  -sort hmm,i think need to consider, asc-des order,sort by might need to do some change like add a by year for album. artists tab only by name
  -multiselect not suitable for albums and artist
-8.artist tab the profile pic, dont know how to handle
- -got idea liao might refer how retromusicplayer do,but idk how they do, 2 methods i think of, 1st is a short script search,2nd is just use any of the album cover for artist
+//8.artist tab the profile pic, dont know how to handle
+ //-got idea liao might refer how retromusicplayer do,but idk how they do, 2 methods i think of, 1st is a short script search,2nd is just use any of the album cover for artist
+ //now use local one instead of internet fetch
 //9.mini player, current only play/pause, add play next button at right of play/pause button
 //10.UI design theme use material you
  //-im a little fraustrated ,discovered retro music player so late. so mature. but i have to persuade myself im doing based on mi music but enhance metadata and just refer to their design https://github.com/RetroMusicPlayer/RetroMusicPlayer
