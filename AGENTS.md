@@ -35,6 +35,10 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 
 # Unit tests (JVM only — see Testing)
 ./gradlew test
+
+# Build release for non-debug performance load
+./gradlew assembleRelease
+adb install app/build/outputs/apk/release/app-release.apk
 ```
 
 **Gradle properties**: `org.gradle.jvmargs` includes `-Djava.version=21` and `--add-opens java.base/java.lang=ALL-UNNAMED` — required for JDK 26.

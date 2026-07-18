@@ -114,7 +114,8 @@ TODO
     PlaylistActionsSheet calls editTrackMetadata which returns WriteResult.
 [ ] Album art write: update album art with image picker, apply to all album tracks.
     Already has PlayerViewModel.updateAlbumArt() infrastructure.
-[ ] Player hamburger menu: view album, view artist, edit metadata, share.
+[x] Player hamburger menu: view album, view artist, edit metadata, share.
+    (Already exists as EllipsisSheetContent — MoreVert icon triggers sheet with all these options)
 [ ] MediaSession: customized notification buttons (mode cycle + favourite);
     tap-to-open behavior (bring app to front).
 [ ] Internet download for missing album art: search and download from internet.
