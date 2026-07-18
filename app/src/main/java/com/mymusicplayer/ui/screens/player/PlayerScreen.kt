@@ -472,6 +472,18 @@ private fun PlayerContent(
         label = "sliderProgress"
     )
 
+    // Local drag state for instant slider thumb response during seek
+    var isDragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+
+    // Sync animated progress into drag state when NOT dragging, so the thumb
+    // starts from the current position when user begins a new drag gesture.
+    LaunchedEffect(animatedFraction) {
+        if (!isDragging) {
+            dragFraction = animatedFraction
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -647,11 +659,16 @@ private fun PlayerContent(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ── Progress Bar (animated to prevent flicker) ──
+            // ── Progress Bar (local drag for instant response, animated when playing) ──
             Slider(
-                value = animatedFraction,
+                value = if (isDragging) dragFraction else animatedFraction,
                 onValueChange = { fraction ->
-                    viewModel.seekTo((fraction * state.duration).toLong())
+                    dragFraction = fraction
+                    isDragging = true
+                },
+                onValueChangeFinished = {
+                    isDragging = false
+                    viewModel.seekTo((dragFraction * state.duration).toLong())
                 },
                 modifier = Modifier
                     .fillMaxWidth()

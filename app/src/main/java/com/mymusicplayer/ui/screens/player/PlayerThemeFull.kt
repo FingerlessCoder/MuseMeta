@@ -35,7 +35,12 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +67,13 @@ fun PlayerThemeFull(
         animationSpec = tween(durationMillis = 300),
         label = "sliderProgress"
     )
+
+    // Local drag state for instant slider thumb response during seek
+    var isDragging by remember { mutableStateOf(false) }
+    var dragFraction by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(animatedFraction) {
+        if (!isDragging) dragFraction = animatedFraction
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (state.currentTrack?.album?.artPath != null) {
@@ -135,8 +147,15 @@ fun PlayerThemeFull(
             Spacer(Modifier.height(12.dp))
 
             Slider(
-                value = animatedFraction,
-                onValueChange = { fraction -> viewModel.seekTo((fraction * state.duration).toLong()) },
+                value = if (isDragging) dragFraction else animatedFraction,
+                onValueChange = { fraction ->
+                    dragFraction = fraction
+                    isDragging = true
+                },
+                onValueChangeFinished = {
+                    isDragging = false
+                    viewModel.seekTo((dragFraction * state.duration).toLong())
+                },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
