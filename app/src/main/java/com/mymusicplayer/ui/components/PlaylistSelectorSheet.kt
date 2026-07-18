@@ -186,22 +186,26 @@ fun PlaylistSelectorSheet(
                         val name = newPlaylistName.trim()
                         if (name.isNotBlank()) {
                             scope.launch {
-                                val playlistId = playlistDao.createPlaylist(
-                                    PlaylistEntity(name = name)
-                                )
-                                val entries = trackIds.mapIndexed { index, trackId ->
-                                    PlaylistEntryEntity(
-                                        playlistId = playlistId,
-                                        trackId = trackId,
-                                        position = index
+                                try {
+                                    val playlistId = playlistDao.createPlaylist(
+                                        PlaylistEntity(name = name)
                                     )
+                                    val entries = trackIds.mapIndexed { index, trackId ->
+                                        PlaylistEntryEntity(
+                                            playlistId = playlistId,
+                                            trackId = trackId,
+                                            position = index
+                                        )
+                                    }
+                                    playlistDao.addTracksToPlaylist(entries)
+                                    onAdded(name)
+                                } catch (e: Exception) {
+                                    android.util.Log.e("PlaylistSelector", "Failed to create playlist", e)
                                 }
-                                playlistDao.addTracksToPlaylist(entries)
+                                showCreateDialog = false
+                                newPlaylistName = ""
+                                onDismiss()
                             }
-                            onAdded(name)
-                            showCreateDialog = false
-                            newPlaylistName = ""
-                            onDismiss()
                         }
                     },
                     enabled = newPlaylistName.isNotBlank()

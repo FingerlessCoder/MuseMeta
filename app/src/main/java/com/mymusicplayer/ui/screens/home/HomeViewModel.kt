@@ -98,7 +98,7 @@ class HomeViewModel(
                 val hasContent = content.tracks.isNotEmpty() || content.albums.isNotEmpty()
                 val query = _uiState.value.searchQuery
                 val genre = _uiState.value.genreFilter
-                val tracks = content.tracks
+                val tracks = sortTracks(content.tracks, _uiState.value.sortMode, _uiState.value.sortDir)
                 val albums = content.albums
                 val artists = content.artists
                 val filteredTracks = when {
@@ -328,3 +328,25 @@ private data class CombinedContent(
     val favorites: List<Track>,
     val playlistEntities: List<PlaylistEntity>
 )
+
+/**
+ * In-memory sort for tracks. The init combine block uses a hardcoded query
+ * (getAllTracks("name")) so Room emits tracks sorted by title on every DB
+ * change. This re-sorts them according to the user's current preference so
+ * the sort mode doesn't reset when a track advances and Room re-emits.
+ */
+private fun sortTracks(tracks: List<Track>, mode: String, dir: String): List<Track> {
+    val sorted: List<Track> = when (mode) {
+        "name" -> tracks.sortedBy { it.title.lowercase() }
+        "date_added" -> tracks.sortedBy { it.dateAdded }
+        "play_count" -> tracks.sortedBy { it.playCount }
+        "duration" -> tracks.sortedBy { it.duration }
+        "rating" -> tracks.sortedBy { it.rating }
+        "year" -> tracks.sortedByDescending { it.year ?: 0 }
+        "genre" -> tracks.sortedBy { it.genre ?: "" }
+        "artist" -> tracks.sortedBy { it.artists.firstOrNull()?.name?.lowercase() ?: "" }
+        "album" -> tracks.sortedBy { it.album?.title?.lowercase() ?: "" }
+        else -> tracks
+    }
+    return if (dir == "desc") sorted.reversed() else sorted
+}
