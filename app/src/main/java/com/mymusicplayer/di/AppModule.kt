@@ -3,6 +3,7 @@ package com.mymusicplayer.di
 import com.mymusicplayer.data.audio.AudioFocusManager
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.lyrics.LyricsFetcher
+import com.mymusicplayer.data.network.ArtistImageFetcher
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.data.scanner.FileSystemScanner
 import com.mymusicplayer.data.scanner.MediaStoreScanner
@@ -35,6 +36,7 @@ val appModule = module {
     single { ScanRepository(androidContext(), get(), get(), get(), get(), get(), get()) }
     single { SettingsDataStore(androidContext()) }
     single { LyricsFetcher(androidContext()) }
+    single { ArtistImageFetcher(androidContext()) }
     factory { androidContext().contentResolver }
 
     viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get()) }
@@ -45,5 +47,5 @@ val appModule = module {
     viewModel { ScanViewModel(get(), get()) }
     viewModel { DirectoryPickerViewModel(get(), get()) }
     viewModel { params -> AlbumDetailViewModel(params.get(), get(), get()) }
-    viewModel { params -> ArtistDetailViewModel(params.get(), get(), get()) }
+    viewModel { params -> ArtistDetailViewModel(params.get(), get(), get(), get()) }
 }
