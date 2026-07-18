@@ -40,6 +40,7 @@ interface MusicRepository {
     ): Flow<ScanProgress>
     suspend fun deleteTrackById(trackId: Long)
     suspend fun updateLyricsPath(trackId: Long, path: String?)
+    suspend fun updateArtistName(artistId: Long, newName: String)
 
     /**
      * Triggers an incremental scan for specific file paths.

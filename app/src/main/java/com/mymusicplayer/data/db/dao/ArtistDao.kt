@@ -68,6 +68,9 @@ interface ArtistDao {
     """)
     suspend fun getAllArtistRelations(): List<ArtistRelation>
 
+    @Query("UPDATE artists SET name = :newName WHERE id = :artistId")
+    suspend fun updateArtistName(artistId: Long, newName: String)
+
     @Query("DELETE FROM track_artists WHERE track_id = :trackId")
     suspend fun deleteArtistsForTrack(trackId: Long)
 

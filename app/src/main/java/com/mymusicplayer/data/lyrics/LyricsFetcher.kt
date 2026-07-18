@@ -85,49 +85,82 @@ class LyricsFetcher(val context: Context) {
         durationMs: Long
     ): LyricsFetchResult = withContext(Dispatchers.IO) {
         try {
-            val encodedTrack = URLEncoder.encode(trackName, "UTF-8")
-            val encodedArtist = URLEncoder.encode(artistName, "UTF-8")
-            val durationSec = (durationMs / 1000.0).coerceAtLeast(1.0)
-
-            val urlBuilder = StringBuilder()
-                .append("$BASE_URL/get?artist_name=$encodedArtist&track_name=$encodedTrack")
-            if (!albumName.isNullOrBlank()) {
-                urlBuilder.append("&album_name=${URLEncoder.encode(albumName, "UTF-8")}")
-            }
-            urlBuilder.append("&duration=$durationSec")
-
-            val url = URL(urlBuilder.toString())
-            val connection = url.openConnection() as HttpURLConnection
-            connection.apply {
+            val query = URLEncoder.encode("$artistName $trackName", "UTF-8")
+            val searchUrl = URL("$BASE_URL/search?q=$query")
+            val searchConn = searchUrl.openConnection() as HttpURLConnection
+            searchConn.apply {
                 requestMethod = "GET"
                 setRequestProperty("Lrclib-Client", "MuseMeta/1.0")
                 connectTimeout = CONNECT_TIMEOUT
                 readTimeout = READ_TIMEOUT
             }
 
-            val responseCode = connection.responseCode
-            if (responseCode == 404) {
-                connection.disconnect()
-                return@withContext LyricsFetchResult.NotFound
-            }
-            if (responseCode != 200) {
-                val errorMsg = connection.errorStream?.bufferedReader()?.readText() ?: "HTTP $responseCode"
-                connection.disconnect()
+            val searchResponseCode = searchConn.responseCode
+            if (searchResponseCode != 200) {
+                searchConn.disconnect()
+                if (searchResponseCode == 404) return@withContext LyricsFetchResult.NotFound
+                val errorMsg = searchConn.errorStream?.bufferedReader()?.readText() ?: "HTTP $searchResponseCode"
                 return@withContext LyricsFetchResult.Error(errorMsg)
             }
 
-            val responseBody = connection.inputStream.bufferedReader().readText()
-            connection.disconnect()
+            val searchBody = searchConn.inputStream.bufferedReader().readText()
+            searchConn.disconnect()
 
-            val parsed = json.decodeFromString<LrcLibResponse>(responseBody)
-            return@withContext LyricsFetchResult.Success(
-                syncedLrc = parsed.syncedLyrics,
-                plainLyrics = parsed.plainLyrics,
-                isInstrumental = parsed.instrumental
-            )
+            val results = json.decodeFromString<List<LrcLibResponse>>(searchBody)
+            if (results.isEmpty()) return@withContext LyricsFetchResult.NotFound
+
+            val bestMatch = pickBestResult(results, trackName, artistName, durationMs)
+            if (bestMatch != null) {
+                return@withContext LyricsFetchResult.Success(
+                    syncedLrc = bestMatch.syncedLyrics,
+                    plainLyrics = bestMatch.plainLyrics,
+                    isInstrumental = bestMatch.instrumental
+                )
+            }
+
+            return@withContext LyricsFetchResult.NotFound
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch lyrics", e)
             return@withContext LyricsFetchResult.Error(e.message ?: "Unknown error")
         }
+    }
+
+    /**
+     * Pick the best result from a list of candidates.
+     * 1. Prefer results with synced lyrics.
+     * 2. Among those, prefer exact-ish title/artist match.
+     * 3. Among those, prefer closer duration.
+     */
+    private fun pickBestResult(
+        results: List<LrcLibResponse>,
+        trackName: String,
+        artistName: String,
+        durationMs: Long
+    ): LrcLibResponse? {
+        val durationSec = durationMs / 1000.0
+        val normalizedTrack = trackName.lowercase().trim()
+        val normalizedArtist = artistName.lowercase().trim()
+
+        fun score(result: LrcLibResponse): Int {
+            var s = 0
+            // +3 for synced lyrics
+            if (result.syncedLyrics != null) s += 3
+            // +1 for plain lyrics (tiebreaker if no synced)
+            if (result.plainLyrics != null) s += 1
+            // +2 if track name matches closely
+            if (result.trackName.lowercase().trim() == normalizedTrack) s += 2
+            else if (normalizedTrack.contains(result.trackName.lowercase().trim()) ||
+                result.trackName.lowercase().trim().contains(normalizedTrack)) s += 1
+            // +2 if artist matches closely
+            if (result.artistName.lowercase().trim() == normalizedArtist) s += 2
+            else if (normalizedArtist.contains(result.artistName.lowercase().trim()) ||
+                result.artistName.lowercase().trim().contains(normalizedArtist)) s += 1
+            // +1 if duration is within 5 seconds
+            if (kotlin.math.abs(result.duration - durationSec) <= 5.0) s += 1
+            return s
+        }
+
+        return results.maxByOrNull { score(it) }
     }
 }

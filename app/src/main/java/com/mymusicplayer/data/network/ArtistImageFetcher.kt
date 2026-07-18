@@ -1,6 +1,7 @@
 package com.mymusicplayer.data.network
 
 import android.content.Context
+import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -129,6 +130,22 @@ class ArtistImageFetcher(private val context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to fetch artist image for '$artistName'", e)
             return@withContext null
+        }
+    }
+
+    fun saveImageFromUri(uri: Uri, artistId: Long): String? {
+        val file = getArtistArtFile(artistId)
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(file).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            Log.d(TAG, "Saved manual image for artist $artistId to ${file.absolutePath}")
+            file.absolutePath
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to save manual image for artist $artistId", e)
+            null
         }
     }
 

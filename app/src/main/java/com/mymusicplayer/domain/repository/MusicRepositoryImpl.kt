@@ -188,6 +188,12 @@ class MusicRepositoryImpl(
         }
     }
 
+    override suspend fun updateArtistName(artistId: Long, newName: String) {
+        withContext(Dispatchers.IO) {
+            artistDao.updateArtistName(artistId, newName)
+        }
+    }
+
     override suspend fun updateAlbumArt(
         trackId: Long,
         imageBytes: ByteArray,

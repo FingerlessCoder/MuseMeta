@@ -1,5 +1,6 @@
 package com.mymusicplayer.ui.screens.artists
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
@@ -11,8 +12,10 @@ import com.mymusicplayer.domain.repository.MusicRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class ArtistDetailUiState(
     val artist: Artist? = null,
@@ -62,6 +65,21 @@ class ArtistDetailViewModel(
                 if (networkPath != null) {
                     _uiState.value = _uiState.value.copy(artistArtPath = networkPath)
                 }
+            }
+        }
+    }
+
+    fun renameArtist(newName: String) {
+        viewModelScope.launch {
+            musicRepository.updateArtistName(artistId, newName)
+        }
+    }
+
+    fun setArtistImage(uri: Uri) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val path = artistImageFetcher.saveImageFromUri(uri, artistId)
+            if (path != null) {
+                _uiState.value = _uiState.value.copy(artistArtPath = path)
             }
         }
     }
