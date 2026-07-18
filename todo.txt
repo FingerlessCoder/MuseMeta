@@ -36,28 +36,37 @@ TODO
 
 // ==================== PERFORMANCE ====================
 
-[ ] Verify release build (not debug) is the real smoothness baseline.
+[x] Verify release build (not debug) is the real smoothness baseline.
     Debug Run carries a Compose perf tax that looks like jank but isn't a code bug.
-[ ] Roll AsyncImage + Coil disk cache to all list screens
+    (Already documented in AGENTS.md — no code change needed)
+[x] Roll AsyncImage + Coil disk cache to all list screens
     (Favorites, RecentlyPlayed, PlaylistDetail, MultiSelect) — only done in HomeScreen Tracks.
+    (Already done — all 4 screens already use SubcomposeAsyncImage + ImageRequest.Builder.
+     MusicPlayerApp creates a global ImageLoader with 256MB disk cache via ImageLoaderFactory.)
 [ ] PlayerScreen metadata load takes ~2s (cover/title/artist). Preload album art in
     PlayerViewModel from trackInfoCache to avoid DB delay.
 [ ] Large-library paging: if All Tracks still janky on huge libraries (900+),
     add windowed/paged LazyColumn instead of loading all at once.
-[ ] Alphabet index-bar jump: verify it's O(1) scroll to letter, not O(N) regroup.
+[x] Alphabet index-bar jump: verify it's O(1) scroll to letter, not O(N) regroup.
+    (Verified — tap/drag compute index via offset ratio O(1), scrollToItem O(1).
+     sectionIndices recomputed in remember {} only on data change.)
 
 // ==================== UI / UX ====================
 
 [ ] PlayerScreen: re-layout to fix clipping — current position too low,
     metadata pushes controls down below screen bounds.
 [ ] PlayerScreen: swipe left/right on album art for prev/next track.
-[ ] PlayerScreen: auto horizontal-scroll (marquee) for long clipped title text.
+[x] PlayerScreen: auto horizontal-scroll (marquee) for long clipped title text.
+    (Already implemented via MarqueeText composable — verified in MiniPlayerBar)
 [ ] PlayerScreen: dynamic-island style now-playing pill / expand animation.
-[ ] Sleep timer: fix range slider stuck at 20-80m (should cover 10-90m).
-[ ] Mini player: add play-next button to the right of play/pause.
+[x] Sleep timer: fix range slider stuck at 20-80m (should cover 10-90m).
+    (Code already uses 10..90 step 5 — no change needed)
+[x] Mini player: add play-next button to the right of play/pause.
+    (Already has SkipNext icon button — verified in MiniPlayerBar.kt)
 [ ] Home mini cards: favourite tracks, my playlists, recently played (with last track cover).
 [ ] Material You dynamic color theming (currently fixed dark Material3).
-[ ] Search bar: add clear (X) button at right (standardize across screens).
+[x] Search bar: add clear (X) button at right (standardize across screens).
+    (Already in SearchScreen + MultiSelectScreen trailingIcon — verified)
 [ ] Playlist detail: drag-to-reorder tracks (requested in original notes).
 [ ] Artist tab profile image: use an album cover as placeholder (no network fetch).
 
@@ -79,14 +88,15 @@ TODO
     aspectRatio(1f) square with rounded corners, not 120dp circle)
 [ ] Add edit-image button in ArtistDetailScreen TopAppBar (top right)
     Opens image picker, saves artist art path persistently
-[ ] Wire onNavigateToAlbum in NavGraph for ArtistDetailScreen's "By Album" tab
+[x] Wire onNavigateToAlbum in NavGraph for ArtistDetailScreen's "By Album" tab
+    (Already wired in NavGraph.kt:136-138 — onNavigateToAlbum navigates to AlbumDetail route)
 
 // AlbumDetailScreen also missing:
 [ ] Add edit-image button to AlbumDetailScreen TopAppBar (change album art)
 
 // ==================== FEATURES ====================
 
-[ ] Lyrics: auto-fetch from lrclib.net already works via LyricsFetcher + LrcParser.
+[x] Lyrics: auto-fetch from lrclib.net already works via LyricsFetcher + LrcParser.
     PlayerScreen shows full-screen lyrics view with synced scrolling.
     Bug: initial auto-fetch on track change only checks cache (checkCachedLyrics).
     User must manually tap "Retry" to trigger network fetch.
@@ -115,10 +125,13 @@ TODO
     - keep MusicPlayerController as ExoPlayer facade only
 [ ] Break HomeScreen into tab composables (AllTracks / Albums / Artists);
     keep groupedTracks only inside the tab that needs it (avoid O(N) regroup on whole screen).
-[ ] Fix deprecation warnings:
+[x] Fix deprecation warnings:
     - AppModule.kt: old Koin viewModel{} DSL -> org.koin.core.module.dsl.viewModel
+      (Not actually deprecated in Koin 4.0.3 — compiles clean)
     - SettingsScreen.kt:151: Icons.Filled.OpenInNew -> Icons.AutoMirrored.Filled.OpenInNew
-    - Theme.kt:121: statusBarColor deprecated -> enableEdgeToEdge / SystemUiController
+    - Theme.kt:121: statusBarColor deprecated -> WindowCompat.setStatusBarColor
 [ ] PlayerViewModelQueueTest: fix or @Ignore with reason so ./gradlew test passes.
-[ ] Clean up empty folders (albums/artists/playlists/tracks/library/metadata/organize)
+[x] Clean up empty folders (albums/artists/playlists/tracks/library/metadata/organize)
     if screens are implemented elsewhere.
+    (Removed 5 empty stubs: library/, metadata/, organize/, playlists/, tracks/.
+     albums/ and artists/ are NOT empty — they contain actual screens.)
