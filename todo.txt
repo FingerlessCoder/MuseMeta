@@ -16,15 +16,15 @@ TODO
 // Root cause: toggleSelectAll() uses state.allTracks, not state.filteredTracks.
 // Also: allSelected property checks allTracks.size instead of filteredTracks.size.
 // With 916 tracks, no index bar makes scrolling to find targets painful.
-[ ] Fix MultiSelectScreen: Select All should only select search-filtered results
-[ ] Add AlphabetIndexBar to MultiSelectScreen for quick navigation with 900+ tracks
-[ ] Replace SubcomposeAsyncImage -> AsyncImage in MultiSelectTrackRow (perf)
+[ ] (fixed)Fix MultiSelectScreen: Select All should only select search-filtered results
+[ ] (fixed)Add AlphabetIndexBar to MultiSelectScreen for quick navigation with 900+ tracks
+[ ] (fixed)Replace SubcomposeAsyncImage -> AsyncImage in MultiSelectTrackRow (perf)
 
 // BUG 3 (minor): Lyric download quality
 // LyricsFetcher uses Lrclib /api/get which returns single best match.
 // For "To. X Taeyeon" it returned plain lyric when synced exists.
 // Fix: use /api/search and pick result with syncedLyrics first.
-[ ] Improve lyric search: switch from /api/get to /api/search, prefer synced over plain
+[ ] (fixed)Improve lyric search: switch from /api/get to /api/search, prefer synced over plain
 
 // BUG 4: "Create New Playlist" in multi-select silently fails (FIXED)
 // Root cause: PlaylistSelectorSheet confirm button launched DB writes in a
