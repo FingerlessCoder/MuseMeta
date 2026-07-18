@@ -118,7 +118,7 @@ fun MuseMetaTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
+            WindowCompat.setStatusBarColor(window, colorScheme.background.toArgb(), true)
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
         }
     }

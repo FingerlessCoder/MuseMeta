@@ -162,6 +162,62 @@ class PlayerViewModel(
                 }
             }
 
+            // Auto-fetch from network when cache and DB path both miss
+            _uiState.value = _uiState.value.copy(lyricsLoading = true)
+
+            val artistName = track.artists.joinToString(", ") { it.name }
+            val albumName = track.album?.title
+            val duration = track.duration
+
+            when (val fetchResult = lyricsFetcher.fetchLyrics(
+                trackName = track.title,
+                artistName = artistName,
+                albumName = albumName,
+                durationMs = duration
+            )) {
+                is LyricsFetchResult.Success -> {
+                    val lrcContent = fetchResult.syncedLrc
+                    if (lrcContent != null) {
+                        val result = LrcParser.parse(lrcContent)
+                        if (result.lines.isNotEmpty()) {
+                            LyricsCache.saveLyrics(context, trackId, lrcContent)
+                            musicRepository.updateLyricsPath(
+                                trackId, LyricsCache.getLyricsFile(context, trackId).absolutePath
+                            )
+                            _uiState.value = _uiState.value.copy(
+                                syncedLyrics = result.lines,
+                                lyricsLoading = false
+                            )
+                            return@launch
+                        }
+                    }
+                    val plain = fetchResult.plainLyrics
+                    if (!plain.isNullOrBlank()) {
+                        _uiState.value = _uiState.value.copy(
+                            lyricsText = plain,
+                            lyricsLoading = false
+                        )
+                        return@launch
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        lyricsError = if (fetchResult.isInstrumental) null else "No lyrics found",
+                        lyricsLoading = false,
+                        lyricsText = if (fetchResult.isInstrumental) "♫ Instrumental" else null
+                    )
+                }
+                is LyricsFetchResult.NotFound -> {
+                    _uiState.value = _uiState.value.copy(
+                        lyricsError = "No lyrics found",
+                        lyricsLoading = false
+                    )
+                }
+                is LyricsFetchResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        lyricsError = fetchResult.message,
+                        lyricsLoading = false
+                    )
+                }
+            }
         }
     }
 

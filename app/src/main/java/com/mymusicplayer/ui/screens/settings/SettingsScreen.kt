@@ -148,7 +148,7 @@ fun SettingsScreen(
                 val ctx = LocalContext.current
                 SettingRow(Icons.Default.Info, "MuseMeta", "Version 1.0.0")
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow(Icons.Default.OpenInNew, "GitHub",
+                SettingRow(Icons.AutoMirrored.Filled.OpenInNew, "GitHub",
                     "github.com/FingerlessCoder",
                     onClick = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
