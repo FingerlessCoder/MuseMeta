@@ -17,7 +17,8 @@ data class ArtistDetailUiState(
     val tracks: List<Track> = emptyList(),
     val albums: List<Album> = emptyList(),
     val artistArtPath: String? = null,
-    val isLoading: Boolean = true
+    val isLoading: Boolean = true,
+    val totalDuration: Long = 0
 )
 
 class ArtistDetailViewModel(
@@ -39,10 +40,12 @@ class ArtistDetailViewModel(
             musicRepository.getTracksForArtist(artistId).collect { tracks ->
                 val albums = tracks.mapNotNull { it.album }.distinctBy { it.id }
                 val artistArtPath = albums.firstOrNull { it.artPath != null }?.artPath
+                val totalDuration = tracks.sumOf { it.duration }
                 _uiState.value = _uiState.value.copy(
                     tracks = tracks,
                     albums = albums,
                     artistArtPath = artistArtPath,
+                    totalDuration = totalDuration,
                     isLoading = false
                 )
             }

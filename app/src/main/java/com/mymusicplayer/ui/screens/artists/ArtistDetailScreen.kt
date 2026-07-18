@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -104,13 +103,14 @@ fun ArtistDetailScreen(
             ) {
                 item(key = "header") {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(120.dp)
-                                .clip(CircleShape)
+                                .fillMaxWidth()
+                                .aspectRatio(1f)
+                                .clip(RoundedCornerShape(16.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
@@ -127,7 +127,7 @@ fun ArtistDetailScreen(
                                     error = {
                                         Icon(
                                             Icons.Default.Person, contentDescription = null,
-                                            modifier = Modifier.size(56.dp),
+                                            modifier = Modifier.size(48.dp),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                         )
                                     }
@@ -135,7 +135,7 @@ fun ArtistDetailScreen(
                             } else {
                                 Icon(
                                     Icons.Default.Person, contentDescription = null,
-                                    modifier = Modifier.size(56.dp),
+                                    modifier = Modifier.size(64.dp),
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
@@ -150,9 +150,9 @@ fun ArtistDetailScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         val trackLabel = "${state.tracks.size} track${if (state.tracks.size != 1) "s" else ""}"
-                        val albumLabel = "${state.albums.size} album${if (state.albums.size != 1) "s" else ""}"
+                        val durationMinutes = state.totalDuration / 60000
                         Text(
-                            text = "$trackLabel · $albumLabel",
+                            text = "$trackLabel · ${durationMinutes} min",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
