@@ -78,6 +78,18 @@ class AlbumDetailViewModel(
         }
     }
 
+    fun updateAlbumArt(imageBytes: ByteArray, applyToAll: Boolean = true) {
+        viewModelScope.launch {
+            val tracks = _uiState.value.tracks
+            val targetTrack = tracks.firstOrNull() ?: return@launch
+            val result = musicRepository.updateAlbumArt(targetTrack.id, imageBytes, applyToAll)
+            if (result is com.mymusicplayer.domain.repository.WriteResult.Success) {
+                // Refresh album data to reflect new art path
+                _uiState.value = _uiState.value.copy() // triggers recomposition via flows
+            }
+        }
+    }
+
     fun shuffleAll() {
         val tracks = _uiState.value.tracks.toMutableList()
         if (tracks.isNotEmpty()) {

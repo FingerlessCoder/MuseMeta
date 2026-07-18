@@ -55,7 +55,8 @@ TODO
 
 [ ] PlayerScreen: re-layout to fix clipping — current position too low,
     metadata pushes controls down below screen bounds.
-[ ] PlayerScreen: swipe left/right on album art for prev/next track.
+[x] PlayerScreen: swipe left/right on album art for prev/next track.
+    (Already implemented via detectHorizontalDragGestures in PlayerScreen.kt lines 504-520)
 [x] PlayerScreen: auto horizontal-scroll (marquee) for long clipped title text.
     (Already implemented via MarqueeText composable — verified in MiniPlayerBar)
 [ ] PlayerScreen: dynamic-island style now-playing pill / expand animation.
@@ -63,12 +64,15 @@ TODO
     (Code already uses 10..90 step 5 — no change needed)
 [x] Mini player: add play-next button to the right of play/pause.
     (Already has SkipNext icon button — verified in MiniPlayerBar.kt)
-[ ] Home mini cards: favourite tracks, my playlists, recently played (with last track cover).
+[x] Home mini cards: favourite tracks, my playlists, recently played (with last track cover).
+    (Already implemented via CompactMiniCard in HomeScreen.kt lines 207-225)
 [ ] Material You dynamic color theming (currently fixed dark Material3).
 [x] Search bar: add clear (X) button at right (standardize across screens).
     (Already in SearchScreen + MultiSelectScreen trailingIcon — verified)
-[ ] Playlist detail: drag-to-reorder tracks (requested in original notes).
-[ ] Artist tab profile image: use an album cover as placeholder (no network fetch).
+[x] Playlist detail: drag-to-reorder tracks (requested in original notes).
+    (Already implemented — DragIndicator + detectDragGestures + reorderBuffer in PlaylistDetailScreen.kt)
+[x] Artist tab profile image: use an album cover as placeholder (no network fetch).
+    (Already done — ArtistDetailViewModel falls back to albums.firstOrNull { it.artPath != null }?.artPath)
 
 // ==================== NEW SCREENS ====================
 
@@ -78,21 +82,22 @@ TODO
 //   - Play All / Shuffle buttons
 //   - Track list with numbers
 
-// Artist page (ArtistDetailScreen) — ALREADY EXISTS but hero is DIFFERENT:
-//   - Circular 120dp image (CircleShape) — not the same as album's square hero
-//   - Name + "N tracks · M albums"
+// Artist page (ArtistDetailScreen) — ALREADY EXISTS with:
+//   - Full-width aspectRatio(1f) square cover with RoundedCornerShape(16dp)
+//   - Name + "N tracks · M min"
 //   - Play All / Shuffle buttons
 //   - Tabs: "All" (flat track list) / "By Album" (grouped under album headers)
-//   - Has onNavigateToAlbum in ArtistDetailScreen but not wired in NavGraph?
-[ ] Match ArtistDetailScreen hero to AlbumDetailScreen style (full-width
-    aspectRatio(1f) square with rounded corners, not 120dp circle)
-[ ] Add edit-image button in ArtistDetailScreen TopAppBar (top right)
-    Opens image picker, saves artist art path persistently
+//   - Has onNavigateToAlbum in NavGraph — wired
+[x] Match ArtistDetailScreen hero to AlbumDetailScreen style
+    (Already matches — both use fillMaxWidth().aspectRatio(1f).clip(RoundedCornerShape(16.dp)))
+[x] Add edit-image button in ArtistDetailScreen (over hero image)
+    (Already exists — Edit IconButton at BottomEnd of hero image box, lines 158-172)
 [x] Wire onNavigateToAlbum in NavGraph for ArtistDetailScreen's "By Album" tab
     (Already wired in NavGraph.kt:136-138 — onNavigateToAlbum navigates to AlbumDetail route)
 
 // AlbumDetailScreen also missing:
-[ ] Add edit-image button to AlbumDetailScreen TopAppBar (change album art)
+[x] Add edit-image button to AlbumDetailScreen TopAppBar (change album art)
+    (Added — image picker launcher + Edit IconButton in actions + AlbumDetailViewModel.updateAlbumArt)
 
 // ==================== FEATURES ====================
 
