@@ -1,0 +1,53 @@
+
+index bar highlight -1 //fixed
+track image //fixed
+some times crash,idk probably some lifespan violation or codec error in the middle of process //fixed
+select directory content row height //fixed
+
+now let think what to improve
+//1. home screen mini card cont implement:
+ //-favourite (combine with favourite),now got image from track already
+ //-my playlists
+ //-recently play (need to know last track album cover,replace with it)
+//2.players
+ //-move up abit, curr position too low,even caused metadata loaded and title text too large pushed all bottom element down lead to controller component bottom been clipped some
+ //-read and load metadata is slow ,it takes 2 second to load track metadata cover,title,author
+ //-cover view support support swipe left right to play previous or right
+ //-dynamic island
+ //-add lyrics(i would like automation to find and download LRC file) for song(not pure music) so user active
+ //-the player controller, i want loop switch mode of shuffle,list,single. not now like only toggle shuffle
+ // -hamburger add options view album,view artist(if check multi artist or single),edit track metadata(persistence one,detail have to think of song metadata,even update all album cover)
+ //-metadata write function
+ //-auto horizontal scroll title name animation for too long clipped
+//3.new screen page for invidual
+ //- album page
+ //- artists page
+ //not direct play that,list content row,but i think artist can use tab all, by album
+//4.search bar add a cross clear all at right side
+//5.sleep timer ios like scroll is not loop, caused only able to select from 20-80m ,not fully cover the option range from 10-90m
+//6.multiselect should go to another screen so that having operation option or bottom bar operation
+ //-1st icon related to playlists (modal bottom, opt:next play,add to current playing playlist)
+ //-add to my playlists (modal bottom,opt:create new,favourite,other existing playlist)
+ //-delete(always remember a warning confirm modal)
+ //-other advance(favourite,share)
+ //-share should share binary,not text of title
+ //- add to playlist
+7.playlist filter control in other tab not yet handled
+ -random play can keep, same only,but probably arrange from album,and artist only
+ -sort hmm,i think need to consider, asc-des order,sort by might need to do some change like add a by year for album. artists tab only by name
+ -multiselect not suitable for albums and artist
+//8.artist tab the profile pic, dont know how to handle
+ //-got idea liao might refer how retromusicplayer do,but idk how they do, 2 methods i think of, 1st is a short script search,2nd is just use any of the album cover for artist
+ //now use local one instead of internet fetch
+//9.mini player, current only play/pause, add play next button at right of play/pause button
+//10.UI design theme use material you
+ //-im a little fraustrated ,discovered retro music player so late. so mature. but i have to persuade myself im doing based on mi music but enhance metadata and just refer to their design https://github.com/RetroMusicPlayer/RetroMusicPlayer
+//11.media session
+ //-customized button 
+ //-open by tap it 
+//comment: require lot of new screen page.
+
+
+// playlist order cant drag
+//fix:dynamic island
+// adapt to play store rules,keep MANAGE EXTERNAL STORAGE in manifest
