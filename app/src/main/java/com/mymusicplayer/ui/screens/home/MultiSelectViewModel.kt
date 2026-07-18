@@ -27,7 +27,7 @@ data class MultiSelectUiState(
         }
 
     val allSelected: Boolean
-        get() = allTracks.isNotEmpty() && selectedTrackIds.size == allTracks.size
+        get() = filteredTracks.isNotEmpty() && selectedTrackIds.containsAll(filteredTracks.map { it.id })
 
     val favoriteIds: Set<Long>
         get() = allTracks.filter { it.rating >= 4 }.map { it.id }.toSet()
@@ -65,8 +65,9 @@ class MultiSelectViewModel(
 
     fun toggleSelectAll() {
         val state = _uiState.value
+        val target = state.filteredTracks
         _uiState.value = state.copy(
-            selectedTrackIds = if (state.allSelected) emptySet() else state.allTracks.map { it.id }.toSet()
+            selectedTrackIds = if (state.allSelected) emptySet() else target.map { it.id }.toSet()
         )
     }
 

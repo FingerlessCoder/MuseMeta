@@ -3,6 +3,7 @@ package com.mymusicplayer.ui.screens.home
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.horizontalScroll
@@ -10,6 +11,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +40,9 @@ import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.AlphabetIndexBar
+import com.mymusicplayer.ui.components.MoreActionsSheet
+import com.mymusicplayer.ui.components.PlaylistActionsSheet
+import com.mymusicplayer.ui.components.PlaylistSelectorSheet
 import com.mymusicplayer.ui.components.computeIndexLetters
 import com.mymusicplayer.ui.components.computeSectionIndices
 import org.koin.androidx.compose.koinViewModel
@@ -58,6 +65,11 @@ fun HomeScreen(
     val context = LocalContext.current
     var showSortMenu by remember { mutableStateOf(false) }
 
+    var showPlaylistActionsSheet by remember { mutableStateOf(false) }
+    var showAddToPlaylistSheet by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showMoreSheet by remember { mutableStateOf(false) }
+
     val favoriteArt = state.favoriteTracks.firstOrNull()?.album?.artPath
     val playlistArt = state.tracks.firstOrNull()?.album?.artPath
     val recentArt = state.recentlyPlayed.firstOrNull()?.album?.artPath
@@ -66,34 +78,58 @@ fun HomeScreen(
     Column(modifier = Modifier.fillMaxSize().background(darkModeBackground)) {
 
 
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onNavigateToSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Open settings menu")
+        if (state.isMultiSelectActive) {
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewModel.clearSelection() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Exit multi-select")
+                }
+                Text(
+                    "${state.selectedTrackIds.size} selected",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.weight(1f))
+                TextButton(onClick = { viewModel.toggleSelectAll() }) {
+                    val filtered = state.filteredTracks
+                    val allSelected = filtered.isNotEmpty() && state.selectedTrackIds.containsAll(filtered.map { it.id })
+                    Text(if (allSelected) "Deselect All" else "Select All")
+                }
             }
-            OutlinedTextField(
-                value = state.searchQuery,
-                onValueChange = { viewModel.setSearchQuery(it) },
-                placeholder = { Text("Search", style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search tracks and albums") },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.weight(1f),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)
-            )
-            if (state.searchQuery.isNotBlank()) {
-                IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search query")
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Open settings menu")
+                }
+                OutlinedTextField(
+                    value = state.searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder = { Text("Search", style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search tracks and albums") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)
+                )
+                if (state.searchQuery.isNotBlank()) {
+                    IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                        Icon(Icons.Default.Close, contentDescription = "Clear search query")
+                    }
                 }
             }
         }
@@ -296,11 +332,11 @@ fun HomeScreen(
                                                 onDismiss = { showSortMenu = false }
                                             )
                                         }
-                                        IconButton(onClick = { onNavigateToMultiSelect() },
+                                        IconButton(onClick = { viewModel.toggleSelectAll() },
                                             modifier = Modifier.size(36.dp)) {
                                             Icon(
                                                 Icons.Default.CheckBoxOutlineBlank,
-                                                contentDescription = "Multi-select",
+                                                contentDescription = "Select",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(20.dp)
                                             )
@@ -327,7 +363,11 @@ fun HomeScreen(
                                             track = track,
                                             onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
                                             context = context,
-                                            showIndexBar = barLayout != null
+                                            showIndexBar = barLayout != null,
+                                            isMultiSelectActive = state.isMultiSelectActive,
+                                            isSelected = track.id in state.selectedTrackIds,
+                                            onLongClick = { viewModel.toggleTrackSelection(track.id) },
+                                            onToggleSelect = { viewModel.toggleTrackSelection(track.id) }
                                         )
                                     }
                                 }
@@ -337,7 +377,11 @@ fun HomeScreen(
                                         track = track,
                                         onPlay = { viewModel.playTrack(track); onNavigateToPlayer() },
                                         context = context,
-                                        showIndexBar = barLayout != null
+                                        showIndexBar = barLayout != null,
+                                        isMultiSelectActive = state.isMultiSelectActive,
+                                        isSelected = track.id in state.selectedTrackIds,
+                                        onLongClick = { viewModel.toggleTrackSelection(track.id) },
+                                        onToggleSelect = { viewModel.toggleTrackSelection(track.id) }
                                     )
                                 }
                             }
@@ -456,9 +500,165 @@ fun HomeScreen(
                         }
                     }
                 }
-                }
-
+            }
         }
+
+        if (state.isMultiSelectActive) {
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                shadowElevation = 12.dp,
+                tonalElevation = 3.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .navigationBarsPadding(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MultiSelectActionIcon(
+                        icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                        contentDescription = "Play next / queue",
+                        onClick = { showPlaylistActionsSheet = true }
+                    )
+                    MultiSelectActionIcon(
+                        icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                        contentDescription = "Add to playlist",
+                        onClick = { showAddToPlaylistSheet = true }
+                    )
+                    MultiSelectActionIcon(
+                        icon = Icons.Default.Delete,
+                        contentDescription = "Delete",
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = { showDeleteConfirm = true }
+                    )
+                    MultiSelectActionIcon(
+                        icon = Icons.Default.MoreVert,
+                        contentDescription = "More",
+                        onClick = { showMoreSheet = true }
+                    )
+                }
+            }
+        }
+    }
+
+    HomeMultiSelectSheets(
+        state = state,
+        viewModel = viewModel,
+        showPlaylistActionsSheet = showPlaylistActionsSheet,
+        showAddToPlaylistSheet = showAddToPlaylistSheet,
+        showDeleteConfirm = showDeleteConfirm,
+        showMoreSheet = showMoreSheet,
+        onDismissPlaylistActions = { showPlaylistActionsSheet = false },
+        onDismissAddToPlaylist = { showAddToPlaylistSheet = false },
+        onDismissDeleteConfirm = { showDeleteConfirm = false },
+        onDismissMoreSheet = { showMoreSheet = false },
+        onBack = { viewModel.clearSelection() },
+        context = context
+    )
+}
+
+@Composable
+private fun MultiSelectActionIcon(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurfaceVariant
+) {
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = contentDescription,
+            tint = tint,
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
+
+@Composable
+private fun HomeMultiSelectSheets(
+    state: HomeUiState,
+    viewModel: HomeViewModel,
+    showPlaylistActionsSheet: Boolean,
+    showAddToPlaylistSheet: Boolean,
+    showDeleteConfirm: Boolean,
+    showMoreSheet: Boolean,
+    onDismissPlaylistActions: () -> Unit,
+    onDismissAddToPlaylist: () -> Unit,
+    onDismissDeleteConfirm: () -> Unit,
+    onDismissMoreSheet: () -> Unit,
+    onBack: () -> Unit,
+    context: android.content.Context
+) {
+    if (showPlaylistActionsSheet) {
+        PlaylistActionsSheet(
+            trackCount = state.selectedTrackIds.size,
+            onDismiss = onDismissPlaylistActions,
+            onPlayNext = {
+                viewModel.playNextSelected()
+                onDismissPlaylistActions()
+            },
+            onAddToQueue = {
+                viewModel.addToQueueSelected()
+                onDismissPlaylistActions()
+            }
+        )
+    }
+
+    if (showAddToPlaylistSheet) {
+        PlaylistSelectorSheet(
+            trackIds = state.selectedTrackIds.toList(),
+            onDismiss = onDismissAddToPlaylist,
+            onAdded = {
+                onDismissAddToPlaylist()
+                viewModel.clearSelection()
+            }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = onDismissDeleteConfirm,
+            icon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+            title = { Text("Delete ${state.selectedTrackIds.size} track${if (state.selectedTrackIds.size != 1) "s" else ""}?") },
+            text = {
+                Text(
+                    "This will permanently remove the selected track${if (state.selectedTrackIds.size != 1) "s" else ""} " +
+                        "from your library. This action cannot be undone."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onDismissDeleteConfirm()
+                        viewModel.deleteSelectedTracks(onDone = onBack)
+                    }
+                ) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissDeleteConfirm) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    if (showMoreSheet) {
+        MoreActionsSheet(
+            trackCount = state.selectedTrackIds.size,
+            hasFavorites = state.selectedTracks.isNotEmpty() && state.selectedTracks.all { it.rating >= 4 },
+            onDismiss = onDismissMoreSheet,
+            onToggleFavorite = {
+                viewModel.toggleFavoriteSelected()
+                onDismissMoreSheet()
+            },
+            onShare = {
+                viewModel.shareSelected(context)
+                onDismissMoreSheet()
+            }
+        )
     }
 }
 
@@ -601,57 +801,85 @@ private fun SectionHeaderRow(letter: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TrackContentRow(
     track: Track,
     onPlay: () -> Unit,
     context: android.content.Context,
-    showIndexBar: Boolean = false
+    showIndexBar: Boolean = false,
+    isMultiSelectActive: Boolean = false,
+    isSelected: Boolean = false,
+    onLongClick: () -> Unit = {},
+    onToggleSelect: () -> Unit = {}
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .clickable(onClick = onPlay)
-            .padding(start = 12.dp, top = 8.dp, end = if (showIndexBar) 44.dp else 12.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    val clickAction = if (isMultiSelectActive) onToggleSelect else onPlay
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = clickAction,
+                onLongClick = onLongClick
+            )
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+        else Color.Transparent
     ) {
-        Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
-            if (track.album?.artPath != null) {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data(File(track.album.artPath))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = track.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = if (isMultiSelectActive) 8.dp else 12.dp, top = 8.dp, end = if (showIndexBar) 44.dp else 12.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (isMultiSelectActive) {
+                Checkbox(
+                    checked = isSelected,
+                    onCheckedChange = { onToggleSelect() },
+                    modifier = Modifier.padding(end = 8.dp)
                 )
-            } else {
-                Icon(Icons.Default.MusicNote, contentDescription = "Music track icon",
-                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
             }
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
-            val subtitle = remember(track.artists, track.album?.title) {
-                buildString {
-                    append(track.artists.joinToString(", ") { it.name }.ifBlank { "Unknown Artist" })
-                    if (track.album != null) {
-                        append(" | ${track.album.title}")
-                    }
+            Box(modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)), contentAlignment = Alignment.Center) {
+                if (track.album?.artPath != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(File(track.album.artPath))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = track.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(Icons.Default.MusicNote, contentDescription = "Music track icon",
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f))
                 }
             }
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(track.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                val subtitle = remember(track.artists, track.album?.title) {
+                    buildString {
+                        append(track.artists.joinToString(", ") { it.name }.ifBlank { "Unknown Artist" })
+                        if (track.album != null) {
+                            append(" | ${track.album.title}")
+                        }
+                    }
+                }
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (!isMultiSelectActive) {
+                Icon(Icons.Default.PlayArrow, contentDescription = "Play track",
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+            }
         }
-        Icon(Icons.Default.PlayArrow, contentDescription = "Play track",
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
     }
     HorizontalDivider(modifier = Modifier.padding(start = 68.dp, end = 12.dp))
 }

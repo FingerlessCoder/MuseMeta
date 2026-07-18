@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -25,9 +26,12 @@ import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.mymusicplayer.domain.model.Track
+import com.mymusicplayer.ui.components.AlphabetIndexBar
 import com.mymusicplayer.ui.components.MoreActionsSheet
 import com.mymusicplayer.ui.components.PlaylistActionsSheet
 import com.mymusicplayer.ui.components.PlaylistSelectorSheet
+import com.mymusicplayer.ui.components.computeIndexLetters
+import com.mymusicplayer.ui.components.computeSectionIndices
 import org.koin.androidx.compose.koinViewModel
 import java.io.File
 
@@ -44,6 +48,16 @@ fun MultiSelectScreen(
     var showAddToPlaylistSheet by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var showMoreSheet by remember { mutableStateOf(false) }
+
+    val listState = rememberLazyListState()
+    var activeLetter by remember { mutableStateOf<String?>(null) }
+
+    val indexLetters = remember(state.filteredTracks) {
+        computeIndexLetters(state.filteredTracks.map { it.title })
+    }
+    val sectionIndices = remember(state.filteredTracks, indexLetters) {
+        computeSectionIndices(state.filteredTracks.map { it.title }, indexLetters)
+    }
 
     val selectedCount = state.selectedTrackIds.size
 
@@ -152,15 +166,32 @@ fun MultiSelectScreen(
                     textStyle = MaterialTheme.typography.bodyMedium
                 )
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 4.dp)
-                ) {
-                    items(state.filteredTracks, key = { it.id }) { track ->
-                        MultiSelectTrackRow(
-                            track = track,
-                            isSelected = track.id in state.selectedTrackIds,
-                            onToggleSelect = { viewModel.toggleTrackSelection(track.id) }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 4.dp)
+                    ) {
+                        items(state.filteredTracks, key = { it.id }) { track ->
+                            MultiSelectTrackRow(
+                                track = track,
+                                isSelected = track.id in state.selectedTrackIds,
+                                onToggleSelect = { viewModel.toggleTrackSelection(track.id) }
+                            )
+                        }
+                    }
+
+                    if (indexLetters.size > 1) {
+                        AlphabetIndexBar(
+                            letters = indexLetters,
+                            sectionIndices = sectionIndices,
+                            listState = listState,
+                            activeLetter = activeLetter,
+                            onDragLetterChanged = { activeLetter = it },
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .padding(end = 2.dp)
                         )
                     }
                 }
