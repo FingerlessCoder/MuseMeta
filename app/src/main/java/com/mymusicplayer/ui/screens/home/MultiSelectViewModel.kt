@@ -3,6 +3,7 @@ package com.mymusicplayer.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,7 +39,8 @@ data class MultiSelectUiState(
 
 class MultiSelectViewModel(
     private val musicRepository: MusicRepository,
-    private val musicPlayerController: MusicPlayerController
+    private val musicPlayerController: MusicPlayerController,
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MultiSelectUiState())
@@ -46,7 +48,9 @@ class MultiSelectViewModel(
 
     init {
         viewModelScope.launch {
-            musicRepository.getAllTracks("name").collect { tracks ->
+            val raw = settingsDataStore.defaultSort.first()
+            val sortKey = if (raw.endsWith("_desc")) raw else "$raw"
+            musicRepository.getAllTracks(sortKey).collect { tracks ->
                 _uiState.value = _uiState.value.copy(allTracks = tracks)
             }
         }

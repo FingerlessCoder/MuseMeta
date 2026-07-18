@@ -29,8 +29,6 @@ data class HomeUiState(
     val sortMode: String = "name",
     val sortDir: String = "asc",
     val genreFilter: String? = null,
-    // Multi-select mode
-    val selectedTrackIds: Set<Long> = emptySet(),
     // Pre-computed from the fields above (not getters) so they aren't
     // re-evaluated on every UI recomposition during scroll.
     val filteredTracks: List<Track> = emptyList(),
@@ -44,8 +42,6 @@ data class HomeUiState(
     val favoriteCount: Int get() = favoriteTracks.size
     val playlistCount: Int get() = playlists.size
     val recentlyPlayedCount: Int get() = recentlyPlayed.size
-    val isMultiSelectActive: Boolean get() = selectedTrackIds.isNotEmpty()
-    val selectedTracks: List<Track> get() = tracks.filter { it.id in selectedTrackIds }
 }
 
 class HomeViewModel(
@@ -322,98 +318,6 @@ class HomeViewModel(
         }
     }
 
-    // ── Multi-select operations ──
-
-    fun toggleTrackSelection(trackId: Long) {
-        val current = _uiState.value.selectedTrackIds
-        _uiState.value = _uiState.value.copy(
-            selectedTrackIds = if (trackId in current) current - trackId else current + trackId
-        )
-    }
-
-    fun toggleSelectAll() {
-        val state = _uiState.value
-        val target = state.filteredTracks
-        if (target.isEmpty()) return
-        val allSelected = state.selectedTrackIds.containsAll(target.map { it.id })
-        _uiState.value = state.copy(
-            selectedTrackIds = if (allSelected) emptySet() else target.map { it.id }.toSet()
-        )
-    }
-
-    fun clearSelection() {
-        _uiState.value = _uiState.value.copy(selectedTrackIds = emptySet())
-    }
-
-    fun playNextSelected() {
-        val tracks = _uiState.value.selectedTracks
-        if (tracks.isEmpty()) return
-        musicPlayerController.initialize()
-        musicPlayerController.playNext(tracks)
-        clearSelection()
-    }
-
-    fun addToQueueSelected() {
-        val tracks = _uiState.value.selectedTracks
-        if (tracks.isEmpty()) return
-        musicPlayerController.initialize()
-        musicPlayerController.addToQueue(tracks)
-        clearSelection()
-    }
-
-    fun deleteSelectedTracks(onDone: () -> Unit) {
-        viewModelScope.launch {
-            val ids = _uiState.value.selectedTrackIds.toList()
-            for (trackId in ids) {
-                musicRepository.deleteTrackById(trackId)
-            }
-            _uiState.value = _uiState.value.copy(selectedTrackIds = emptySet())
-            onDone()
-        }
-    }
-
-    fun toggleFavoriteSelected() {
-        viewModelScope.launch {
-            val state = _uiState.value
-            val selected = state.selectedTracks
-            val allFav = selected.isNotEmpty() && selected.all { it.rating >= 4 }
-            val newRating = if (allFav) 0 else 5
-            for (trackId in state.selectedTrackIds) {
-                musicRepository.updateTrackRating(trackId, newRating)
-            }
-        }
-    }
-
-    fun shareSelected(context: android.content.Context) {
-        val tracks = _uiState.value.selectedTracks
-        if (tracks.isEmpty()) return
-        val authority = "${context.packageName}.fileprovider"
-        if (tracks.size == 1) {
-            val track = tracks.first()
-            val file = java.io.File(track.filePath)
-            if (!file.exists()) return
-            val uri = androidx.core.content.FileProvider.getUriForFile(context, authority, file)
-            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                type = "audio/*"
-                putExtra(android.content.Intent.EXTRA_STREAM, uri)
-                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(android.content.Intent.createChooser(intent, "Share track"))
-        } else {
-            val uris = tracks.mapNotNull { track ->
-                val file = java.io.File(track.filePath)
-                if (!file.exists()) return@mapNotNull null
-                androidx.core.content.FileProvider.getUriForFile(context, authority, file)
-            }
-            if (uris.isEmpty()) return
-            val intent = android.content.Intent(android.content.Intent.ACTION_SEND_MULTIPLE).apply {
-                type = "audio/*"
-                putExtra(android.content.Intent.EXTRA_STREAM, java.util.ArrayList(uris))
-                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            context.startActivity(android.content.Intent.createChooser(intent, "Share tracks"))
-        }
-    }
 }
 
 /** Internal holder for the 5-way combine used in HomeViewModel init. */
