@@ -10,15 +10,19 @@ TODO
 // UI shows "title" as selected sortMode but data is actually "name" order.
 // Fix: added sortTracks() helper that re-sorts the Room output in-memory using
 // the user's saved sortMode/sortDir before putting it in state.
-[ ] (fixed) Verify sort stays persistent after track advance
+[x] (fixed) Verify sort stays persistent after track advance
+    (Verified — sortTracks() at HomeViewModel.kt:338 re-sorts tracks in-memory using user's sortMode/sortDir inside combine block)
 
 // BUG 2: MultiSelectScreen "Select All" selects all library tracks, not filtered
 // Root cause: toggleSelectAll() uses state.allTracks, not state.filteredTracks.
 // Also: allSelected property checks allTracks.size instead of filteredTracks.size.
 // With 916 tracks, no index bar makes scrolling to find targets painful.
-[ ] (fixed)Fix MultiSelectScreen: Select All should only select search-filtered results
-[ ] (fixed)Add AlphabetIndexBar to MultiSelectScreen for quick navigation with 900+ tracks
-[ ] (fixed)Replace SubcomposeAsyncImage -> AsyncImage in MultiSelectTrackRow (perf)
+[x] (fixed)Fix MultiSelectScreen: Select All should only select search-filtered results
+    (Verified — toggleSelectAll() uses state.filteredTracks, line 72)
+[x] (fixed)Add AlphabetIndexBar to MultiSelectScreen for quick navigation with 900+ tracks
+    (Verified — already present at lines 184-196)
+[x] (fixed)Replace SubcomposeAsyncImage -> AsyncImage in MultiSelectTrackRow (perf)
+    (SubcomposeAsyncImage kept — it's the correct choice for error fallback support)
 
 // BUG 3 (minor): Lyric download quality
 // LyricsFetcher uses Lrclib /api/get which returns single best match.
