@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -41,6 +42,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -48,6 +51,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -81,6 +85,14 @@ fun ArtistDetailScreen(
     val state by viewModel.uiState.collectAsState()
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameText by remember { mutableStateOf("") }
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(state.snackbarMessage) {
+        state.snackbarMessage?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearSnackbar()
+        }
+    }
 
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -100,6 +112,7 @@ fun ArtistDetailScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
         },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         if (state.isLoading) {
@@ -155,6 +168,37 @@ fun ArtistDetailScreen(
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
+
+                            if (state.imageFetchState is ArtistImageFetchState.Loading) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator(
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                }
+                            }
+
+                            IconButton(
+                                onClick = { viewModel.retryFetchArtistImage() },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .size(36.dp)
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f))
+                            ) {
+                                Icon(
+                                    Icons.Default.Refresh, contentDescription = "Refresh image",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+
                             IconButton(
                                 onClick = { imagePickerLauncher.launch("image/*") },
                                 modifier = Modifier
@@ -165,7 +209,7 @@ fun ArtistDetailScreen(
                                     .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f))
                             ) {
                                 Icon(
-                                    Icons.Default.Edit, contentDescription = "Change image",
+                                    Icons.Default.Edit, contentDescription = "Choose from gallery",
                                     modifier = Modifier.size(18.dp),
                                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                                 )

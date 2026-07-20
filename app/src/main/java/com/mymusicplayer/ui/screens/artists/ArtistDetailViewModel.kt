@@ -17,13 +17,22 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+sealed class ArtistImageFetchState {
+    data object Idle : ArtistImageFetchState()
+    data object Loading : ArtistImageFetchState()
+    data object Success : ArtistImageFetchState()
+    data class Error(val message: String) : ArtistImageFetchState()
+}
+
 data class ArtistDetailUiState(
     val artist: Artist? = null,
     val tracks: List<Track> = emptyList(),
     val albums: List<Album> = emptyList(),
     val artistArtPath: String? = null,
     val isLoading: Boolean = true,
-    val totalDuration: Long = 0
+    val totalDuration: Long = 0,
+    val imageFetchState: ArtistImageFetchState = ArtistImageFetchState.Idle,
+    val snackbarMessage: String? = null
 )
 
 class ArtistDetailViewModel(
@@ -58,15 +67,49 @@ class ArtistDetailViewModel(
                 )
             }
         }
+        fetchArtistImage()
+    }
+
+    private fun fetchArtistImage() {
         viewModelScope.launch {
-            val artist = musicRepository.getArtistById(artistId).first()
-            if (artist != null) {
-                val networkPath = artistImageFetcher.fetchArtistImage(artist.name, artistId)
-                if (networkPath != null) {
-                    _uiState.value = _uiState.value.copy(artistArtPath = networkPath)
-                }
+            val artist = musicRepository.getArtistById(artistId).first() ?: return@launch
+            val cachedFile = artistImageFetcher.getArtistArtFile(artistId)
+            if (cachedFile.exists()) {
+                _uiState.value = _uiState.value.copy(
+                    artistArtPath = cachedFile.absolutePath,
+                    imageFetchState = ArtistImageFetchState.Success
+                )
+                return@launch
+            }
+            _uiState.value = _uiState.value.copy(
+                imageFetchState = ArtistImageFetchState.Loading
+            )
+            val path = artistImageFetcher.fetchArtistImage(artist.name, artistId)
+            if (path != null) {
+                _uiState.value = _uiState.value.copy(
+                    artistArtPath = path,
+                    imageFetchState = ArtistImageFetchState.Success,
+                    snackbarMessage = "Artist image updated"
+                )
+            } else {
+                _uiState.value = _uiState.value.copy(
+                    imageFetchState = ArtistImageFetchState.Error("Could not find an image for \"${artist.name}\""),
+                    snackbarMessage = "Failed to fetch artist image"
+                )
             }
         }
+    }
+
+    fun retryFetchArtistImage() {
+        val artist = _uiState.value.artist ?: return
+        val cachedFile = artistImageFetcher.getArtistArtFile(artistId)
+        cachedFile.delete()
+        _uiState.value = _uiState.value.copy(artistArtPath = null)
+        fetchArtistImage()
+    }
+
+    fun clearSnackbar() {
+        _uiState.value = _uiState.value.copy(snackbarMessage = null)
     }
 
     fun renameArtist(newName: String) {
