@@ -168,7 +168,7 @@ class MusicPlayerController(
                 withContext(Dispatchers.Main) {
                     player.shuffleModeEnabled = mode == PlaybackMode.SHUFFLE
                     player.repeatMode = when (mode) {
-                        PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_OFF
+                        PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_ALL
                         PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
                         PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
                     }
@@ -284,6 +284,15 @@ class MusicPlayerController(
         updateState()
     }
 
+    fun jumpToQueueIndex(index: Int) {
+        val player = exoPlayer ?: return
+        if (index in 0 until player.mediaItemCount) {
+            player.seekTo(index, 0L)
+            player.play()
+            updateState()
+        }
+    }
+
     fun cyclePlaybackMode() {
         val player = exoPlayer ?: return
         val currentMode = _playbackState.value.playbackMode
@@ -291,7 +300,7 @@ class MusicPlayerController(
 
         player.shuffleModeEnabled = nextMode == PlaybackMode.SHUFFLE
         player.repeatMode = when (nextMode) {
-            PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_OFF
+            PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_ALL
             PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
             PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
         }

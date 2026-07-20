@@ -47,9 +47,9 @@ TODO
     (Favorites, RecentlyPlayed, PlaylistDetail, MultiSelect) — only done in HomeScreen Tracks.
     (Already done — all 4 screens already use SubcomposeAsyncImage + ImageRequest.Builder.
      MusicPlayerApp creates a global ImageLoader with 256MB disk cache via ImageLoaderFactory.)
-[ ] PlayerScreen metadata load takes ~2s (cover/title/artist). Preload album art in
+[x] PlayerScreen metadata load takes ~2s (cover/title/artist). Preload album art in
     PlayerViewModel from trackInfoCache to avoid DB delay.
-[ ] Large-library paging: if All Tracks still janky on huge libraries (900+),
+[x] Large-library paging: if All Tracks still janky on huge libraries (900+),
     add windowed/paged LazyColumn instead of loading all at once.
 [x] Alphabet index-bar jump: verify it's O(1) scroll to letter, not O(N) regroup.
     (Verified — tap/drag compute index via offset ratio O(1), scrollToItem O(1).

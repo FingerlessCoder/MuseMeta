@@ -155,7 +155,7 @@ fun HomeScreen(
 
                 val bottomPaddingPx = with(LocalDensity.current) { 16.dp.toPx() }.toInt()
 
-                val barLayout by remember(listState, bottomPaddingPx) {
+                val barLayout by remember(canShowBar, listState, bottomPaddingPx) {
                     derivedStateOf {
                         if (!canShowBar || listState.firstVisibleItemIndex < 1) return@derivedStateOf null
                         val info = listState.layoutInfo
@@ -169,7 +169,7 @@ fun HomeScreen(
                     }
                 }
 
-                val activeLetter = remember(canShowBar, listState) {
+                val activeLetter = remember(canShowBar, listState, groupedTracks) {
                     derivedStateOf {
                         if (!canShowBar) return@derivedStateOf null
                         val items = listState.layoutInfo.visibleItemsInfo
@@ -348,20 +348,19 @@ fun HomeScreen(
                                 item(key = "empty_albums") {
                                     EmptyPlaceholder("No albums found")
                                 }
-                            } else {
-                                albums.chunked(2).forEachIndexed { i, row ->
-                                    item(key = "album_row_$i") {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                        ) {
-                                            row.forEach { album ->
-                                                AlbumGridItem(album = album,
-                                                    onClick = { onNavigateToAlbum(album.id) },
-                                                    modifier = Modifier.weight(1f), context = context)
-                                            }
-                                            if (row.size == 1) Spacer(Modifier.weight(1f))
+                            }
+                            albums.chunked(2).forEachIndexed { i, row ->
+                                item(key = "album_row_$i") {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        row.forEach { album ->
+                                            AlbumGridItem(album = album,
+                                                onClick = { onNavigateToAlbum(album.id) },
+                                                modifier = Modifier.weight(1f), context = context)
                                         }
+                                        if (row.size == 1) Spacer(Modifier.weight(1f))
                                     }
                                 }
                             }
@@ -372,20 +371,19 @@ fun HomeScreen(
                                 item(key = "empty_artists") {
                                     EmptyPlaceholder("No artists found")
                                 }
-                            } else {
-                                artists.chunked(4).forEachIndexed { i, row ->
-                                    item(key = "artist_row_$i") {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                                            horizontalArrangement = Arrangement.SpaceEvenly
-                                        ) {
-                                            row.forEach { artist ->
-                                                ArtistGridItem(
-                                                    artist = artist,
-                                                    artPath = state.artistArtMap[artist.id],
-                                                    onClick = { onNavigateToArtist(artist.id) },
-                                                    modifier = Modifier.weight(1f))
-                                            }
+                            }
+                            artists.chunked(4).forEachIndexed { i, row ->
+                                item(key = "artist_row_$i") {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        row.forEach { artist ->
+                                            ArtistGridItem(
+                                                artist = artist,
+                                                artPath = state.artistArtMap[artist.id],
+                                                onClick = { onNavigateToArtist(artist.id) },
+                                                modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }

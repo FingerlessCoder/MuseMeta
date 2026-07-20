@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.db.dao.PlaylistDao
 import com.mymusicplayer.data.db.entity.PlaylistEntity
+import com.mymusicplayer.data.network.ArtistImageFetcher
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
@@ -48,7 +49,8 @@ class HomeViewModel(
     private val musicRepository: MusicRepository,
     private val musicPlayerController: MusicPlayerController,
     private val playlistDao: PlaylistDao,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val artistImageFetcher: ArtistImageFetcher
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -73,7 +75,9 @@ class HomeViewModel(
             filteredArtists = if (query.isBlank()) artists
                 else artists.filter { it.name.contains(query, ignoreCase = true) },
             artistArtMap = artists.associate { artist ->
-                val artPath = tracks
+                val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
+                val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
+                else tracks
                     .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
                     ?.album?.artPath
                 artist.id to artPath
@@ -124,7 +128,7 @@ class HomeViewModel(
                     recentlyPlayed = tracks
                         .filter { it.lastPlayed != null && it.lastPlayed > 0L }
                         .sortedByDescending { it.lastPlayed }
-                        .take(10),
+                        .take(256),
                     sortMode = _uiState.value.sortMode,
                     selectedTab = _uiState.value.selectedTab,
                     searchQuery = query,
@@ -135,7 +139,9 @@ class HomeViewModel(
                     filteredArtists = if (query.isBlank()) artists
                         else artists.filter { it.name.contains(query, ignoreCase = true) },
                     artistArtMap = artists.associate { artist ->
-                        val artPath = tracks
+                        val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
+                        val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
+                        else tracks
                             .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
                             ?.album?.artPath
                         artist.id to artPath

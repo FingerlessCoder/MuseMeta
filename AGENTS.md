@@ -43,7 +43,7 @@ adb install app/build/outputs/apk/release/app-release.apk
 
 **Gradle properties**: `org.gradle.jvmargs` includes `-Djava.version=21` and `--add-opens java.base/java.lang=ALL-UNNAMED` — required for JDK 26.
 
-**Release signing is NOT configured.** `buildTypes.release` has no `signingConfig`. `assembleRelease` produces an *unsigned* APK that won't install. To produce an installable release APK for local sharing, temporarily add `signingConfig = signingConfigs.getByName("debug")` to the release block, build `assembleRelease`, then revert. Do NOT commit that line. For real distribution, generate a proper upload keystore.
+**Release signing** uses the debug keystore (`signingConfig = signingConfigs.getByName("debug")`). This makes `assembleRelease` installable on devices without a manual signing step. For real Play Store distribution, replace with a proper upload keystore.
 
 ## Debug-build performance tax (verified gotcha)
 

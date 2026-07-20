@@ -17,7 +17,7 @@ data class LrcLibResponse(
     val trackName: String,
     val artistName: String,
     val albumName: String? = null,
-    val duration: Double,
+    val duration: Double? = null,
     val instrumental: Boolean = false,
     val plainLyrics: String? = null,
     val syncedLyrics: String? = null
@@ -157,7 +157,7 @@ class LyricsFetcher(val context: Context) {
             else if (normalizedArtist.contains(result.artistName.lowercase().trim()) ||
                 result.artistName.lowercase().trim().contains(normalizedArtist)) s += 1
             // +1 if duration is within 5 seconds
-            if (kotlin.math.abs(result.duration - durationSec) <= 5.0) s += 1
+            if (result.duration != null && kotlin.math.abs(result.duration - durationSec) <= 5.0) s += 1
             return s
         }
 

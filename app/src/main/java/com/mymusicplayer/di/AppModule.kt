@@ -39,7 +39,7 @@ val appModule = module {
     single { ArtistImageFetcher(androidContext()) }
     factory { androidContext().contentResolver }
 
-    viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get()) }
+    viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get(), get()) }
     viewModel { MultiSelectViewModel(get(), get(), get()) }
     viewModel { PlayerViewModel(get(), get(), get()) }
     viewModel { SearchViewModel(get(), get()) }

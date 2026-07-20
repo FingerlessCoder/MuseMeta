@@ -84,12 +84,24 @@ fun FavoritesScreen(
                         track = track,
                         onClick = {
                             playerController.initialize()
-                            playerController.play(
-                                track.filePath, track.id,
-                                title = track.title,
-                                artist = track.artists.joinToString(" · ") { it.name },
-                                albumArtPath = track.album?.artPath
-                            )
+                            val trackIndex = favorites.indexOfFirst { it.id == track.id }
+                            if (trackIndex >= 0 && favorites.size > 1) {
+                                playerController.playFromQueue(
+                                    trackPaths = favorites.map { it.filePath },
+                                    startIndex = trackIndex,
+                                    trackIds = favorites.map { it.id },
+                                    titles = favorites.map { it.title },
+                                    artists = favorites.map { it.artists.joinToString(" · ") { artist -> artist.name } },
+                                    albumArtPaths = favorites.map { it.album?.artPath }
+                                )
+                            } else {
+                                playerController.play(
+                                    track.filePath, track.id,
+                                    title = track.title,
+                                    artist = track.artists.joinToString(" · ") { it.name },
+                                    albumArtPath = track.album?.artPath
+                                )
+                            }
                             onNavigateToPlayer()
                         }
                     )

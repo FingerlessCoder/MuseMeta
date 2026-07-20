@@ -14,9 +14,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -63,10 +63,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import java.io.File
 import com.mymusicplayer.data.audio.PlaybackMode
 import com.mymusicplayer.data.lyrics.LyricLine
+import com.mymusicplayer.data.network.ArtistImageFetcher
 import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.EqualizerPanel
@@ -435,7 +437,8 @@ fun PlayerScreen(
                 onClose = { showPlaylistSheet = false },
                 onClearQueue = { viewModel.clearQueue() },
                 onRemoveTrack = { index -> viewModel.removeTrackFromQueue(index) },
-                onCycleMode = { viewModel.cyclePlaybackMode() }
+                onCycleMode = { viewModel.cyclePlaybackMode() },
+                onTapTrack = { index -> viewModel.jumpToQueueIndex(index) }
             )
         }
     }
@@ -1204,6 +1207,9 @@ private fun ArtistPickerSheetContent(
     onPick: (Long) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val artistImageFetcher: ArtistImageFetcher = koinInject()
+    val context = LocalContext.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1223,11 +1229,56 @@ private fun ArtistPickerSheetContent(
         )
         Spacer(Modifier.height(4.dp))
         artists.forEach { artist ->
-            SheetMenuItem(
-                icon = Icons.Default.Person,
-                title = artist.name,
-                onClick = { onPick(artist.id) }
-            )
+            val cachedFile = artistImageFetcher.getArtistArtFile(artist.id)
+            val artPath = cachedFile.takeIf { it.exists() }?.absolutePath
+            Surface(
+                onClick = { onPick(artist.id) },
+                color = Color.Transparent
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (artPath != null) {
+                            SubcomposeAsyncImage(
+                                model = ImageRequest.Builder(context)
+                                    .data(File(artPath))
+                                    .crossfade(true)
+                                    .build(),
+                                contentDescription = artist.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop,
+                                error = {
+                                    Icon(Icons.Default.Person, contentDescription = null,
+                                        modifier = Modifier.size(24.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                                }
+                            )
+                        } else {
+                            Icon(Icons.Default.Person, contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                        }
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Text(
+                        text = artist.name,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
         }
     }
 }
@@ -1261,7 +1312,7 @@ private fun EditMetadataSheetContent(
     var trackNumberText by remember { mutableStateOf(track.trackNumber?.toString() ?: "") }
     var genreText by remember { mutableStateOf(track.genre ?: "") }
     var selectedArtBytes by remember { mutableStateOf<ByteArray?>(null) }
-    var applyToAll by remember { mutableStateOf(false) }
+    var applyToAll by remember { mutableStateOf(true) }
 
     val hasChanges = remember(
         title, artistsText, albumText, yearText, trackNumberText, genreText, selectedArtBytes
@@ -1298,100 +1349,107 @@ private fun EditMetadataSheetContent(
             .verticalScroll(rememberScrollState())
             .padding(bottom = 32.dp)
     ) {
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
         Text(
             text = "Edit Metadata",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 24.dp)
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
 
-        // ── Cover preview + picker ──
+        // ── Cover preview ──
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.35f)
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                val artToShow = when {
+                    selectedArtBytes != null -> previewArtFile
+                    currentArtPath != null -> File(currentArtPath)
+                    else -> null
+                }
+                if (artToShow != null) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data(artToShow)
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.MusicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        // ── Cover action buttons ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
-            verticalAlignment = Alignment.CenterVertically
+            horizontalArrangement = Arrangement.Center
         ) {
-            when {
-                selectedArtBytes != null -> {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(previewArtFile)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                currentArtPath != null -> {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(File(currentArtPath))
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                }
-                else -> {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Default.MusicNote,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
-                            modifier = Modifier.size(32.dp)
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.width(16.dp))
-            OutlinedButton(onClick = { pickImageLauncher.launch("image/*") }) {
-                Text("Change cover")
+            OutlinedButton(
+                onClick = { pickImageLauncher.launch("image/*") },
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Change cover", style = MaterialTheme.typography.labelMedium)
             }
             if (selectedArtBytes != null) {
-                Spacer(Modifier.width(12.dp))
-                Button(onClick = { onSaveArtwork(selectedArtBytes!!, applyToAll) }) {
-                    Text("Save cover")
+                Spacer(Modifier.width(8.dp))
+                Button(
+                    onClick = { onSaveArtwork(selectedArtBytes!!, applyToAll) },
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text("Save cover", style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
-        // ── Apply-to-all toggle ──
+        // ── Apply metadata to all toggle ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Checkbox(checked = applyToAll, onCheckedChange = { applyToAll = it })
+            Checkbox(checked = applyToAll, onCheckedChange = { applyToAll = it },
+                modifier = Modifier.size(32.dp))
             Text(
-                text = "Apply cover to all tracks in this album",
-                style = MaterialTheme.typography.bodyMedium
+                text = "Apply to all tracks in album",
+                style = MaterialTheme.typography.labelSmall
             )
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
 
         EditField(label = "Title", value = title, onValueChange = { title = it })
         EditField(label = "Artists (comma separated)", value = artistsText, onValueChange = { artistsText = it })
         EditField(label = "Album", value = albumText, onValueChange = { albumText = it })
         EditField(label = "Year", value = yearText, onValueChange = { yearText = it }, singleLine = true)
-        EditField(label = "Track Number", value = trackNumberText, onValueChange = { trackNumberText = it }, singleLine = true)
+        EditField(label = "Track #", value = trackNumberText, onValueChange = { trackNumberText = it }, singleLine = true)
         EditField(label = "Genre", value = genreText, onValueChange = { genreText = it })
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1406,10 +1464,10 @@ private fun EditMetadataSheetContent(
                         onDismiss()
                     }
                 },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(16.dp)
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Cancel")
+                Text("Cancel", style = MaterialTheme.typography.labelLarge)
             }
             Button(
                 onClick = {
@@ -1428,13 +1486,13 @@ private fun EditMetadataSheetContent(
                         applyToAll
                     )
                 },
-                modifier = Modifier.weight(1f).height(48.dp),
-                shape = RoundedCornerShape(16.dp)
+                modifier = Modifier.weight(1f).height(40.dp),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Save")
+                Text("Save", style = MaterialTheme.typography.labelLarge)
             }
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(4.dp))
     }
 }
 
@@ -1448,16 +1506,18 @@ private fun EditField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
         singleLine = singleLine,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(12.dp),
+            .padding(horizontal = 24.dp, vertical = 1.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = MaterialTheme.colorScheme.primary,
             unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-        )
+        ),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
     )
 }
 
@@ -1692,7 +1752,8 @@ private fun PlaylistSheetContent(
     onClose: () -> Unit,
     onClearQueue: () -> Unit,
     onRemoveTrack: (Int) -> Unit,
-    onCycleMode: () -> Unit
+    onCycleMode: () -> Unit,
+    onTapTrack: (Int) -> Unit = {}
 ) {
     Column(
         modifier = Modifier
@@ -1786,7 +1847,15 @@ private fun PlaylistSheetContent(
                 )
             }
         } else {
+            val queueListState = rememberLazyListState()
+            LaunchedEffect(queueIndex) {
+                if (queueIndex >= 0) {
+                    queueListState.scrollToItem(queueIndex.coerceAtMost(queueTracks.size - 1))
+                }
+            }
+
             LazyColumn(
+                state = queueListState,
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f, fill = false)
@@ -1795,29 +1864,69 @@ private fun PlaylistSheetContent(
             ) {
                 itemsIndexed(queueTracks) { index, track ->
                     val isCurrent = index == queueIndex
+                    val context = LocalContext.current
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 6.dp),
+                            .clickable { onTapTrack(index) }
+                            .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Track number or playing indicator
-                        if (isCurrent) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = "${index + 1}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                                 modifier = Modifier.width(20.dp)
                             )
+                            Spacer(Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier.size(44.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val artPath = track.album?.artPath
+                                if (!artPath.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(File(artPath))
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(MaterialTheme.shapes.small),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.MusicNote,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                // Playing indicator overlay
+                                if (isCurrent) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
+                                                MaterialTheme.shapes.small
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.PlayArrow,
+                                            contentDescription = "Now playing",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = track.title,

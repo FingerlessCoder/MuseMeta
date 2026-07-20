@@ -372,6 +372,10 @@ class PlayerViewModel(
         musicPlayerController.skipToPrevious()
     }
 
+    fun jumpToQueueIndex(index: Int) {
+        musicPlayerController.jumpToQueueIndex(index)
+    }
+
     fun cyclePlaybackMode() {
         musicPlayerController.cyclePlaybackMode()
     }

@@ -12,7 +12,9 @@ data class LrcParseResult(
 
 object LrcParser {
 
-    private val LINE_REGEX = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{2,3}))?\](.*)""")
+    // Matches a single [mm:ss.xx] or [mm:ss:xx] timestamp prefix
+    private val TIMESTAMP_REGEX = Regex("""\[(\d{1,3}):(\d{2})(?:[\.:](\d{2,3}))?\]""")
+    // Matches a metadata tag like [ti:Title]
     private val METADATA_REGEX = Regex("""\[([a-z]+):(.*)\]""", RegexOption.IGNORE_CASE)
 
     fun parse(lrcContent: String): LrcParseResult {
@@ -28,6 +30,7 @@ object LrcParser {
             val trimmed = line.trim()
             if (trimmed.isEmpty()) continue
 
+            // Try metadata tag first — only if the entire line is one tag
             val metaMatch = METADATA_REGEX.matchEntire(trimmed)
             if (metaMatch != null) {
                 val key = metaMatch.groupValues[1].lowercase()
@@ -39,14 +42,22 @@ object LrcParser {
                 continue
             }
 
-            val match = LINE_REGEX.matchEntire(trimmed)
-            if (match != null) {
-                val minutes = match.groupValues[1].toLong()
-                val seconds = match.groupValues[2].toLong()
-                val centis = match.groupValues[3].padEnd(3, '0').take(3).toLong()
-                val text = match.groupValues[4].trim()
+            // Extract ALL timestamp prefixes from the line
+            val timestamps = TIMESTAMP_REGEX.findAll(trimmed).toList()
+            if (timestamps.isEmpty()) continue
 
-                var timestampMs = minutes * 60_000L + seconds * 1000L + centis
+            // Text is everything after the last timestamp bracket
+            val lastBracketEnd = timestamps.last().range.last + 1
+            val text = trimmed.substring(lastBracketEnd).trim()
+
+            for (ts in timestamps) {
+                val minutes = ts.groupValues[1].toLong()
+                val seconds = ts.groupValues[2].toLong()
+                // centis can be 2-digit (centiseconds) or 3-digit (milliseconds)
+                val raw = ts.groupValues[3]
+                val millis = if (raw.length == 2) raw.toLong() * 10 else raw.take(3).toLongOrNull() ?: 0L
+
+                var timestampMs = minutes * 60_000L + seconds * 1000L + millis
                 if (offsetMs != 0L) {
                     timestampMs = (timestampMs + offsetMs).coerceAtLeast(0L)
                 }
