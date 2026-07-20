@@ -119,6 +119,12 @@ fun PlayerScreen(
         }
     }
 
+    val lyricsFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let { viewModel.uploadLyrics(context, it) }
+    }
+
     var showEllipsisSheet by remember { mutableStateOf(false) }
     var showEqualizerPanel by remember { mutableStateOf(false) }
     var showSleepTimerSheet by remember { mutableStateOf(false) }
@@ -209,19 +215,21 @@ fun PlayerScreen(
             // ── Main content fills remaining space ──
             Box(modifier = Modifier.weight(1f)) {
                 when {
-                    showLyricsView -> {
-                        LyricsFullView(
-                            syncedLyrics = state.syncedLyrics,
-                            currentLyricIndex = state.currentLyricIndex,
-                            lyricsText = state.lyricsText,
-                            lyricsLoading = state.lyricsLoading,
-                            lyricsError = state.lyricsError,
-                            artPath = bgArtPath,
-                            currentTrack = state.currentTrack,
-                            onTap = { showLyricsView = false },
-                            onRetry = { viewModel.triggerLyricsFetch() },
-                            onSeekTo = { viewModel.seekTo(it) }
-                        )
+        showLyricsView -> {
+            LyricsFullView(
+                syncedLyrics = state.syncedLyrics,
+                currentLyricIndex = state.currentLyricIndex,
+                lyricsText = state.lyricsText,
+                lyricsLoading = state.lyricsLoading,
+                lyricsError = state.lyricsError,
+                artPath = state.currentTrack?.album?.artPath,
+                currentTrack = state.currentTrack,
+                onTap = { showLyricsView = false },
+                onRetry = { viewModel.triggerLyricsFetch() },
+                onSeekTo = { viewModel.seekTo(it) },
+                onUploadLyrics = { lyricsFilePickerLauncher.launch(arrayOf("*/*")) },
+                onRemoveLyrics = { viewModel.removeLyrics() }
+            )
                     }
                     playerTheme == 1 && !showLyricsView -> {
                         PlayerThemeFull(
@@ -288,6 +296,14 @@ fun PlayerScreen(
                 onOpenEqualizer = {
                     showEllipsisSheet = false
                     showEqualizerPanel = true
+                },
+                onUploadLyrics = {
+                    showEllipsisSheet = false
+                    lyricsFilePickerLauncher.launch(arrayOf("*/*"))
+                },
+                onRemoveLyrics = {
+                    showEllipsisSheet = false
+                    viewModel.removeLyrics()
                 },
                 onDismiss = { showEllipsisSheet = false }
             )
@@ -799,7 +815,9 @@ private fun LyricsFullView(
     currentTrack: Track?,
     onTap: () -> Unit,
     onRetry: () -> Unit,
-    onSeekTo: (Long) -> Unit = {}
+    onSeekTo: (Long) -> Unit = {},
+    onUploadLyrics: () -> Unit = {},
+    onRemoveLyrics: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val listState = rememberLazyListState()
@@ -963,8 +981,15 @@ private fun LyricsFullView(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Spacer(Modifier.height(16.dp))
-                            OutlinedButton(onClick = onRetry) {
-                                Text("Retry")
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                OutlinedButton(onClick = onRetry) {
+                                    Text("Retry")
+                                }
+                                OutlinedButton(onClick = onUploadLyrics) {
+                                    Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Upload")
+                                }
                             }
                             Spacer(Modifier.height(8.dp))
                             Text(
@@ -992,6 +1017,27 @@ private fun LyricsFullView(
             }
         }
 
+        if (syncedLyrics != null || lyricsText != null) {
+            TextButton(
+                onClick = onRemoveLyrics,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 40.dp)
+            ) {
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = "Remove lyrics",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error.copy(alpha = 0.6f)
+                )
+            }
+        }
         Text(
             text = "Tap anywhere to return",
             style = MaterialTheme.typography.labelSmall,
@@ -1020,6 +1066,8 @@ private fun EllipsisSheetContent(
     onViewArtist: () -> Unit,
     onEditMetadata: () -> Unit,
     onOpenEqualizer: () -> Unit,
+    onUploadLyrics: () -> Unit,
+    onRemoveLyrics: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val settingsDataStore = koinInject<SettingsDataStore>()
@@ -1122,6 +1170,24 @@ private fun EllipsisSheetContent(
             title = "Edit Metadata",
             onClick = { onEditMetadata() }
         )
+        HorizontalDivider(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+        val hasLyrics = state.syncedLyrics != null || state.lyricsText != null
+        SheetMenuItem(
+            icon = Icons.Default.Edit,
+            title = if (hasLyrics) "Change Lyrics…" else "Upload Lyrics…",
+            onClick = { onUploadLyrics() }
+        )
+        if (hasLyrics) {
+            SheetMenuItem(
+                icon = Icons.Default.Delete,
+                title = "Remove Lyrics",
+                tint = MaterialTheme.colorScheme.error,
+                onClick = { onRemoveLyrics() }
+            )
+        }
         HorizontalDivider(
             modifier = Modifier.padding(horizontal = 16.dp),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)

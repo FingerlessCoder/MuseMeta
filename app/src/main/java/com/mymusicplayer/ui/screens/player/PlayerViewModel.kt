@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import android.content.IntentSender
+import android.net.Uri
 import com.mymusicplayer.domain.repository.WriteResult
 import kotlinx.coroutines.launch
 
@@ -506,6 +507,53 @@ class PlayerViewModel(
 
     fun clearWriteError() {
         _uiState.value = _uiState.value.copy(writeError = null)
+    }
+
+    fun uploadLyrics(context: Context, uri: Uri) {
+        val track = _uiState.value.currentTrack ?: return
+        lyricsFetchJob?.cancel()
+        lyricsFetchJob = viewModelScope.launch {
+            try {
+                val content = context.contentResolver.openInputStream(uri)
+                    ?.bufferedReader()?.readText() ?: return@launch
+                if (content.isBlank()) return@launch
+
+                val parsed = LrcParser.parse(content)
+                val cacheFile = LyricsCache.saveLyrics(context, track.id, content)
+                musicRepository.updateLyricsPath(track.id, cacheFile.absolutePath)
+
+                _uiState.value = _uiState.value.copy(
+                    syncedLyrics = if (parsed.lines.isNotEmpty()) parsed.lines else null,
+                    lyricsText = if (parsed.lines.isEmpty() && content.isNotBlank()) content else null,
+                    currentLyricIndex = -1,
+                    lyricsLoading = false,
+                    lyricsError = null
+                )
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    lyricsError = "Failed to load lyrics: ${e.message}",
+                    lyricsLoading = false
+                )
+            }
+        }
+    }
+
+    fun removeLyrics() {
+        val track = _uiState.value.currentTrack ?: return
+        lyricsFetchJob?.cancel()
+        lyricsFetchJob = viewModelScope.launch {
+            val context = lyricsFetcher.context
+            LyricsCache.deleteLyrics(context, track.id)
+            musicRepository.updateLyricsPath(track.id, null)
+
+            _uiState.value = _uiState.value.copy(
+                syncedLyrics = null,
+                lyricsText = null,
+                currentLyricIndex = -1,
+                lyricsLoading = false,
+                lyricsError = null
+            )
+        }
     }
 
     override fun onCleared() {
