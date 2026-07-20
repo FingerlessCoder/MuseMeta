@@ -54,6 +54,7 @@ class ArtistImageFetcher(private val context: Context) {
     }
 
     suspend fun fetchArtistImage(artistName: String, artistId: Long): String? = withContext(Dispatchers.IO) {
+        val t0 = System.currentTimeMillis()
         val cachedFile = getArtistArtFile(artistId)
         if (isCacheValid(cachedFile)) {
             Log.d(TAG, "Cache hit for artist $artistId ($artistName)")
@@ -67,6 +68,9 @@ class ArtistImageFetcher(private val context: Context) {
         try {
             val encodedName = URLEncoder.encode(artistName, "UTF-8")
             val searchUrl = URL("$SPOTIFY_API?q=$encodedName&type=artist&limit=5")
+
+            val t1 = System.currentTimeMillis()
+            Log.d(TAG, "Connecting to $searchUrl ...")
             val searchConn = searchUrl.openConnection() as HttpURLConnection
             searchConn.apply {
                 requestMethod = "GET"
@@ -76,32 +80,41 @@ class ArtistImageFetcher(private val context: Context) {
             }
 
             val responseCode = searchConn.responseCode
+            val t2 = System.currentTimeMillis()
+            Log.d(TAG, "Search response code $responseCode in ${t2 - t1}ms for '$artistName'")
+
             if (responseCode != 200) {
                 searchConn.disconnect()
-                Log.w(TAG, "Spotify search returned $responseCode for '$artistName'")
+                Log.w(TAG, "Spotify search returned $responseCode for '$artistName' in ${t2 - t1}ms")
                 return@withContext null
             }
 
             val body = searchConn.inputStream.bufferedReader().readText()
+            val t3 = System.currentTimeMillis()
+            Log.d(TAG, "Read search body (${body.length} bytes) in ${t3 - t2}ms for '$artistName'")
+
             searchConn.disconnect()
 
             val response = json.decodeFromString<SpotifySearchResponse>(body)
             val results = response.results
             if (results.isNullOrEmpty()) {
-                Log.w(TAG, "No Spotify result for '$artistName'")
+                Log.w(TAG, "No Spotify result for '$artistName' (took ${t3 - t0}ms total)")
                 return@withContext null
             }
 
             val bestMatch = findBestMatch(artistName, results) ?: run {
-                Log.w(TAG, "No acceptable Spotify match for '$artistName'")
+                Log.w(TAG, "No acceptable Spotify match for '$artistName' among ${results.size} results (took ${t3 - t0}ms total)")
                 return@withContext null
             }
+
+            Log.d(TAG, "Best match: '${bestMatch.name}' (id=${bestMatch.id}) for '$artistName'")
 
             val imageUrl = bestMatch.thumbnail ?: run {
                 Log.w(TAG, "No thumbnail for '${bestMatch.name}'")
                 return@withContext null
             }
 
+            Log.d(TAG, "Downloading image from $imageUrl ...")
             val imgUrl = URL(imageUrl)
             val imgConn = imgUrl.openConnection() as HttpURLConnection
             imgConn.apply {
@@ -111,9 +124,13 @@ class ArtistImageFetcher(private val context: Context) {
                 setRequestProperty("User-Agent", "MuseMeta/1.0")
             }
 
-            if (imgConn.responseCode != 200) {
+            val imgResponseCode = imgConn.responseCode
+            val t4 = System.currentTimeMillis()
+            Log.d(TAG, "Image response code $imgResponseCode in ${t4 - t3}ms")
+
+            if (imgResponseCode != 200) {
                 imgConn.disconnect()
-                Log.w(TAG, "Image download returned ${imgConn.responseCode} for '${bestMatch.name}'")
+                Log.w(TAG, "Image download returned $imgResponseCode for '${bestMatch.name}' after ${t4 - t3}ms")
                 return@withContext null
             }
 
@@ -124,11 +141,16 @@ class ArtistImageFetcher(private val context: Context) {
             }
             imgConn.disconnect()
 
-            Log.d(TAG, "Downloaded artist image for '${bestMatch.name}' (searched '$artistName') to ${cachedFile.absolutePath}")
+            val t5 = System.currentTimeMillis()
+            val total = t5 - t0
+            Log.d(TAG, "Downloaded artist image for '${bestMatch.name}' (searched '$artistName') " +
+                    "to ${cachedFile.absolutePath} in ${total}ms " +
+                    "(search=${t3 - t1}ms, download=${t5 - t3}ms)")
             return@withContext cachedFile.absolutePath
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to fetch artist image for '$artistName'", e)
+            val elapsed = System.currentTimeMillis() - t0
+            Log.e(TAG, "Failed to fetch artist image for '$artistName' after ${elapsed}ms", e)
             return@withContext null
         }
     }
