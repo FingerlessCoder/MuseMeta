@@ -5,6 +5,20 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+fun getGitCommitCount(): Int {
+    return try {
+        val process = ProcessBuilder("git", "rev-list", "--count", "HEAD")
+            .directory(rootProject.projectDir)
+            .redirectErrorStream(true)
+            .start()
+        val output = process.inputStream.bufferedReader().readText().trim()
+        process.waitFor()
+        output.toInt()
+    } catch (_: Exception) {
+        1
+    }
+}
+
 android {
     namespace = "com.mymusicplayer"
     compileSdk = 35
@@ -18,7 +32,7 @@ android {
         applicationId = "com.mymusicplayer.musemeta"
         minSdk = 29
         targetSdk = 35
-        versionCode = 1
+        versionCode = getGitCommitCount()
         versionName = "1.0.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
