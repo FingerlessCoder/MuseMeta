@@ -31,8 +31,9 @@ android {
         applicationId = "com.mymusicplayer.musemeta"
         minSdk = 29
         targetSdk = 35
-        versionCode = providers.of(GitCommitCountSource::class) {}.get()
-        versionName = "1.0.3"
+        val commitCount = providers.of(GitCommitCountSource::class) {}.get()
+        versionCode = commitCount
+        versionName = "1.0.${commitCount}"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         multiDexEnabled = true

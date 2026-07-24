@@ -37,6 +37,7 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ./gradlew test
 
 # Build release for non-debug performance load./gradlew assembleRelease
+./gradlew assembleRelease
 adb install app/build/outputs/apk/release/app-release.apk
 
 ```

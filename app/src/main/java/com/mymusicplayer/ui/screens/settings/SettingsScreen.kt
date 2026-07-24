@@ -146,7 +146,12 @@ fun SettingsScreen(
                 SettingRow(Icons.Default.Person, "FingerlessCoder", "Developer")
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 val ctx = LocalContext.current
-                SettingRow(Icons.Default.Info, "MuseMeta", "Version 1.0.0")
+                val versionName = remember {
+                    try {
+                        ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName ?: "?"
+                    } catch (_: Exception) { "?" }
+                }
+                SettingRow(Icons.Default.Info, "MuseMeta", "Version $versionName")
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 SettingRow(Icons.AutoMirrored.Filled.OpenInNew, "GitHub",
                     "github.com/FingerlessCoder",
