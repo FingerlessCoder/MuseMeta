@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -13,27 +15,65 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
+/**
+ * Data classes for MusicBrainz Artist Search response.
+ * GET /ws/2/artist/?query=artist:{name}&fmt=json&limit=3
+ */
 @Serializable
-data class SpotifySearchResponse(
-    val success: Boolean = false,
-    val results: List<SpotifyArtistResult>? = null
+data class MusicBrainzSearchResponse(
+    val artists: List<MusicBrainzArtist>? = null
 )
 
 @Serializable
-data class SpotifyArtistResult(
+data class MusicBrainzArtist(
     val id: String? = null,
     val name: String? = null,
-    val thumbnail: String? = null
+    val score: Int = 0
+)
+
+/**
+ * Data classes for MusicBrainz Artist Detail (with URL relations).
+ * GET /ws/2/artist/{mbid}?inc=url-rels&fmt=json
+ */
+@Serializable
+data class MusicBrainzArtistDetail(
+    val relations: List<MusicBrainzRelation>? = null
+)
+
+@Serializable
+data class MusicBrainzRelation(
+    val type: String? = null,
+    val url: MusicBrainzUrl? = null
+)
+
+@Serializable
+data class MusicBrainzUrl(
+    val resource: String? = null
+)
+
+/**
+ * Data class for Spotify oEmbed response.
+ * GET https://open.spotify.com/oembed?url=...
+ */
+@Serializable
+data class SpotifyOEmbedResponse(
+    @SerialName("thumbnail_url")
+    val thumbnailUrl: String? = null,
+
+    @SerialName("title")
+    val title: String? = null
 )
 
 class ArtistImageFetcher(private val context: Context) {
 
     companion object {
         private const val TAG = "ArtistImageFetcher"
-        private const val SPOTIFY_API = "https://spotify.xwolf.space/api/search"
+        private const val MUSICBRAINZ_API = "https://musicbrainz.org/ws/2"
+        private const val SPOTIFY_OEMBED = "https://open.spotify.com/oembed"
         private const val CONNECT_TIMEOUT = 10_000
         private const val READ_TIMEOUT = 15_000
         private const val CACHE_TTL_MS = 30L * 24 * 60 * 60 * 1000 // 30 days
+        private const val USER_AGENT = "MuseMeta/1.0 (musicplayer)"
         private val json = Json { ignoreUnknownKeys = true }
     }
 
@@ -53,6 +93,24 @@ class ArtistImageFetcher(private val context: Context) {
         return age < CACHE_TTL_MS
     }
 
+    /** Fetch JSON text from a URL with common headers. */
+    private fun fetchJson(url: URL): String {
+        val conn = url.openConnection() as HttpURLConnection
+        conn.apply {
+            requestMethod = "GET"
+            connectTimeout = CONNECT_TIMEOUT
+            readTimeout = READ_TIMEOUT
+            setRequestProperty("User-Agent", USER_AGENT)
+        }
+        val code = conn.responseCode
+        if (code != 200) {
+            val body = try { conn.errorStream?.bufferedReader()?.readText() ?: "" } catch (_: Exception) { "" }
+            conn.disconnect()
+            throw java.io.IOException("HTTP $code from ${url.host} — $body")
+        }
+        return conn.inputStream.bufferedReader().readText().also { conn.disconnect() }
+    }
+
     suspend fun fetchArtistImage(artistName: String, artistId: Long): String? = withContext(Dispatchers.IO) {
         val t0 = System.currentTimeMillis()
         val cachedFile = getArtistArtFile(artistId)
@@ -67,73 +125,69 @@ class ArtistImageFetcher(private val context: Context) {
 
         try {
             val encodedName = URLEncoder.encode(artistName, "UTF-8")
-            val searchUrl = URL("$SPOTIFY_API?q=$encodedName&type=artist&limit=5")
 
+            // ── Step 1: Search MusicBrainz for the artist ──
             val t1 = System.currentTimeMillis()
-            Log.d(TAG, "Connecting to $searchUrl ...")
-            val searchConn = searchUrl.openConnection() as HttpURLConnection
-            searchConn.apply {
-                requestMethod = "GET"
-                connectTimeout = CONNECT_TIMEOUT
-                readTimeout = READ_TIMEOUT
-                setRequestProperty("User-Agent", "MuseMeta/1.0")
+            val searchUrl = URL("$MUSICBRAINZ_API/artist/?query=artist:$encodedName&fmt=json&limit=3")
+            Log.d(TAG, "Searching MusicBrainz for '$artistName' ...")
+            val searchBody = fetchJson(searchUrl)
+            val searchResult = json.decodeFromString<MusicBrainzSearchResponse>(searchBody)
+            val mbid = searchResult.artists?.firstOrNull()?.id
+            if (mbid == null) {
+                Log.w(TAG, "No MusicBrainz result for '$artistName'")
+                return@withContext null
             }
-
-            val responseCode = searchConn.responseCode
             val t2 = System.currentTimeMillis()
-            Log.d(TAG, "Search response code $responseCode in ${t2 - t1}ms for '$artistName'")
+            Log.d(TAG, "MusicBrainz search found MBID $mbid for '$artistName' in ${t2 - t1}ms")
 
-            if (responseCode != 200) {
-                searchConn.disconnect()
-                Log.w(TAG, "Spotify search returned $responseCode for '$artistName' in ${t2 - t1}ms")
+            // ── Step 2: Get artist relations (Spotify URL) ──
+            delay(1000) // MusicBrainz rate limit: 1 req/s
+            val relUrl = URL("$MUSICBRAINZ_API/artist/$mbid?inc=url-rels&fmt=json")
+            Log.d(TAG, "Fetching relations for MBID $mbid ...")
+            val relBody = fetchJson(relUrl)
+            val artistDetail = json.decodeFromString<MusicBrainzArtistDetail>(relBody)
+            val spotifyUrl = artistDetail.relations
+                ?.firstOrNull { rel ->
+                    rel.type == "free streaming" &&
+                            rel.url?.resource?.contains("open.spotify.com/artist/") == true
+                }
+                ?.url?.resource
+            if (spotifyUrl == null) {
+                Log.w(TAG, "No Spotify URL in MusicBrainz relations for '$artistName'")
                 return@withContext null
             }
-
-            val body = searchConn.inputStream.bufferedReader().readText()
+            val spotifyId = spotifyUrl.substringAfterLast("/")
             val t3 = System.currentTimeMillis()
-            Log.d(TAG, "Read search body (${body.length} bytes) in ${t3 - t2}ms for '$artistName'")
+            Log.d(TAG, "Found Spotify artist ID $spotifyId in ${t3 - t2}ms")
 
-            searchConn.disconnect()
-
-            val response = json.decodeFromString<SpotifySearchResponse>(body)
-            val results = response.results
-            if (results.isNullOrEmpty()) {
-                Log.w(TAG, "No Spotify result for '$artistName' (took ${t3 - t0}ms total)")
+            // ── Step 3: Get oEmbed thumbnail_url ──
+            val oembedUrl = URL("$SPOTIFY_OEMBED?url=https://open.spotify.com/artist/$spotifyId")
+            Log.d(TAG, "Fetching oEmbed for Spotify ID $spotifyId ...")
+            val oembedBody = fetchJson(oembedUrl)
+            val oembed = json.decodeFromString<SpotifyOEmbedResponse>(oembedBody)
+            val imageUrl = oembed.thumbnailUrl
+            if (imageUrl == null) {
+                Log.w(TAG, "No thumbnail_url in oEmbed response for '$artistName'")
                 return@withContext null
             }
+            val t4 = System.currentTimeMillis()
+            Log.d(TAG, "Got oEmbed thumbnail in ${t4 - t3}ms")
 
-            val bestMatch = findBestMatch(artistName, results) ?: run {
-                Log.w(TAG, "No acceptable Spotify match for '$artistName' among ${results.size} results (took ${t3 - t0}ms total)")
-                return@withContext null
-            }
-
-            Log.d(TAG, "Best match: '${bestMatch.name}' (id=${bestMatch.id}) for '$artistName'")
-
-            val imageUrl = bestMatch.thumbnail ?: run {
-                Log.w(TAG, "No thumbnail for '${bestMatch.name}'")
-                return@withContext null
-            }
-
-            Log.d(TAG, "Downloading image from $imageUrl ...")
-            val imgUrl = URL(imageUrl)
-            val imgConn = imgUrl.openConnection() as HttpURLConnection
+            // ── Step 4: Download the image ──
+            Log.d(TAG, "Downloading artist image from $imageUrl ...")
+            val imgConn = URL(imageUrl).openConnection() as HttpURLConnection
             imgConn.apply {
                 requestMethod = "GET"
                 connectTimeout = CONNECT_TIMEOUT
                 readTimeout = READ_TIMEOUT
-                setRequestProperty("User-Agent", "MuseMeta/1.0")
+                setRequestProperty("User-Agent", USER_AGENT)
             }
-
-            val imgResponseCode = imgConn.responseCode
-            val t4 = System.currentTimeMillis()
-            Log.d(TAG, "Image response code $imgResponseCode in ${t4 - t3}ms")
-
-            if (imgResponseCode != 200) {
+            val imgCode = imgConn.responseCode
+            if (imgCode != 200) {
                 imgConn.disconnect()
-                Log.w(TAG, "Image download returned $imgResponseCode for '${bestMatch.name}' after ${t4 - t3}ms")
+                Log.w(TAG, "Image download returned $imgCode")
                 return@withContext null
             }
-
             imgConn.inputStream.use { input ->
                 FileOutputStream(cachedFile).use { output ->
                     input.copyTo(output)
@@ -141,11 +195,8 @@ class ArtistImageFetcher(private val context: Context) {
             }
             imgConn.disconnect()
 
-            val t5 = System.currentTimeMillis()
-            val total = t5 - t0
-            Log.d(TAG, "Downloaded artist image for '${bestMatch.name}' (searched '$artistName') " +
-                    "to ${cachedFile.absolutePath} in ${total}ms " +
-                    "(search=${t3 - t1}ms, download=${t5 - t3}ms)")
+            val total = System.currentTimeMillis() - t0
+            Log.d(TAG, "Downloaded artist image for '$artistName' to ${cachedFile.absolutePath} in ${total}ms")
             return@withContext cachedFile.absolutePath
 
         } catch (e: Exception) {
@@ -171,25 +222,5 @@ class ArtistImageFetcher(private val context: Context) {
         }
     }
 
-    private fun findBestMatch(query: String, results: List<SpotifyArtistResult>): SpotifyArtistResult? {
-        val normalizedQuery = query.lowercase().trim()
 
-        val exact = results.firstOrNull {
-            it.name?.lowercase()?.trim() == normalizedQuery
-        }
-        if (exact != null) return exact
-
-        val startsWith = results.firstOrNull {
-            it.name?.lowercase()?.trim()?.startsWith(normalizedQuery) == true
-        }
-        if (startsWith != null) return startsWith
-
-        val contains = results.firstOrNull {
-            it.name?.lowercase()?.trim()?.contains(normalizedQuery) == true ||
-                    normalizedQuery.contains(it.name?.lowercase()?.trim() ?: "")
-        }
-        if (contains != null) return contains
-
-        return results.firstOrNull { it.thumbnail != null }
-    }
 }
