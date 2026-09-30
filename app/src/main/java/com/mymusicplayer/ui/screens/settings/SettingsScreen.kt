@@ -29,6 +29,10 @@ import org.koin.compose.koinInject
 
 private val sortFields = listOf("name", "date_added", "play_count", "year", "genre", "artist", "album")
 
+/** Min file size slider snaps to multiples of this, in KB. */
+private const val FILE_SIZE_STEP_KB = 64f
+private const val FILE_SIZE_MAX_KB = 2048f
+
 private fun sortLabel(raw: String): String {
     val (field, dir) = if (raw.endsWith("_desc")) raw.removeSuffix("_desc") to "↓" else raw to "↑"
     return "${field.replace("_", " ")} $dir".replaceFirstChar { it.uppercase() }
@@ -180,7 +184,9 @@ private fun ScanDirectorySetting(path: String, onPathChange: (String) -> Unit, o
 
 @Composable
 private fun ScanFilterSetting(minSizeKb: Long, minDurationSec: Long, onSetSize: (Long) -> Unit, onSetDuration: (Long) -> Unit) {
-    var sliderSize by remember(minSizeKb) { mutableFloatStateOf(minSizeKb.toFloat()) }
+    var sliderSize by remember(minSizeKb) {
+        mutableFloatStateOf((minSizeKb / FILE_SIZE_STEP_KB.toLong()) * FILE_SIZE_STEP_KB.toLong().toFloat())
+    }
     var sliderDuration by remember(minDurationSec) { mutableFloatStateOf(minDurationSec.toFloat()) }
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
         Text("Scan Filters", style = MaterialTheme.typography.bodyLarge)
@@ -188,8 +194,10 @@ private fun ScanFilterSetting(minSizeKb: Long, minDurationSec: Long, onSetSize: 
         Text("Skip files below these thresholds", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(12.dp))
         Text("Min file size: ${sliderSize.toInt()} KB", style = MaterialTheme.typography.labelMedium)
-        Slider(value = sliderSize, onValueChange = { sliderSize = it },
-            onValueChangeFinished = { onSetSize(sliderSize.toLong()) }, valueRange = 0f..2048f)
+        Slider(value = sliderSize, onValueChange = { sliderSize = (it / FILE_SIZE_STEP_KB) * FILE_SIZE_STEP_KB },
+            onValueChangeFinished = { onSetSize(sliderSize.toLong()) },
+            valueRange = 0f..FILE_SIZE_MAX_KB,
+            steps = (FILE_SIZE_MAX_KB / FILE_SIZE_STEP_KB).toInt() - 1)
         Spacer(Modifier.height(8.dp))
         Text("Min duration: ${formatDurationSec(sliderDuration.toLong())}", style = MaterialTheme.typography.labelMedium)
         Slider(value = sliderDuration, onValueChange = { sliderDuration = it },
