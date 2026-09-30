@@ -61,7 +61,7 @@ fun SectionHeader(title: String, count: Int) {
 }
 
 @Composable
-fun SearchTrackRow(track: Track, query: String, onClick: () -> Unit) {
+fun SearchTrackRow(track: Track, query: String, onClick: () -> Unit, onMore: () -> Unit = {}) {
     val context = LocalContext.current
     Row(
         modifier = Modifier
@@ -116,12 +116,14 @@ fun SearchTrackRow(track: Track, query: String, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Icon(
-            Icons.Default.PlayArrow,
-            contentDescription = "Play track",
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f),
-            modifier = Modifier.size(20.dp)
-        )
+        IconButton(onClick = onMore, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Default.MoreVert,
+                contentDescription = "More options",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
     HorizontalDivider(modifier = Modifier.padding(start = 68.dp, end = 12.dp))
 }

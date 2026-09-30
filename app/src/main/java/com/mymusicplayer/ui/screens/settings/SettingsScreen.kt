@@ -26,18 +26,18 @@ import org.koin.androidx.compose.koinViewModel
 
 private val sortFields = listOf("name", "date_added", "play_count", "year", "genre", "artist", "album")
 
-private val sortOptions: List<Pair<String, String>> =
-    sortFields.flatMap { field ->
-        listOf(
-            "$field" to "${field.replace("_", " ")} ↑",
-            "${field}_desc" to "${field.replace("_", " ")} ↓"
-        )
-    }
-
 private fun sortLabel(raw: String): String {
     val (field, dir) = if (raw.endsWith("_desc")) raw.removeSuffix("_desc") to "↓" else raw to "↑"
     return "${field.replace("_", " ")} $dir".replaceFirstChar { it.uppercase() }
 }
+
+private fun isSortDesc(raw: String): Boolean = raw.endsWith("_desc")
+
+private fun sortFieldOf(raw: String): String =
+    if (raw.endsWith("_desc")) raw.removeSuffix("_desc") else raw
+
+private fun withSortDir(field: String, desc: Boolean): String =
+    if (desc) "${field}_desc" else field
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,8 +47,6 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
-    var showSortMenu by remember { mutableStateOf(false) }
-    var showEqMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -76,42 +74,10 @@ fun SettingsScreen(
                 ScanFilterSetting(state.scanMinFileSizeKb, state.scanMinDurationSec,
                     { viewModel.setScanMinFileSize(it) }, { viewModel.setScanMinDuration(it) })
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                SettingRow(Icons.AutoMirrored.Filled.Sort, "Default Sort",
-                    sortLabel(state.sortMode),
-                    onClick = { showSortMenu = true })
-                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                    sortOptions.forEach { (field, label) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = { viewModel.setSortMode(field); showSortMenu = false },
-                            leadingIcon = if (state.sortMode == field) ({
-                                Icon(Icons.Default.Check, contentDescription = null)
-                            }) else null
-                        )
-                    }
-                }
-            }
-
-            SectionHeader("Audio")
-            SettingCard {
-                SettingRow(Icons.Default.Tune, "Equalizer",
-                    if (state.equalizerEnabled) "Enabled (${state.equalizerPreset})" else "Disabled",
-                    trailing = {
-                        Switch(checked = state.equalizerEnabled, onCheckedChange = { viewModel.setEqualizerEnabled(it) })
-                    },
-                    onClick = { if (state.equalizerEnabled) showEqMenu = true })
-                DropdownMenu(expanded = showEqMenu, onDismissRequest = { showEqMenu = false }) {
-                    listOf("Normal", "Flat", "Rock", "Pop", "Bass Boost", "Classical", "Jazz", "Vocal").forEach { preset ->
-                        DropdownMenuItem(
-                            text = { Text(preset) },
-                            onClick = { viewModel.setEqualizerPreset(preset); showEqMenu = false },
-                            leadingIcon = if (state.equalizerPreset == preset) ({
-                                Icon(Icons.Default.Check, contentDescription = null)
-                            }) else null
-                        )
-                    }
-                }
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                DefaultSortSetting(
+                    currentSort = state.sortMode,
+                    onSelect = { viewModel.setSortMode(it) }
+                )
             }
 
             SectionHeader("Playback")
@@ -133,11 +99,6 @@ fun SettingsScreen(
                 AccentColorPicker(
                     selectedIndex = state.accentColorIndex,
                     onSelect = { viewModel.setAccentColorIndex(it) }
-                )
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-                PlayerThemePicker(
-                    selectedTheme = state.playerTheme,
-                    onSelect = { viewModel.setPlayerTheme(it) }
                 )
             }
 
@@ -282,6 +243,75 @@ private fun SleepTimerSetting(
 }
 
 @Composable
+private fun DefaultSortSetting(currentSort: String, onSelect: (String) -> Unit) {
+    var showMenu by remember { mutableStateOf(false) }
+    val desc = isSortDesc(currentSort)
+    val field = sortFieldOf(currentSort)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Default Sort", style = MaterialTheme.typography.bodyLarge)
+            Text(sortLabel(currentSort), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Box {
+            IconButton(onClick = { showMenu = true }, modifier = Modifier.size(36.dp)) {
+                Icon(sortFieldIcon(field), contentDescription = "Sort criterion",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp))
+            }
+            DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                sortFields.forEach { f ->
+                    val selected = f == field
+                    DropdownMenuItem(
+                        text = { Text(f.replace("_", " ").replaceFirstChar { it.uppercase() }) },
+                        onClick = { onSelect(withSortDir(f, desc)); showMenu = false },
+                        leadingIcon = {
+                            Icon(sortFieldIcon(f), contentDescription = null,
+                                tint = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        trailingIcon = if (selected) ({
+                            Icon(Icons.Default.Check, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary)
+                        }) else null
+                    )
+                }
+            }
+        }
+        IconButton(
+            onClick = { onSelect(withSortDir(field, !desc)) },
+            modifier = Modifier.size(36.dp)
+        ) {
+            Icon(
+                if (desc) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                contentDescription = if (desc) "Sort descending" else "Sort ascending",
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun sortFieldIcon(field: String): ImageVector = when (field) {
+    "date_added" -> Icons.Default.Schedule
+    "play_count" -> Icons.Default.TrendingUp
+    "year" -> Icons.Default.DateRange
+    "genre" -> Icons.Default.Category
+    "artist", "album_artist" -> Icons.Default.Person
+    "album", "title" -> Icons.Default.Album
+    "track_count" -> Icons.Default.FormatListNumbered
+    else -> Icons.Default.SortByAlpha
+}
+
+@Composable
 private fun SectionHeader(title: String) {
     Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 4.dp))
@@ -346,40 +376,6 @@ private fun AccentColorPicker(selectedIndex: Int, onSelect: (Int) -> Unit) {
                             tint = palette.onPrimary,
                             modifier = Modifier.size(18.dp))
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlayerThemePicker(selectedTheme: Int, onSelect: (Int) -> Unit) {
-    val themes = listOf("Normal" to "Centered art with controls below", "Full Art" to "Full-screen art with overlaid controls")
-    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Default.Image, contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.size(22.dp))
-            Spacer(Modifier.width(16.dp))
-            Text("Player Theme", style = MaterialTheme.typography.bodyLarge)
-        }
-        Spacer(Modifier.height(8.dp))
-        themes.forEachIndexed { index, (name, desc) ->
-            val isSelected = index == selectedTheme
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onSelect(index) }
-                    .padding(vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(selected = isSelected, onClick = { onSelect(index) })
-                Spacer(Modifier.width(8.dp))
-                Column {
-                    Text(name, style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal)
-                    Text(desc, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }

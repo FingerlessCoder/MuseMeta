@@ -11,14 +11,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragIndicator
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -44,11 +50,10 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import java.io.File
 
-private enum class TrackSort(val label: String) {
-    TITLE_ASC("Title (A-Z)"),
-    TITLE_DESC("Title (Z-A)"),
-    ARTIST("Artist"),
-    DURATION("Duration")
+private enum class TrackSortCriterion(val label: String, val icon: ImageVector) {
+    TITLE("Title", Icons.Default.SortByAlpha),
+    ARTIST("Artist", Icons.Default.Person),
+    DURATION("Duration", Icons.Default.Timer)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,7 +70,8 @@ fun PlaylistDetailScreen(
     val scope = rememberCoroutineScope()
     val rawTracks by repository.getTracksInPlaylist(playlistId).collectAsState(initial = emptyList())
 
-    var sortMode by remember { mutableStateOf(TrackSort.TITLE_ASC) }
+    var sortCriterion by remember { mutableStateOf(TrackSortCriterion.TITLE) }
+    var sortDesc by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
     var showAddTrackSheet by remember { mutableStateOf(false) }
 
@@ -86,15 +92,15 @@ fun PlaylistDetailScreen(
     }
 
     // Sort tracks in-memory
-    val tracks = remember(rawTracks, sortMode) {
-        when (sortMode) {
-            TrackSort.TITLE_ASC -> rawTracks.sortedBy { it.title.lowercase() }
-            TrackSort.TITLE_DESC -> rawTracks.sortedByDescending { it.title.lowercase() }
-            TrackSort.ARTIST -> rawTracks.sortedBy {
-                it.artists.firstOrNull()?.name?.lowercase() ?: ""
-            }
-            TrackSort.DURATION -> rawTracks.sortedBy { it.duration }
+    val tracks = remember(rawTracks, sortCriterion, sortDesc) {
+        val base = when (sortCriterion) {
+            TrackSortCriterion.TITLE -> rawTracks.sortedWith(compareBy({ it.title.lowercase() }, { it.id }))
+            TrackSortCriterion.ARTIST -> rawTracks.sortedWith(
+                compareBy({ it.artists.firstOrNull()?.name?.lowercase() ?: "" }, { it.id })
+            )
+            TrackSortCriterion.DURATION -> rawTracks.sortedWith(compareBy({ it.duration }, { it.id }))
         }
+        if (sortDesc) base.reversed() else base
     }
 
     Scaffold(
@@ -160,7 +166,13 @@ fun PlaylistDetailScreen(
                         else -> {
                             if (tracks.isNotEmpty()) {
                                 IconButton(onClick = { showSortSheet = true }) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = "Sort")
+                                    Icon(sortCriterion.icon, contentDescription = "Sort by")
+                                }
+                                IconButton(onClick = { sortDesc = !sortDesc }) {
+                                    Icon(
+                                        if (sortDesc) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                                        contentDescription = if (sortDesc) "Sort descending" else "Sort ascending"
+                                    )
                                 }
                                 IconButton(onClick = { multiSelectEnabled = !multiSelectEnabled }) {
                                     Icon(Icons.Default.CheckBoxOutlineBlank, contentDescription = "Multiselect")
@@ -427,11 +439,11 @@ fun PlaylistDetailScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
                 )
-                TrackSort.entries.forEach { mode ->
-                    val selected = sortMode == mode
+                TrackSortCriterion.entries.forEach { criterion ->
+                    val selected = sortCriterion == criterion
                     Surface(
                         onClick = {
-                            sortMode = mode
+                            sortCriterion = criterion
                             reorderMode = false
                             showSortSheet = false
                         },
@@ -445,8 +457,16 @@ fun PlaylistDetailScreen(
                                 .padding(horizontal = 24.dp, vertical = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(
+                                criterion.icon,
+                                contentDescription = null,
+                                tint = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Spacer(Modifier.width(16.dp))
                             Text(
-                                mode.label,
+                                criterion.label,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
                                 modifier = Modifier.weight(1f)
                             )

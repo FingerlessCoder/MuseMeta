@@ -165,7 +165,6 @@ class ScanRepository(
 
         awaitClose { }
     }
-
     suspend fun scanPaths(paths: List<String>) {
         if (paths.isEmpty()) return
 
@@ -178,6 +177,21 @@ class ScanRepository(
         }
 
         writeBatch(parsedResults, msFiles.map { it.path }.toSet(), isFullScan = false)
+    }
+
+    suspend fun scanIncrementalSince(lastScanTimeSec: Long, minDuration: Long = 0L): Int {
+        val files = withContext(Dispatchers.IO) {
+            mediaStoreScanner.scanIncremental(lastScanTimeSec)
+        }
+        if (files.isEmpty()) return 0
+        val parsedResults = files.map { file ->
+            val metadata = metadataParser.parse(file.path, extractAlbumArt = false)
+            file to metadata
+        }
+        withContext(Dispatchers.IO) {
+            writeBatch(parsedResults, files.map { it.path }.toSet(), isFullScan = false, minDuration = minDuration)
+        }
+        return files.size
     }
 
     private suspend fun writeBatch(

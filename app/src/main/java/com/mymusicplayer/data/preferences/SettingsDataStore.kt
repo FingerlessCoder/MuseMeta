@@ -35,6 +35,7 @@ class SettingsDataStore(private val context: Context) {
         val ACCENT_COLOR_INDEX = intPreferencesKey("accent_color_index")
         val PLAYER_THEME = intPreferencesKey("player_theme")
         val PLAYBACK_MODE = stringPreferencesKey("playback_mode")
+        val LAST_SCAN_TIMESTAMP = longPreferencesKey("last_scan_timestamp")
     }
 
     val sleepTimerDuration: Flow<Int> = context.dataStore.data.map { prefs ->
@@ -142,6 +143,14 @@ class SettingsDataStore(private val context: Context) {
 
     val playbackMode: Flow<String> = context.dataStore.data.map { prefs ->
         prefs[PLAYBACK_MODE] ?: "LIST"
+    }
+
+    val lastScanTimestamp: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[LAST_SCAN_TIMESTAMP] ?: 0L
+    }
+
+    suspend fun setLastScanTimestamp(epochSeconds: Long) {
+        context.dataStore.edit { prefs -> prefs[LAST_SCAN_TIMESTAMP] = epochSeconds }
     }
 
     suspend fun setAmoledBlackTheme(enabled: Boolean) {

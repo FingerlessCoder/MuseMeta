@@ -19,6 +19,13 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.mymusicplayer.R
 import com.mymusicplayer.data.audio.MusicPlayerController
 import com.mymusicplayer.data.audio.PlaybackMode
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -28,6 +35,7 @@ class MusicService : MediaSessionService(), KoinComponent {
     private val playerController: MusicPlayerController by inject()
 
     private var mediaSession: MediaSession? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     @OptIn(UnstableApi::class)
     override fun onCreate() {
@@ -55,6 +63,13 @@ class MusicService : MediaSessionService(), KoinComponent {
         addSession(mediaSession!!)
 
         updateCustomLayout()
+
+        serviceScope.launch {
+            playerController.playbackState
+                .map { it.playbackMode }
+                .distinctUntilChanged()
+                .collect { updateCustomLayout() }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -78,6 +93,7 @@ class MusicService : MediaSessionService(), KoinComponent {
     }
 
     override fun onDestroy() {
+        serviceScope.cancel()
         mediaSession?.release()
         mediaSession = null
         super.onDestroy()

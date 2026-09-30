@@ -14,12 +14,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mymusicplayer.data.audio.MusicPlayerController
+import com.mymusicplayer.domain.model.Track
+import com.mymusicplayer.domain.repository.MusicRepository
+import com.mymusicplayer.ui.components.PlaylistSelectorSheet
 import com.mymusicplayer.ui.components.SearchAlbumRow
 import com.mymusicplayer.ui.components.SearchArtistRow
 import com.mymusicplayer.ui.components.SearchTopBar
 import com.mymusicplayer.ui.components.SearchTrackRow
 import com.mymusicplayer.ui.components.SectionHeader
+import com.mymusicplayer.ui.components.TrackActionsSheet
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import org.koin.compose.koinInject
 
 @Composable
 fun SearchResultsScreen(
@@ -33,6 +40,11 @@ fun SearchResultsScreen(
     val state by viewModel.uiState.collectAsState()
     var searchQuery by remember { mutableStateOf(state.currentQuery.ifBlank { query }) }
     val focusRequester = remember { FocusRequester() }
+    val scope = rememberCoroutineScope()
+    val musicPlayerController: MusicPlayerController = koinInject()
+    val musicRepository: MusicRepository = koinInject()
+    var moreTrack by remember { mutableStateOf<Track?>(null) }
+    var playlistTrack by remember { mutableStateOf<Track?>(null) }
 
     LaunchedEffect(state.currentQuery) {
         if (state.currentQuery.isNotBlank() && state.currentQuery != searchQuery) {
@@ -122,7 +134,7 @@ fun SearchResultsScreen(
                             items(state.tracks, key = { it.id }) { track ->
                                 SearchTrackRow(track = track, query = state.currentQuery, onClick = {
                                     viewModel.playTrack(track); onNavigateToPlayer()
-                                })
+                                }, onMore = { moreTrack = track })
                             }
                         }
                         if (state.albums.isNotEmpty()) {
@@ -154,7 +166,7 @@ fun SearchResultsScreen(
                             items(state.tracks, key = { it.id }) { track ->
                                 SearchTrackRow(track = track, query = state.currentQuery, onClick = {
                                     viewModel.playTrack(track); onNavigateToPlayer()
-                                })
+                                }, onMore = { moreTrack = track })
                             }
                         }
                     }
@@ -192,6 +204,33 @@ fun SearchResultsScreen(
                     }
                 }
             }
+        }
+
+        moreTrack?.let { target ->
+            TrackActionsSheet(
+                track = target,
+                isFavorite = target.rating >= 4,
+                onDismiss = { moreTrack = null },
+                onPlayNext = { musicPlayerController.playNext(listOf(target)) },
+                onAddToQueue = { musicPlayerController.addToQueue(listOf(target)) },
+                onToggleFavorite = {
+                    scope.launch {
+                        musicRepository.updateTrackRating(target.id, if (target.rating >= 4) 0 else 5)
+                    }
+                },
+                onAddToPlaylist = { playlistTrack = target },
+                onDelete = {
+                    scope.launch { musicRepository.deleteTrackById(target.id) }
+                }
+            )
+        }
+
+        playlistTrack?.let { target ->
+            PlaylistSelectorSheet(
+                trackIds = listOf(target.id),
+                onDismiss = { playlistTrack = null },
+                onAdded = { playlistTrack = null }
+            )
         }
     }
 }

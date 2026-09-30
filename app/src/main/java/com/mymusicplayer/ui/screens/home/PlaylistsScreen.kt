@@ -8,13 +8,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckBox
 import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DriveFileRenameOutline
-import androidx.compose.material.icons.filled.ImportExport
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,9 +31,38 @@ import com.mymusicplayer.data.db.entity.PlaylistEntity
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
-private enum class PlaylistSort(val label: String) {
-    NAME_ASC("Name (A-Z)"),
-    NAME_DESC("Name (Z-A)")
+@Composable
+private fun SortDirectionRow(desc: Boolean, onToggle: () -> Unit) {
+    Surface(
+        onClick = onToggle,
+        color = Color.Transparent,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Default.SortByAlpha,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(Modifier.width(16.dp))
+            Text(
+                "Name",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                if (desc) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -44,7 +75,7 @@ fun PlaylistsScreen(
     val rawPlaylists by playlistDao.getAllPlaylists().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
 
-    var sortMode by remember { mutableStateOf(PlaylistSort.NAME_ASC) }
+    var sortDesc by remember { mutableStateOf(false) }
     var showSortSheet by remember { mutableStateOf(false) }
     var showCreateDialog by remember { mutableStateOf(false) }
     var newPlaylistName by remember { mutableStateOf("") }
@@ -61,11 +92,9 @@ fun PlaylistsScreen(
         multiSelectEnabled = false
     }
 
-    val playlists = remember(rawPlaylists, sortMode) {
-        when (sortMode) {
-            PlaylistSort.NAME_ASC -> rawPlaylists.sortedBy { it.name.lowercase() }
-            PlaylistSort.NAME_DESC -> rawPlaylists.sortedByDescending { it.name.lowercase() }
-        }
+    val playlists = remember(rawPlaylists, sortDesc) {
+        val base = rawPlaylists.sortedWith(compareBy({ it.name.lowercase() }, { it.id }))
+        if (sortDesc) base.reversed() else base
     }
 
     Scaffold(
@@ -96,7 +125,13 @@ fun PlaylistsScreen(
                     }
                     if (!multiSelectEnabled && playlists.isNotEmpty()) {
                         IconButton(onClick = { showSortSheet = true }) {
-                            Icon(Icons.Default.ImportExport, contentDescription = "Sort")
+                            Icon(Icons.Default.SortByAlpha, contentDescription = "Sort by name")
+                        }
+                        IconButton(onClick = { sortDesc = !sortDesc }) {
+                            Icon(
+                                if (sortDesc) Icons.Default.ArrowDownward else Icons.Default.ArrowUpward,
+                                contentDescription = if (sortDesc) "Sort descending" else "Sort ascending"
+                            )
                         }
                     }
                     if (playlists.isNotEmpty()) {
@@ -196,32 +231,10 @@ fun PlaylistsScreen(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
                 )
-                PlaylistSort.entries.forEach { mode ->
-                    val selected = sortMode == mode
-                    Surface(
-                        onClick = { sortMode = mode; showSortSheet = false },
-                        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                                else Color.Transparent,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                mode.label,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (selected) {
-                                Icon(Icons.Default.Check, contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary)
-                            }
-                        }
-                    }
-                }
+                SortDirectionRow(
+                    desc = sortDesc,
+                    onToggle = { sortDesc = !sortDesc; showSortSheet = false }
+                )
             }
         }
     }

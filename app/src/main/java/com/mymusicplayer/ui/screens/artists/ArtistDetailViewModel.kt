@@ -68,6 +68,20 @@ class ArtistDetailViewModel(
             }
         }
         fetchArtistImage()
+        viewModelScope.launch {
+            artistImageFetcher.updates.collect {
+                withContext(Dispatchers.IO) {
+                    val path = artistImageFetcher.getArtistArtFile(artistId)
+                        .takeIf { file -> file.exists() }?.absolutePath
+                    if (path != null && path != _uiState.value.artistArtPath) {
+                        _uiState.value = _uiState.value.copy(
+                            artistArtPath = path,
+                            imageFetchState = ArtistImageFetchState.Success
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private fun fetchArtistImage() {
@@ -101,9 +115,8 @@ class ArtistDetailViewModel(
     }
 
     fun retryFetchArtistImage() {
-        val artist = _uiState.value.artist ?: return
-        val cachedFile = artistImageFetcher.getArtistArtFile(artistId)
-        cachedFile.delete()
+        _uiState.value.artist ?: return
+        artistImageFetcher.clearArtistArt(artistId)
         _uiState.value = _uiState.value.copy(artistArtPath = null)
         fetchArtistImage()
     }

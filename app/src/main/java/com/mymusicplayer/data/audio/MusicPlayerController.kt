@@ -51,6 +51,16 @@ class MusicPlayerController(
 
     companion object {
         private const val TAG = "MusicPlayerController"
+
+        /**
+         * Never let a user seek land on (or past) the very end of an item:
+         * ExoPlayer treats that as "playback finished" and immediately advances to
+         * the next track, which reads as "the song got skipped".
+         */
+        private const val SEEK_END_GUARD_MS = 2_000L
+
+        /** Fallback tail margin for tracks shorter than [SEEK_END_GUARD_MS]. */
+        private const val TAIL_EPSILON_MS = 100L
     }
 
     private var exoPlayer: ExoPlayer? = null
@@ -141,6 +151,14 @@ class MusicPlayerController(
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     updateState()
+                }
+
+                override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                    onPlayerModeFlagsChanged()
+                }
+
+                override fun onRepeatModeChanged(repeatMode: Int) {
+                    onPlayerModeFlagsChanged()
                 }
             })
         }
@@ -269,9 +287,55 @@ class MusicPlayerController(
         updateState()
     }
 
-    fun seekTo(positionMs: Long) {
-        exoPlayer?.seekTo(positionMs)
+    /**
+     * Seeks the current item, guarding against the cases that used to make the
+     * progress bar jump and occasionally skip the whole track.
+     * Returns true when a seek was actually issued.
+     */
+    fun seekTo(positionMs: Long): Boolean {
+        val player = exoPlayer ?: return false
+        if (player.mediaItemCount == 0) return false
+        val target = clampSeekPosition(player, positionMs) ?: return false
+
+        // A user scrub means "keep playing from here". Without this the player
+        // can sit in a stalled/idle state after the seek and produce silence
+        // until some other event nudges it, which read as "no decoding".
+        val shouldResume = player.playWhenReady || player.isPlaying
+        player.seekTo(target)
+        if (shouldResume && !player.isPlaying) {
+            player.play()
+        }
         updateState()
+        return true
+    }
+
+    /**
+     * Clamps a requested seek position into a safe range for the current item.
+     *
+     * Guards against three failure modes that were causing the progress bar to
+     * "jump" and occasionally skip the whole track:
+     *  1. negative / NaN-derived positions (position came from an unknown duration),
+     *  2. seeking at or past the item end, which ExoPlayer resolves as
+     *     "item finished" and instantly transitions to the next track,
+     *  3. seeking while the player has no prepared duration yet (state is
+     *     TIME_UNSET / idle), which ExoPlayer answers by skipping forward.
+     */
+    private fun clampSeekPosition(player: ExoPlayer, positionMs: Long): Long? {
+        val duration = player.duration
+        // Unknown duration (still preparing / re-buffering): issuing the seek
+        // anyway makes ExoPlayer resolve it unpredictably, so drop it.
+        if (duration <= 0L || duration == C.TIME_UNSET) return null
+        if (positionMs <= 0L) return 0L
+
+        // Keep the target away from the tail. Seeking to (or past) the end makes
+        // ExoPlayer declare the item finished and move straight on to the next
+        // track, which is what looked like "the song got skipped".
+        val maxPosition = if (duration > SEEK_END_GUARD_MS) {
+            duration - SEEK_END_GUARD_MS
+        } else {
+            (duration - TAIL_EPSILON_MS).coerceAtLeast(0L)
+        }
+        return positionMs.coerceIn(0L, maxPosition)
     }
 
     fun skipToNext() {
@@ -294,27 +358,39 @@ class MusicPlayerController(
     }
 
     fun cyclePlaybackMode() {
-        val player = exoPlayer ?: return
         val currentMode = _playbackState.value.playbackMode
         val nextMode = PlaybackMode.entries[(currentMode.ordinal + 1) % PlaybackMode.entries.size]
-
-        player.shuffleModeEnabled = nextMode == PlaybackMode.SHUFFLE
-        player.repeatMode = when (nextMode) {
-            PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_ALL
-            PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
-            PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
-        }
-
         _playbackState.value = _playbackState.value.copy(playbackMode = nextMode)
-        timerScope.launch { settingsDataStore.setPlaybackMode(nextMode.name) }
+        timerScope.launch {
+            settingsDataStore.setPlaybackMode(nextMode.name)
+            withContext(Dispatchers.Main) {
+                val player = exoPlayer ?: return@withContext
+                player.shuffleModeEnabled = nextMode == PlaybackMode.SHUFFLE
+                player.repeatMode = when (nextMode) {
+                    PlaybackMode.SHUFFLE -> Player.REPEAT_MODE_ALL
+                    PlaybackMode.LIST -> Player.REPEAT_MODE_ALL
+                    PlaybackMode.SINGLE -> Player.REPEAT_MODE_ONE
+                }
+            }
+        }
+    }
+
+    private fun onPlayerModeFlagsChanged() {
+        updateState()
+        val mode = getCurrentPlaybackMode()
+        timerScope.launch { settingsDataStore.setPlaybackMode(mode.name) }
     }
 
     fun getCurrentPosition(): Long {
-        return exoPlayer?.currentPosition ?: 0L
+        val pos = exoPlayer?.currentPosition ?: 0L
+        return if (pos < 0L) 0L else pos
     }
 
     fun getDuration(): Long {
-        return exoPlayer?.duration ?: 0L
+        val duration = exoPlayer?.duration ?: 0L
+        // TIME_UNSET / TIME_END_OF_SOURCE are huge negative sentinels. Normalising
+        // them to 0 keeps the progress-bar fraction inside 0..1.
+        return if (duration <= 0L) 0L else duration
     }
 
     fun getCurrentPlaybackMode(): PlaybackMode = _playbackState.value.playbackMode
@@ -411,6 +487,13 @@ class MusicPlayerController(
         }
         val trackIdsToAdd = tracks.map { it.id }
         val pathsToAdd = tracks.map { it.filePath }
+        tracks.forEach { track ->
+            trackInfoCache[track.id] = CachedTrackInfo(
+                title = track.title,
+                artist = track.artists.joinToString(" · ") { it.name },
+                albumArtPath = track.album?.artPath
+            )
+        }
         if (addAtIndex != null) {
             items.forEachIndexed { i, item ->
                 player.addMediaItem(addAtIndex + i, item)
@@ -431,10 +514,24 @@ class MusicPlayerController(
 
     fun playNext(tracks: List<Track>) {
         val player = exoPlayer ?: return
-        if (!currentTrackIds.containsAll(tracks.map { it.id })) {
-            val currentIndex = player.currentMediaItemIndex
-            buildAndAddMediaItems(tracks, currentIndex + 1)
+        val idsToMove = tracks.map { it.id }.toSet()
+        val currentIndex = player.currentMediaItemIndex
+        var insertAt = (if (currentIndex < 0) player.mediaItemCount else currentIndex + 1)
+            .coerceIn(0, player.mediaItemCount)
+        val existingIndices = currentTrackIds.mapIndexedNotNull { index, id ->
+            if (id in idsToMove) index else null
+        }.sortedDescending()
+        for (index in existingIndices) {
+            player.removeMediaItem(index)
+            if (index in currentTrackIds.indices) {
+                currentTrackIds = currentTrackIds.toMutableList().apply { removeAt(index) }
+            }
+            if (index in currentTrackPaths.indices) {
+                currentTrackPaths = currentTrackPaths.toMutableList().apply { removeAt(index) }
+            }
+            if (index < insertAt) insertAt--
         }
+        buildAndAddMediaItems(tracks, insertAt)
     }
 
     fun addToQueue(tracks: List<Track>) {
@@ -455,11 +552,13 @@ class MusicPlayerController(
             else -> PlaybackMode.LIST
         }
 
+        val rawPosition = player.currentPosition
+        val rawDuration = player.duration
         _playbackState.value = PlaybackState(
             isPlaying = player.isPlaying,
             currentTrackId = currentTrackIds.getOrNull(currentIndex),
-            currentPosition = player.currentPosition,
-            duration = player.duration,
+            currentPosition = if (rawPosition < 0L) 0L else rawPosition,
+            duration = if (rawDuration <= 0L) 0L else rawDuration,
             queueSize = player.mediaItemCount,
             queueIndex = currentIndex,
             playbackMode = mode

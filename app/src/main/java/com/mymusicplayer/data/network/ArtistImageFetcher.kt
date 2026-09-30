@@ -5,6 +5,9 @@ import android.net.Uri
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -66,13 +69,15 @@ data class SpotifyOEmbedResponse(
 
 class ArtistImageFetcher(private val context: Context) {
 
+    private val _updates = MutableStateFlow(0)
+    val updates: StateFlow<Int> = _updates.asStateFlow()
+
     companion object {
         private const val TAG = "ArtistImageFetcher"
         private const val MUSICBRAINZ_API = "https://musicbrainz.org/ws/2"
         private const val SPOTIFY_OEMBED = "https://open.spotify.com/oembed"
         private const val CONNECT_TIMEOUT = 10_000
         private const val READ_TIMEOUT = 15_000
-        private const val CACHE_TTL_MS = 30L * 24 * 60 * 60 * 1000 // 30 days
         private const val USER_AGENT = "MuseMeta/1.0 (musicplayer)"
         private val json = Json { ignoreUnknownKeys = true }
     }
@@ -87,10 +92,20 @@ class ArtistImageFetcher(private val context: Context) {
         return File(getArtistArtDir(), "${artistId}.jpg")
     }
 
-    private fun isCacheValid(file: File): Boolean {
-        if (!file.exists()) return false
-        val age = System.currentTimeMillis() - file.lastModified()
-        return age < CACHE_TTL_MS
+    private fun getNoImageMarker(artistId: Long): File {
+        return File(getArtistArtDir(), "${artistId}.none")
+    }
+
+    private fun markNoImage(artistId: Long) {
+        try {
+            getNoImageMarker(artistId).createNewFile()
+        } catch (_: Exception) {
+        }
+    }
+
+    fun clearArtistArt(artistId: Long) {
+        getArtistArtFile(artistId).delete()
+        getNoImageMarker(artistId).delete()
     }
 
     /** Fetch JSON text from a URL with common headers. */
@@ -114,13 +129,13 @@ class ArtistImageFetcher(private val context: Context) {
     suspend fun fetchArtistImage(artistName: String, artistId: Long): String? = withContext(Dispatchers.IO) {
         val t0 = System.currentTimeMillis()
         val cachedFile = getArtistArtFile(artistId)
-        if (isCacheValid(cachedFile)) {
+        if (cachedFile.exists()) {
             Log.d(TAG, "Cache hit for artist $artistId ($artistName)")
             return@withContext cachedFile.absolutePath
         }
-        if (cachedFile.exists()) {
-            cachedFile.delete()
-            Log.d(TAG, "Cache expired for artist $artistId ($artistName), re-fetching")
+        if (getNoImageMarker(artistId).exists()) {
+            Log.d(TAG, "Known no-image for artist $artistId ($artistName), skipping fetch")
+            return@withContext null
         }
 
         try {
@@ -135,6 +150,7 @@ class ArtistImageFetcher(private val context: Context) {
             val mbid = searchResult.artists?.firstOrNull()?.id
             if (mbid == null) {
                 Log.w(TAG, "No MusicBrainz result for '$artistName'")
+                markNoImage(artistId)
                 return@withContext null
             }
             val t2 = System.currentTimeMillis()
@@ -154,6 +170,7 @@ class ArtistImageFetcher(private val context: Context) {
                 ?.url?.resource
             if (spotifyUrl == null) {
                 Log.w(TAG, "No Spotify URL in MusicBrainz relations for '$artistName'")
+                markNoImage(artistId)
                 return@withContext null
             }
             val spotifyId = spotifyUrl.substringAfterLast("/")
@@ -168,6 +185,7 @@ class ArtistImageFetcher(private val context: Context) {
             val imageUrl = oembed.thumbnailUrl
             if (imageUrl == null) {
                 Log.w(TAG, "No thumbnail_url in oEmbed response for '$artistName'")
+                markNoImage(artistId)
                 return@withContext null
             }
             val t4 = System.currentTimeMillis()
@@ -194,6 +212,7 @@ class ArtistImageFetcher(private val context: Context) {
                 }
             }
             imgConn.disconnect()
+            _updates.value += 1
 
             val total = System.currentTimeMillis() - t0
             Log.d(TAG, "Downloaded artist image for '$artistName' to ${cachedFile.absolutePath} in ${total}ms")
@@ -214,6 +233,8 @@ class ArtistImageFetcher(private val context: Context) {
                     input.copyTo(output)
                 }
             }
+            getNoImageMarker(artistId).delete()
+            _updates.value += 1
             Log.d(TAG, "Saved manual image for artist $artistId to ${file.absolutePath}")
             file.absolutePath
         } catch (e: Exception) {

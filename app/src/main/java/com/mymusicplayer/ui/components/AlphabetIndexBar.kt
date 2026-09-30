@@ -32,27 +32,24 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.withFrameNanos
 import kotlinx.coroutines.launch
 
-fun computeIndexLetters(items: List<String>): List<String> {
-    val letters = items.map { item ->
-        val c = item.firstOrNull()?.uppercaseChar() ?: '#'
-        if (c in 'A'..'Z') c.toString() else "#"
-    }
-    return letters.distinct().sorted().let { sorted ->
-        val hash = sorted.filter { it == "#" }
-        val alpha = sorted.filter { it != "#" }
-        alpha + hash
-    }
-}
+/**
+ * Letters to show for a *flat* list whose display order is not guaranteed to be
+ * grouped (e.g. a filtered track list). Grouped lists should use
+ * [ScrollbarMath.sectionsForGroupedList] instead, which takes the order straight
+ * from the list.
+ */
+fun computeIndexLetters(items: List<String>): List<String> =
+    items.asSequence()
+        .map { ScrollbarMath.letterOf(it) }
+        .distinct()
+        .sortedBy { if (it == ScrollbarMath.OTHER_LETTER) Int.MAX_VALUE else it[0] - 'A' }
+        .toList()
 
-fun computeSectionIndices(items: List<String>, letters: List<String>): List<Int> {
-    return letters.map { letter ->
-        items.indexOfFirst { item ->
-            val c = item.firstOrNull()?.uppercaseChar() ?: '#'
-            val normalized = if (c in 'A'..'Z') c.toString() else "#"
-            normalized == letter
-        }.coerceAtLeast(0)
+/** Flat position of the first item in each [letters] bucket. */
+fun computeSectionIndices(items: List<String>, letters: List<String>): List<Int> =
+    letters.map { letter ->
+        items.indexOfFirst { ScrollbarMath.letterOf(it) == letter }.coerceAtLeast(0)
     }
-}
 
 @Composable
 fun AlphabetIndexBar(

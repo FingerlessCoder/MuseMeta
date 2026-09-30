@@ -148,6 +148,11 @@ fun ArtistDetailScreen(
                                 SubcomposeAsyncImage(
                                     model = ImageRequest.Builder(LocalContext.current)
                                         .data(File(artistArtPath))
+                                        .setParameter(
+                                            "art_mtime",
+                                            File(artistArtPath).lastModified(),
+                                            File(artistArtPath).lastModified().toString()
+                                        )
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = state.artist?.name,

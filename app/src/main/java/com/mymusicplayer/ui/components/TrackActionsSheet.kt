@@ -8,19 +8,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,17 +45,15 @@ fun TrackActionsSheet(
     track: Track?,
     isFavorite: Boolean,
     onDismiss: () -> Unit,
-    onPlay: () -> Unit = {},
     onPlayNext: () -> Unit = {},
     onAddToQueue: () -> Unit = {},
-    onAddToPlaylist: () -> Unit = {},
-    onGoToAlbum: () -> Unit = {},
-    onGoToArtist: () -> Unit = {},
     onToggleFavorite: () -> Unit = {},
-    onShare: () -> Unit = {}
+    onAddToPlaylist: () -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     if (track == null) return
 
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -83,42 +90,20 @@ fun TrackActionsSheet(
             Spacer(Modifier.height(8.dp))
 
             ActionItem(
-                icon = Icons.Default.PlayArrow, 
-                title = "Play Now", 
-                onClick = { onPlay(); onDismiss() },
-                contentDescription = "Play track now"
-            )
-            ActionItem(
-                icon = Icons.Default.SkipNext, 
-                title = "Play Next", 
+                icon = Icons.Default.SkipNext,
+                title = "Play Next",
                 onClick = { onPlayNext(); onDismiss() },
-                contentDescription = "Add to next queue position"
+                contentDescription = "Play this track next"
             )
             ActionItem(
-                icon = Icons.AutoMirrored.Filled.QueueMusic, 
-                title = "Add to Queue", 
+                icon = Icons.AutoMirrored.Filled.QueueMusic,
+                title = "Add to Queue",
                 onClick = { onAddToQueue(); onDismiss() },
                 contentDescription = "Add track to playback queue"
             )
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
-            if (track.album != null) {
-                ActionItem(
-                    icon = Icons.Default.Album, 
-                    title = "Go to Album", 
-                    onClick = { onGoToAlbum(); onDismiss() },
-                    contentDescription = "Navigate to album view"
-                )
-            }
-            if (track.artists.isNotEmpty()) {
-                ActionItem(
-                    icon = Icons.Default.Person, 
-                    title = "Go to Artist", 
-                    onClick = { onGoToArtist(); onDismiss() },
-                    contentDescription = "Navigate to artist view"
-                )
-            }
             ActionItem(
                 icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 title = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
@@ -126,22 +111,45 @@ fun TrackActionsSheet(
                 onClick = { onToggleFavorite(); onDismiss() },
                 contentDescription = if (isFavorite) "Remove track from favorites" else "Add track to favorites"
             )
+            ActionItem(
+                icon = Icons.AutoMirrored.Filled.PlaylistAdd,
+                title = "Add to Playlist",
+                onClick = { onAddToPlaylist(); onDismiss() },
+                contentDescription = "Add track to a playlist"
+            )
 
             HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
 
             ActionItem(
-                icon = Icons.AutoMirrored.Filled.PlaylistAdd, 
-                title = "Add to Playlist", 
-                onClick = { onAddToPlaylist(); onDismiss() },
-                contentDescription = "Add track to a playlist"
-            )
-            ActionItem(
-                icon = Icons.Default.Share, 
-                title = "Share", 
-                onClick = { onShare(); onDismiss() },
-                contentDescription = "Share this track with others"
+                icon = Icons.Default.Delete,
+                title = "Delete",
+                tint = MaterialTheme.colorScheme.error,
+                onClick = { showDeleteConfirm = true },
+                contentDescription = "Delete this track"
             )
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete track?") },
+            text = { Text("\"${track.title}\" will be removed from your library.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDelete()
+                    onDismiss()
+                }) {
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -160,7 +168,7 @@ private fun ActionItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = icon, 
+                imageVector = icon,
                 contentDescription = contentDescription ?: title,
                 modifier = Modifier.size(24.dp),
                 tint = tint ?: MaterialTheme.colorScheme.onSurface

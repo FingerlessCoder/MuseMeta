@@ -55,8 +55,13 @@ class ScanService : Service(), KoinComponent {
             ACTION_SCAN_PATHS -> {
                 val paths = intent.getStringArrayListExtra(EXTRA_PATHS)
                 if (paths != null) {
-                    serviceScope.launch {
-                        scanRepository.scanPaths(paths)
+                    scanJob?.cancel()
+                    scanJob = serviceScope.launch {
+                        try {
+                            scanRepository.scanPaths(paths)
+                        } finally {
+                            stopSelf(startId)
+                        }
                     }
                 }
             }
@@ -76,6 +81,21 @@ class ScanService : Service(), KoinComponent {
             val scanDir = settingsDataStore.scanDirectoryPath.first()
             val minFileSizeKb = settingsDataStore.scanMinFileSize.first()
             val minDurationSec = settingsDataStore.scanMinDuration.first()
+            val lastScanSec = settingsDataStore.lastScanTimestamp.first()
+            val nowSec = System.currentTimeMillis() / 1000L
+
+            if (scanDir.isNullOrBlank() && lastScanSec > 0L && nowSec - lastScanSec < 7L * 24 * 3600) {
+                val found = scanRepository.scanIncrementalSince(
+                    lastScanTimeSec = lastScanSec - 120L,
+                    minDuration = minDurationSec * 1000L
+                )
+                settingsDataStore.setLastScanTimestamp(nowSec)
+                settingsDataStore.setScanCompletedOnce()
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                Log.d(TAG, "Incremental gap-fill complete: $found files")
+                return@launch
+            }
 
             scanRepository.scanLibrary(
                 excludedPaths = excludedDirs,
@@ -93,6 +113,7 @@ class ScanService : Service(), KoinComponent {
                 if (isComplete) {
                     if (progress.phase == ScanPhase.COMPLETE) {
                         settingsDataStore.setScanCompletedOnce()
+                        settingsDataStore.setLastScanTimestamp(System.currentTimeMillis() / 1000L)
                     }
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()

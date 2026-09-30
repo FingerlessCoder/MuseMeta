@@ -7,13 +7,24 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
+import com.mymusicplayer.data.scanner.MediaLibraryObserver
+import com.mymusicplayer.data.scanner.ScanRepository
+import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.di.appModule
 import com.mymusicplayer.di.databaseModule
+import com.mymusicplayer.domain.repository.MusicRepository
 import org.jaudiotagger.tag.TagOptionSingleton
 import org.koin.android.ext.koin.androidContext
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import org.koin.core.context.startKoin
 
-class MusicPlayerApp : Application(), ImageLoaderFactory {
+class MusicPlayerApp : Application(), ImageLoaderFactory, KoinComponent {
+    private val musicRepository: MusicRepository by inject()
+    private val settingsDataStore: SettingsDataStore by inject()
+    private val scanRepository: ScanRepository by inject()
+    private var mediaLibraryObserver: MediaLibraryObserver? = null
+
     override fun attachBaseContext(base: Context) {
         super.attachBaseContext(base)
         MultiDex.install(this)
@@ -26,6 +37,8 @@ class MusicPlayerApp : Application(), ImageLoaderFactory {
             androidContext(this@MusicPlayerApp)
             modules(appModule, databaseModule)
         }
+        mediaLibraryObserver = MediaLibraryObserver(this, musicRepository, settingsDataStore, scanRepository)
+            .also { it.register() }
     }
 
     override fun newImageLoader(): ImageLoader {

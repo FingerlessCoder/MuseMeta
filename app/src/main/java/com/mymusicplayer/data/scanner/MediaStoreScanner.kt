@@ -163,13 +163,13 @@ class MediaStoreScanner(
         )
 
         val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0 AND " +
-                "${MediaStore.Audio.Media.DATE_MODIFIED} > $lastScanTime"
+                "${MediaStore.Audio.Media.DATE_MODIFIED} > ?"
 
         contentResolver.query(
             collectionUri,
             projection,
             selection,
-            null,
+            arrayOf(lastScanTime.toString()),
             null
         )?.use { cursor ->
             val idCol = cursor.getColumnIndex(MediaStore.Audio.Media._ID)

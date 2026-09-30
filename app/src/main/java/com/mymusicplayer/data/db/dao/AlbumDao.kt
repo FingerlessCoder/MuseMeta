@@ -18,12 +18,15 @@ interface AlbumDao {
     @Query("""
         SELECT * FROM albums
         ORDER BY
+            CASE WHEN :sort = 'title' THEN title END COLLATE NOCASE ASC,
             CASE WHEN :sort = 'album_artist' THEN COALESCE(album_artist, '') END COLLATE NOCASE ASC,
+            CASE WHEN :sort = 'album_artist_desc' THEN COALESCE(album_artist, '') END COLLATE NOCASE DESC,
             CASE WHEN :sort = 'year' THEN year END DESC,
             CASE WHEN :sort = 'track_count' THEN (SELECT COUNT(*) FROM tracks WHERE tracks.album_id = albums.id) END DESC,
             CASE WHEN :sort = 'year_desc' THEN year END ASC,
             CASE WHEN :sort = 'track_count_desc' THEN (SELECT COUNT(*) FROM tracks WHERE tracks.album_id = albums.id) END ASC,
-            CASE WHEN :sort = 'title_desc' THEN title END COLLATE NOCASE DESC
+            CASE WHEN :sort = 'title_desc' THEN title END COLLATE NOCASE DESC,
+            id ASC
     """)
     fun getAllAlbumsSorted(sort: String = "title"): Flow<List<AlbumEntity>>
 

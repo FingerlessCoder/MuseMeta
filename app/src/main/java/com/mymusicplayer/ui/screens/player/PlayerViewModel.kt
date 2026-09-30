@@ -57,6 +57,26 @@ class PlayerViewModel(
     private var playbackUpdateJob: Job? = null
     private var lyricsFetchJob: Job? = null
 
+    private var stickyDuration = 0L
+    private var stickyTrackId: Long? = null
+
+    /**
+     * ExoPlayer reports `C.TIME_UNSET` (normalised to 0 by the controller) while
+     * buffering after a seek or during a track transition. Feeding that straight
+     * into the UI made the seek bar collapse to 0 and the elapsed/duration labels
+     * flash, so the last known good duration is held until a real one arrives.
+     * The cache is keyed on track id so switching songs still resets it.
+     */
+    private fun resolveDuration(reported: Long): Long {
+        val trackId = _uiState.value.currentTrack?.id
+        if (trackId != stickyTrackId) {
+            stickyTrackId = trackId
+            stickyDuration = 0L
+        }
+        if (reported > 0L) stickyDuration = reported
+        return stickyDuration
+    }
+
     init {
         viewModelScope.launch {
             musicPlayerController.playbackState.collect { state ->
@@ -90,7 +110,10 @@ class PlayerViewModel(
                     currentTrack = currentTrack,
                     isPlaying = state.isPlaying,
                     currentPosition = state.currentPosition,
-                    duration = state.duration,
+                    // Keep the last known duration when the player momentarily
+                    // reports an unknown one, otherwise the progress bar and the
+                    // time labels jump back to zero mid-seek.
+                    duration = resolveDuration(state.duration),
                     queueSize = state.queueSize,
                     queueIndex = state.queueIndex,
                     playbackMode = state.playbackMode,
@@ -340,11 +363,17 @@ class PlayerViewModel(
     private fun startPositionUpdates() {
         playbackUpdateJob?.cancel()
         playbackUpdateJob = viewModelScope.launch {
+            // ExoPlayer briefly reports TIME_UNSET (normalised to 0 by the
+            // controller) while it re-buffers after a seek or a track change.
+            // Publishing that 0 straight into the UI state made the progress bar
+            // collapse to the start, so the last known good value is kept until a
+            // real duration arrives.
             while (true) {
                 kotlinx.coroutines.delay(250)
+                val current = _uiState.value
                 val pos = musicPlayerController.getCurrentPosition()
-                val dur = musicPlayerController.getDuration()
-                val lyrics = _uiState.value.syncedLyrics
+                val dur = resolveDuration(musicPlayerController.getDuration())
+                val lyrics = current.syncedLyrics
                 val lyricIndex = if (lyrics != null) {
                     LrcParser.findLineIndex(lyrics, pos)
                 } else -1
@@ -361,9 +390,7 @@ class PlayerViewModel(
         musicPlayerController.togglePlayPause()
     }
 
-    fun seekTo(positionMs: Long) {
-        musicPlayerController.seekTo(positionMs)
-    }
+    fun seekTo(positionMs: Long): Boolean = musicPlayerController.seekTo(positionMs)
 
     fun skipToNext() {
         musicPlayerController.skipToNext()

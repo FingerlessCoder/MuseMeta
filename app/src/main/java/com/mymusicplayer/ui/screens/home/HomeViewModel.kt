@@ -12,6 +12,7 @@ import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Playlist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.domain.repository.MusicRepository
+import com.mymusicplayer.ui.components.ScrollbarMath
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -56,6 +57,54 @@ class HomeViewModel(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     /**
+     * Single source of truth for which tab is shown and how each tab is sorted.
+     *
+     * Sort state is per tab, not global: one shared (mode, dir) meant that
+     * switching to Albums with the Tracks tab on `play_count` left Albums showing
+     * a sort it has no notion of, and the index bar then bucketed the list by a
+     * different field than the list was ordered by. Each tab now remembers its
+     * own mode, seeded from the persisted DEFAULT_SORT clamped to the modes that
+     * tab supports, so a tab can never land on a mode it cannot render.
+     *
+     * Seeded/updated by DataStore DEFAULT_SORT (distinctUntilChanged, so
+     * unrelated prefs edits don't rebuild lists) and by the Home sort menu
+     * (session-only, not persisted). The main combine below is the ONLY writer
+     * of sorted lists — no fire-and-forget refresh* collectors.
+     */
+    private val sortState = MutableStateFlow(HomeSortState())
+
+    private var lastArtMapTracksKey: List<Long> = emptyList()
+    private var lastArtMapArtistsKey: List<Long> = emptyList()
+    private var lastArtMapVersion: Int = -1
+    private var lastArtMap: Map<Long, String?> = emptyMap()
+    private var avatarPrefetchStarted = false
+
+    private fun buildArtistArtMap(
+        artists: List<Artist>,
+        tracks: List<Track>,
+        version: Int = lastArtMapVersion
+    ): Map<Long, String?> {
+        val tracksKey = tracks.map { it.id }
+        val artistsKey = artists.map { it.id }
+        if (tracksKey == lastArtMapTracksKey && artistsKey == lastArtMapArtistsKey && version == lastArtMapVersion) {
+            return lastArtMap
+        }
+        val map = artists.associate { artist ->
+            val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
+            val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
+            else tracks
+                .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
+                ?.album?.artPath
+            artist.id to artPath
+        }
+        lastArtMapTracksKey = tracksKey
+        lastArtMapArtistsKey = artistsKey
+        lastArtMapVersion = version
+        lastArtMap = map
+        return map
+    }
+
+    /**
      * Recomputes the derived (filtered / artist-art) fields from the base
      * fields. All state mutations must pass through this so the stored derived
      * lists stay consistent and are never stale after a partial copy().
@@ -69,18 +118,20 @@ class HomeViewModel(
             },
             filteredAlbums = albums,
             filteredArtists = artists,
-            artistArtMap = artists.associate { artist ->
-                val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
-                val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
-                else tracks
-                    .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
-                    ?.album?.artPath
-                artist.id to artPath
-            }
+            artistArtMap = buildArtistArtMap(artists, tracks)
         )
     }
 
+    private fun parseSortRaw(raw: String): Pair<String, String> =
+        if (raw.endsWith("_desc")) raw.removeSuffix("_desc") to "desc" else raw to "asc"
+
     init {
+        viewModelScope.launch {
+            settingsDataStore.defaultSort.distinctUntilChanged().collect { raw ->
+                val (mode, dir) = parseSortRaw(raw)
+                sortState.update { it.copy(defaultSort = mode to dir) }
+            }
+        }
         viewModelScope.launch {
             // Combine 5 content flows, then chain with scanDone flag.
             // Separating the 6th flow avoids Kotlin type inference
@@ -94,11 +145,22 @@ class HomeViewModel(
             ) { tracks: List<Track>, albums: List<Album>, artists: List<Artist>, favorites: List<Track>, playlistEntities: List<PlaylistEntity> ->
                 CombinedContent(tracks, albums, artists, favorites, playlistEntities)
             }.combine(settingsDataStore.scanCompletedOnce) { content: CombinedContent, scanDone: Boolean ->
+                content to scanDone
+            }.combine(sortState) { contentAndScan: Pair<CombinedContent, Boolean>, sort: HomeSortState ->
+                val (content, scanDone) = contentAndScan
+                Triple(content, scanDone, sort)
+            }.combine(artistImageFetcher.updates) { contentScanSort: Triple<CombinedContent, Boolean, HomeSortState>, artVersion: Int ->
+                val (content, scanDone, sort) = contentScanSort
                 val hasContent = content.tracks.isNotEmpty() || content.albums.isNotEmpty()
                 val genre = _uiState.value.genreFilter
-                val tracks = sortTracks(content.tracks, _uiState.value.sortMode, _uiState.value.sortDir)
-                val albums = content.albums
-                val artists = content.artists
+                // Each list is sorted by ITS OWN tab's mode, not by whichever
+                // mode happens to be on screen.
+                val tracks = sortTracks(content.tracks, sort.effective(HomeTab.Tracks))
+                val albumTrackCounts = content.tracks.groupingBy { it.album?.id }.eachCount()
+                val albums = sortAlbums(content.albums, sort.effective(HomeTab.Albums), albumTrackCounts)
+                val artists = sortArtists(content.artists, sort.effective(HomeTab.Artists))
+                // What the UI shows in the sort chip/arrow is the current tab's.
+                val (mode, dir) = sort.effective(sort.tab)
                 val filteredTracks = when {
                     genre != null -> tracks.filter { (it.genre ?: "Unknown").equals(genre, ignoreCase = true) }
                     else -> tracks
@@ -122,95 +184,61 @@ class HomeViewModel(
                         .filter { it.lastPlayed != null && it.lastPlayed > 0L }
                         .sortedByDescending { it.lastPlayed }
                         .take(256),
-                    sortMode = _uiState.value.sortMode,
-                    selectedTab = _uiState.value.selectedTab,
+                    sortMode = mode,
+                    sortDir = dir,
+                    selectedTab = sort.tab,
                     genreFilter = genre,
                     filteredTracks = filteredTracks,
                     filteredAlbums = albums,
                     filteredArtists = artists,
-                    artistArtMap = artists.associate { artist ->
-                        val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
-                        val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
-                        else tracks
-                            .firstOrNull { track -> track.artists.any { it.id == artist.id } && track.album?.artPath != null }
-                            ?.album?.artPath
-                        artist.id to artPath
-                    }
+                    artistArtMap = buildArtistArtMap(artists, tracks, artVersion)
                 )
             }.collect { state ->
                 _uiState.value = state
             }
         }
-
-        viewModelScope.launch {
-            settingsDataStore.defaultSort.collect { raw ->
-                val (mode, dir) = if (raw.endsWith("_desc")) {
-                    raw.removeSuffix("_desc") to "desc"
-                } else {
-                    raw to "asc"
-                }
-                _uiState.value = _uiState.value.copy(sortMode = mode, sortDir = dir)
-                applySortForTab(_uiState.value.selectedTab)
-            }
-        }
+        startAvatarPrefetch()
     }
 
     fun selectTab(tab: HomeTab) {
-        _uiState.value = _uiState.value.copy(selectedTab = tab)
-        applySortForTab(tab)
-    }
-
-    private fun applySortForTab(tab: HomeTab) {
-        val sort = _uiState.value.sortMode
-        val dir = _uiState.value.sortDir
-        when (tab) {
-            HomeTab.Albums -> refreshAlbums(sort, dir)
-            HomeTab.Artists -> refreshArtists(dir)
-            else -> refreshTracks(sort, dir)
-        }
+        // Routed through sortState (not a plain copy()) so the combine re-runs
+        // and the sort chip/arrow switch to the newly selected tab's mode.
+        sortState.update { it.copy(tab = tab) }
     }
 
     fun setSortMode(sort: String) {
-        _uiState.value = _uiState.value.copy(sortMode = sort)
-        applySortForTab(_uiState.value.selectedTab)
+        sortState.update { state ->
+            val (mode, dir) = state.effective(state.tab)
+            if (sort !in legalSortModes(state.tab)) state
+            else state.copy(overrides = state.overrides + (state.tab to (sort to dir)))
+        }
     }
 
     fun setSortDir(dir: String) {
-        _uiState.value = _uiState.value.copy(sortDir = dir)
-        applySortForTab(_uiState.value.selectedTab)
+        sortState.update { state ->
+            val (mode, _) = state.effective(state.tab)
+            state.copy(overrides = state.overrides + (state.tab to (mode to dir)))
+        }
     }
 
     fun setGenreFilter(genre: String?) {
         _uiState.value = _uiState.value.copy(genreFilter = genre).withDerived()
     }
 
-    private fun refreshTracks(sort: String, dir: String) {
-        val key = if (dir == "desc") "${sort}_desc" else sort
+    private fun startAvatarPrefetch() {
+        if (avatarPrefetchStarted) return
+        avatarPrefetchStarted = true
         viewModelScope.launch {
-            musicRepository.getAllTracks(key).first { tracks ->
-                _uiState.value = _uiState.value.copy(tracks = tracks).withDerived()
-                true
+            val artists = try {
+                musicRepository.getAllArtists().first { it.isNotEmpty() }
+            } catch (_: Exception) {
+                return@launch
             }
-        }
-    }
-
-    private fun refreshAlbums(sort: String, dir: String) {
-        val key = if (dir == "desc" && sort in setOf("title", "year", "track_count")) "${sort}_desc"
-        else if (sort == "name") "title"
-        else sort
-        viewModelScope.launch {
-            musicRepository.getAllAlbums(key).first { albums ->
-                _uiState.value = _uiState.value.copy(albums = albums).withDerived()
-                true
-            }
-        }
-    }
-
-    private fun refreshArtists(dir: String) {
-        viewModelScope.launch {
-            musicRepository.getAllArtists(if (dir == "desc") "name_desc" else "name").first { artists ->
-                _uiState.value = _uiState.value.copy(artists = artists).withDerived()
-                true
+            for (artist in artists) {
+                try {
+                    artistImageFetcher.fetchArtistImage(artist.name, artist.id)
+                } catch (_: Exception) {
+                }
             }
         }
     }
@@ -312,6 +340,27 @@ class HomeViewModel(
 
 }
 
+/**
+ * Sort state, kept per tab.
+ *
+ * [overrides] holds what the user picked in each tab this session; anything they
+ * have not touched falls back to the persisted [defaultSort], clamped to the
+ * modes [tab] actually supports. One object instead of separate flows so
+ * switching tabs and changing the sort are a single emission — the combine that
+ * produces the sorted lists then always sees them together.
+ */
+private data class HomeSortState(
+    val tab: HomeTab = HomeTab.Tracks,
+    val overrides: Map<HomeTab, Pair<String, String>> = emptyMap(),
+    val defaultSort: Pair<String, String> = "name" to "asc"
+) {
+    fun effective(tab: HomeTab): Pair<String, String> =
+        overrides[tab] ?: run {
+            val (mode, dir) = defaultSort
+            (if (mode in legalSortModes(tab)) mode else fallbackSortMode(tab)) to dir
+        }
+}
+
 /** Internal holder for the 5-way combine used in HomeViewModel init. */
 private data class CombinedContent(
     val tracks: List<Track>,
@@ -327,18 +376,86 @@ private data class CombinedContent(
  * change. This re-sorts them according to the user's current preference so
  * the sort mode doesn't reset when a track advances and Room re-emits.
  */
-private fun sortTracks(tracks: List<Track>, mode: String, dir: String): List<Track> {
+private fun sortTracks(tracks: List<Track>, sort: Pair<String, String>): List<Track> {
+    val (mode, dir) = sort
     val sorted: List<Track> = when (mode) {
-        "name" -> tracks.sortedBy { it.title.lowercase() }
-        "date_added" -> tracks.sortedBy { it.dateAdded }
-        "play_count" -> tracks.sortedBy { it.playCount }
-        "duration" -> tracks.sortedBy { it.duration }
-        "rating" -> tracks.sortedBy { it.rating }
-        "year" -> tracks.sortedByDescending { it.year ?: 0 }
-        "genre" -> tracks.sortedBy { it.genre ?: "" }
-        "artist" -> tracks.sortedBy { it.artists.firstOrNull()?.name?.lowercase() ?: "" }
-        "album" -> tracks.sortedBy { it.album?.title?.lowercase() ?: "" }
-        else -> tracks
+        "name" -> tracks.sortedWith(compareBy({ it.title.lowercase() }, { it.id }))
+        "date_added" -> tracks.sortedWith(compareBy({ it.dateAdded }, { it.id }))
+        "play_count" -> tracks.sortedWith(compareBy({ it.playCount }, { it.id }))
+        "duration" -> tracks.sortedWith(compareBy({ it.duration }, { it.id }))
+        "rating" -> tracks.sortedWith(compareBy({ it.rating }, { it.id }))
+        "year" -> tracks.sortedWith(compareByDescending<Track> { it.year ?: 0 }.thenBy { it.id })
+        "genre" -> tracks.sortedWith(compareBy({ it.genre ?: "" }, { it.id }))
+        "artist" -> tracks.sortedWith(compareBy({ it.artists.firstOrNull()?.name?.lowercase() ?: "" }, { it.id }))
+        "album" -> tracks.sortedWith(compareBy({ it.album?.title?.lowercase() ?: "" }, { it.id }))
+        else -> tracks.sortedBy { it.id }
     }
     return if (dir == "desc") sorted.reversed() else sorted
 }
+
+/**
+ * In-memory sort for albums.
+ *
+ * The two alphabetical modes (the ones that get an index bar) go through
+ * [ScrollbarMath.indexLetterComparator] rather than a plain lowercase compare.
+ * A code-point compare scatters everything the bar calls `#` — `(` before `A`,
+ * digits before `M`, CJK after `Z` — so `(g)i-dle` landed above `A` while the
+ * bar's single `#` sat at the bottom, and the bar's jump targets no longer
+ * matched the list. Grouping those names into one trailing bucket keeps list
+ * order and bar order the same sequence.
+ */
+private fun sortAlbums(
+    albums: List<Album>,
+    sort: Pair<String, String>,
+    trackCounts: Map<Long?, Int> = emptyMap()
+): List<Album> {
+    val (mode, dir) = sort
+    val descending = dir == "desc"
+    return when (mode) {
+        "year" -> albums.sortedWith(
+            orderBy<Album, Int>({ it.year ?: 0 }, descending).thenBy { it.id }
+        )
+        "track_count" -> albums.sortedWith(
+            orderBy<Album, Int>({ trackCounts[it.id] ?: it.trackCount }, descending)
+                .thenBy { it.id }
+        )
+        else -> albums.sortedWith(
+            indexOrder(name = { it.indexKey(mode) }, id = { it.id }, descending = descending)
+        )
+    }
+}
+
+private fun sortArtists(artists: List<Artist>, sort: Pair<String, String>): List<Artist> {
+    val (mode, dir) = sort
+    return artists.sortedWith(
+        indexOrder(name = { it.indexKey(mode) }, id = { it.id }, descending = dir == "desc")
+    )
+}
+
+/**
+ * Orders by [selector] in the direction [descending] asks for.
+ *
+ * The direction is baked into the comparator rather than applied with
+ * `reversed()` on the finished list, because the alphabetical modes need a
+ * direction-aware comparator of their own: a blanket reverse would also move the
+ * `#` bucket to the top, away from where the index bar draws it.
+ */
+private fun <T, K : Comparable<K>> orderBy(
+    selector: (T) -> K,
+    descending: Boolean
+): Comparator<T> =
+    if (descending) compareByDescending(selector) else compareBy(selector)
+
+/**
+ * Orders by the name the alphabet index bar buckets on, with `id` as the
+ * tiebreaker so equal names never reorder between emissions. See
+ * [ScrollbarMath.indexLetterComparator] for why this is not a plain string
+ * compare, and why [descending] goes into the comparator instead of a blanket
+ * `reversed()`.
+ */
+private fun <T> indexOrder(
+    name: (T) -> String,
+    id: (T) -> Long,
+    descending: Boolean
+): Comparator<T> = compareBy(ScrollbarMath.indexLetterComparator(descending), name)
+    .thenBy(id)

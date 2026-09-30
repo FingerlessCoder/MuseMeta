@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ArtistDao {
 
-    @Query("SELECT * FROM artists ORDER BY name ASC")
+    @Query("SELECT * FROM artists ORDER BY name COLLATE NOCASE ASC, id ASC")
     fun getAllArtists(): Flow<List<ArtistEntity>>
 
     @Query("SELECT * FROM artists WHERE id = :artistId")
@@ -39,7 +39,7 @@ interface ArtistDao {
         INNER JOIN track_artists ta ON a.id = ta.artist_id
         INNER JOIN tracks t ON ta.track_id = t.id
         GROUP BY a.id
-        ORDER BY a.name COLLATE NOCASE ASC
+        ORDER BY a.name COLLATE NOCASE ASC, a.id ASC
     """)
     fun getAllArtistsWithCounts(): Flow<List<ArtistWithCounts>>
 
@@ -50,7 +50,7 @@ interface ArtistDao {
         INNER JOIN track_artists ta ON a.id = ta.artist_id
         INNER JOIN tracks t ON ta.track_id = t.id
         GROUP BY a.id
-        ORDER BY a.name COLLATE NOCASE DESC
+        ORDER BY a.name COLLATE NOCASE DESC, a.id ASC
     """)
     fun getAllArtistsWithCountsDesc(): Flow<List<ArtistWithCounts>>
 

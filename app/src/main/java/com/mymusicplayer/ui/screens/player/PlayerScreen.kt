@@ -72,6 +72,7 @@ import com.mymusicplayer.data.preferences.SettingsDataStore
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.EqualizerPanel
 import com.mymusicplayer.ui.components.MarqueeText
+import com.mymusicplayer.ui.components.SeekBar
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 import androidx.compose.ui.platform.LocalContext
@@ -96,7 +97,7 @@ fun PlayerScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val settingsDataStore: SettingsDataStore = koinInject()
-    val playerTheme by settingsDataStore.playerTheme.collectAsState(initial = 0)
+    val playerTheme = 0
 
     val writePermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartIntentSenderForResult()
@@ -225,7 +226,7 @@ fun PlayerScreen(
                 currentTrack = state.currentTrack,
                 onTap = { showLyricsView = false },
                 onRetry = { viewModel.triggerLyricsFetch() },
-                onSeekTo = { viewModel.seekTo(it) },
+                onSeekTo = { viewModel.seekTo(it); Unit },
                 onUploadLyrics = { lyricsFilePickerLauncher.launch(arrayOf("*/*")) },
                 onRemoveLyrics = { viewModel.removeLyrics() }
             )
@@ -482,24 +483,55 @@ private fun PlayerContent(
     onTapCover: () -> Unit,
     onOpenPlaylist: () -> Unit
 ) {
-    // ── Smooth progress animation to prevent flicker ──
-    val targetFraction = if (state.duration > 0) state.currentPosition.toFloat() / state.duration else 0f
-    val animatedFraction by animateFloatAsState(
-        targetValue = targetFraction,
-        animationSpec = tween(durationMillis = 300),
-        label = "sliderProgress"
-    )
+    // Raw progress fraction, no smoothing tween: the value only moves on the
+    // 250ms position poll, so the thumb never jitters between frames.
+    val rawFraction = if (state.duration > 0) state.currentPosition.toFloat() / state.duration else 0f
 
     // Local drag state for instant slider thumb response during seek
     var isDragging by remember { mutableStateOf(false) }
     var dragFraction by remember { mutableFloatStateOf(0f) }
+    var pendingSeekFraction by remember { mutableStateOf<Float?>(null) }
 
-    // Sync animated progress into drag state when NOT dragging, so the thumb
+    val playingTrackId = state.currentTrack?.id
+    LaunchedEffect(playingTrackId) {
+        isDragging = false
+        pendingSeekFraction = null
+        dragFraction = 0f
+    }
+
+    // Sync progress into drag state when NOT dragging, so the thumb
     // starts from the current position when user begins a new drag gesture.
-    LaunchedEffect(animatedFraction) {
-        if (!isDragging) {
-            dragFraction = animatedFraction
+    LaunchedEffect(rawFraction) {
+        if (!isDragging && pendingSeekFraction == null) {
+            dragFraction = rawFraction
         }
+    }
+
+    // Release the pinned thumb once playback catches up with the seek target,
+    // so the thumb doesn't snap back to the old position. A timeout is included
+    // so a seek the player silently ignored (e.g. duration not ready yet) can't
+    // leave the thumb frozen forever.
+    val latestPosition by rememberUpdatedState(state.currentPosition)
+    LaunchedEffect(pendingSeekFraction) {
+        val target = pendingSeekFraction ?: return@LaunchedEffect
+        val duration = state.duration
+        if (duration <= 0L) {
+            pendingSeekFraction = null
+            return@LaunchedEffect
+        }
+        val targetMs = (target * duration).toLong()
+        val deadline = System.currentTimeMillis() + 3000L
+        while (System.currentTimeMillis() < deadline) {
+            kotlinx.coroutines.delay(120)
+            if (kotlin.math.abs(latestPosition - targetMs) < 2500L) break
+        }
+        pendingSeekFraction = null
+    }
+
+    val sliderFraction = when {
+        isDragging -> dragFraction
+        pendingSeekFraction != null -> dragFraction
+        else -> rawFraction
     }
 
     Column(
@@ -677,25 +709,26 @@ private fun PlayerContent(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // ── Progress Bar (local drag for instant response, animated when playing) ──
-            Slider(
-                value = if (isDragging) dragFraction else animatedFraction,
+            // ── Progress Bar (custom draw, no animation smoothing) ──
+            SeekBar(
+                value = sliderFraction,
+                enabled = state.duration > 0L,
                 onValueChange = { fraction ->
                     dragFraction = fraction
                     isDragging = true
+                    pendingSeekFraction = null
                 },
                 onValueChangeFinished = {
                     isDragging = false
-                    viewModel.seekTo((dragFraction * state.duration).toLong())
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
+                    // Only pin the thumb when the seek was actually issued; a
+                    // rejected seek (unknown duration) must fall back to polling.
+                    pendingSeekFraction =
+                        if (viewModel.seekTo((dragFraction * state.duration).toLong())) {
+                            dragFraction
+                        } else {
+                            null
+                        }
+                }
             )
 
             Row(
@@ -705,7 +738,13 @@ private fun PlayerContent(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = formatDuration(state.currentPosition),
+                    text = formatDuration(
+                        if (isDragging || pendingSeekFraction != null) {
+                            (dragFraction * state.duration).toLong()
+                        } else {
+                            state.currentPosition
+                        }
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
