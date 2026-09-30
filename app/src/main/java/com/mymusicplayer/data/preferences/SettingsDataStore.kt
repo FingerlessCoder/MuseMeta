@@ -51,7 +51,7 @@ class SettingsDataStore(private val context: Context) {
     }
 
     val equalizerPreset: Flow<String> = context.dataStore.data.map { prefs ->
-        prefs[EQUALIZER_PRESET] ?: "Normal"
+        prefs[EQUALIZER_PRESET] ?: "Flat"
     }
 
     val equalizerBands: Flow<String> = context.dataStore.data.map { prefs ->

@@ -21,8 +21,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.mymusicplayer.data.preferences.SettingsDataStore
+import com.mymusicplayer.ui.components.EqualizerPanel
 import com.mymusicplayer.ui.theme.AccentPalettes
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 private val sortFields = listOf("name", "date_added", "play_count", "year", "genre", "artist", "album")
 
@@ -47,6 +50,8 @@ fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
+    val settingsDataStore = koinInject<SettingsDataStore>()
+    var showEqualizer by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -86,6 +91,19 @@ fun SettingsScreen(
                     remainingSeconds = state.sleepTimerRemainingSeconds,
                     onSelect = { viewModel.setSleepTimer(it) }
                 )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+                SettingRow(
+                    icon = Icons.Default.GraphicEq,
+                    title = "Equalizer",
+                    subtitle = (if (state.equalizerEnabled) "On" else "Off") + " \u00b7 " + state.equalizerPreset,
+                    trailing = {
+                        Switch(
+                            checked = state.equalizerEnabled,
+                            onCheckedChange = { viewModel.setEqualizerEnabled(it) }
+                        )
+                    },
+                    onClick = { showEqualizer = true }
+                )
             }
 
             SectionHeader("Appearance")
@@ -124,6 +142,16 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(32.dp))
+        }
+
+        if (showEqualizer) {
+            ModalBottomSheet(
+                onDismissRequest = { showEqualizer = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ) {
+                EqualizerPanel(settingsDataStore = settingsDataStore)
+                Spacer(Modifier.height(24.dp))
+            }
         }
     }
 }

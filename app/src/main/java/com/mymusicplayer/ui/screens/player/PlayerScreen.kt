@@ -318,11 +318,8 @@ fun PlayerScreen(
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         ) {
-            EqualizerPanel(
-                settingsDataStore = settingsDataStore,
-                onDismiss = { showEqualizerPanel = false }
-            )
-            Spacer(Modifier.height(16.dp))
+            EqualizerPanel(settingsDataStore = settingsDataStore)
+            Spacer(Modifier.height(24.dp))
         }
     }
 

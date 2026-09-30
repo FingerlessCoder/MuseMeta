@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val sortMode: String = "name",
     val equalizerEnabled: Boolean = false,
-    val equalizerPreset: String = "Normal",
+    val equalizerPreset: String = "Flat",
     val sleepTimerMinutes: Int = 0,
     val sleepTimerRemainingSeconds: Int = 0,
     val scanDirectoryPath: String = "",
