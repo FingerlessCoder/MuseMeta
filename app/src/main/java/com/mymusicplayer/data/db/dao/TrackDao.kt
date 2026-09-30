@@ -50,7 +50,8 @@ interface TrackDao {
     @Query("""
         SELECT t.* FROM tracks t
         WHERE (:query IS NULL OR t.title LIKE '%' || :query || '%'
-            OR t.raw_artist_tag LIKE '%' || :query || '%')
+            OR t.raw_artist_tag LIKE '%' || :query || '%'
+            OR t.album_id IN (SELECT id FROM albums WHERE title LIKE '%' || :query || '%'))
         ORDER BY t.title ASC
     """)
     fun searchTracks(query: String?): Flow<List<TrackEntity>>

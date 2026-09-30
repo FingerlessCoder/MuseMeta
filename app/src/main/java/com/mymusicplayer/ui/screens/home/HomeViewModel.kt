@@ -19,7 +19,6 @@ enum class HomeTab { Tracks, Albums, Artists }
 
 data class HomeUiState(
     val isLoading: Boolean = true,
-    val searchQuery: String = "",
     val tracks: List<Track> = emptyList(),
     val albums: List<Album> = emptyList(),
     val artists: List<Artist> = emptyList(),
@@ -62,18 +61,14 @@ class HomeViewModel(
      * lists stay consistent and are never stale after a partial copy().
      */
     private fun HomeUiState.withDerived(): HomeUiState {
-        val query = searchQuery
         val genre = genreFilter
         return copy(
             filteredTracks = when {
-                query.isNotBlank() -> tracks.filter { it.title.contains(query, ignoreCase = true) }
                 genre != null -> tracks.filter { (it.genre ?: "Unknown").equals(genre, ignoreCase = true) }
                 else -> tracks
             },
-            filteredAlbums = if (query.isBlank()) albums
-                else albums.filter { it.title.contains(query, ignoreCase = true) },
-            filteredArtists = if (query.isBlank()) artists
-                else artists.filter { it.name.contains(query, ignoreCase = true) },
+            filteredAlbums = albums,
+            filteredArtists = artists,
             artistArtMap = artists.associate { artist ->
                 val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
                 val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
@@ -100,13 +95,11 @@ class HomeViewModel(
                 CombinedContent(tracks, albums, artists, favorites, playlistEntities)
             }.combine(settingsDataStore.scanCompletedOnce) { content: CombinedContent, scanDone: Boolean ->
                 val hasContent = content.tracks.isNotEmpty() || content.albums.isNotEmpty()
-                val query = _uiState.value.searchQuery
                 val genre = _uiState.value.genreFilter
                 val tracks = sortTracks(content.tracks, _uiState.value.sortMode, _uiState.value.sortDir)
                 val albums = content.albums
                 val artists = content.artists
                 val filteredTracks = when {
-                    query.isNotBlank() -> tracks.filter { it.title.contains(query, ignoreCase = true) }
                     genre != null -> tracks.filter { (it.genre ?: "Unknown").equals(genre, ignoreCase = true) }
                     else -> tracks
                 }
@@ -131,13 +124,10 @@ class HomeViewModel(
                         .take(256),
                     sortMode = _uiState.value.sortMode,
                     selectedTab = _uiState.value.selectedTab,
-                    searchQuery = query,
                     genreFilter = genre,
                     filteredTracks = filteredTracks,
-                    filteredAlbums = if (query.isBlank()) albums
-                        else albums.filter { it.title.contains(query, ignoreCase = true) },
-                    filteredArtists = if (query.isBlank()) artists
-                        else artists.filter { it.name.contains(query, ignoreCase = true) },
+                    filteredAlbums = albums,
+                    filteredArtists = artists,
                     artistArtMap = artists.associate { artist ->
                         val spotifyFile = artistImageFetcher.getArtistArtFile(artist.id)
                         val artPath = if (spotifyFile.exists()) spotifyFile.absolutePath
@@ -163,10 +153,6 @@ class HomeViewModel(
                 applySortForTab(_uiState.value.selectedTab)
             }
         }
-    }
-
-    fun setSearchQuery(query: String) {
-        _uiState.value = _uiState.value.copy(searchQuery = query).withDerived()
     }
 
     fun selectTab(tab: HomeTab) {

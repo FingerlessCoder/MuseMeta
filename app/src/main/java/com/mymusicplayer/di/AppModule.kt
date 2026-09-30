@@ -20,6 +20,8 @@ import com.mymusicplayer.ui.screens.home.MultiSelectViewModel
 import com.mymusicplayer.ui.screens.player.PlayerViewModel
 import com.mymusicplayer.ui.screens.scan.ScanViewModel
 import com.mymusicplayer.ui.screens.search.SearchViewModel
+import com.mymusicplayer.ui.screens.search.SearchResultsViewModel
+import com.mymusicplayer.data.preferences.SearchHistoryDataStore
 import com.mymusicplayer.ui.screens.settings.SettingsViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
@@ -35,6 +37,7 @@ val appModule = module {
     single { MetadataParser() }
     single { ScanRepository(androidContext(), get(), get(), get(), get(), get(), get()) }
     single { SettingsDataStore(androidContext()) }
+    single { SearchHistoryDataStore(androidContext()) }
     single { LyricsFetcher(androidContext()) }
     single { ArtistImageFetcher(androidContext()) }
     factory { androidContext().contentResolver }
@@ -42,7 +45,9 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get(), get<PlaylistDao>(), get(), get()) }
     viewModel { MultiSelectViewModel(get(), get(), get()) }
     viewModel { PlayerViewModel(get(), get(), get()) }
-    viewModel { SearchViewModel(get(), get()) }
+    viewModel { SearchViewModel(get()) }
+    viewModel { params -> SearchResultsViewModel(params.get(), get(), get()) }
+    viewModel { params -> SearchResultsViewModel(params.get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }
     viewModel { ScanViewModel(get(), get()) }
     viewModel { DirectoryPickerViewModel(get(), get()) }

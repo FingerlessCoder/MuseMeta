@@ -3,6 +3,9 @@ package com.mymusicplayer.ui.navigation
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object Search : Screen("search")
+    data object SearchResults : Screen("search_results/{query}") {
+        fun createRoute(query: String) = "search_results/${android.net.Uri.encode(query)}"
+    }
     data object NowPlaying : Screen("now_playing")
     data object Settings : Screen("settings")
     data object Scan : Screen("scan")

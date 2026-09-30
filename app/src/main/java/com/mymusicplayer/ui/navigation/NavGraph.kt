@@ -19,6 +19,8 @@ import com.mymusicplayer.ui.screens.home.PlaylistsScreen
 import com.mymusicplayer.ui.screens.home.RecentlyPlayedScreen
 import com.mymusicplayer.ui.screens.player.PlayerScreen
 import com.mymusicplayer.ui.screens.search.SearchScreen
+import com.mymusicplayer.ui.screens.search.SearchResultsScreen
+import com.mymusicplayer.ui.screens.search.SearchResultsViewModel
 import com.mymusicplayer.ui.screens.settings.SettingsScreen
 import com.mymusicplayer.ui.screens.scan.ScanScreen
 import com.mymusicplayer.ui.screens.directory_picker.DirectoryPickerScreen
@@ -54,8 +56,30 @@ fun NavGraph(navController: NavHostController, modifier: Modifier = Modifier) {
 
         composable(Screen.Search.route) {
             SearchScreen(
-                onNavigateToPlayer = { navController.navigate(Screen.NowPlaying.route) },
+                onNavigateToResults = { query ->
+                    navController.navigate(Screen.SearchResults.createRoute(query))
+                },
                 onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = Screen.SearchResults.route,
+            arguments = listOf(navArgument("query") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val query = backStackEntry.arguments?.getString("query") ?: return@composable
+            val viewModel = koinViewModel<SearchResultsViewModel> { parametersOf(query) }
+            SearchResultsScreen(
+                query = query,
+                onNavigateToPlayer = { navController.navigate(Screen.NowPlaying.route) },
+                onNavigateToAlbum = { albumId ->
+                    navController.navigate(Screen.AlbumDetail.createRoute(albumId))
+                },
+                onNavigateToArtist = { artistId ->
+                    navController.navigate(Screen.ArtistDetail.createRoute(artistId))
+                },
+                onBack = { navController.popBackStack() },
+                viewModel = viewModel
             )
         }
 

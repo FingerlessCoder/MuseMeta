@@ -36,6 +36,7 @@ import com.mymusicplayer.domain.model.Album
 import com.mymusicplayer.domain.model.Artist
 import com.mymusicplayer.domain.model.Track
 import com.mymusicplayer.ui.components.AlphabetIndexBar
+import com.mymusicplayer.ui.components.SearchTopBarFake
 import com.mymusicplayer.ui.components.computeIndexLetters
 import com.mymusicplayer.ui.components.computeSectionIndices
 import org.koin.androidx.compose.koinViewModel
@@ -66,37 +67,14 @@ fun HomeScreen(
     Column(modifier = Modifier.fillMaxSize().background(darkModeBackground)) {
 
 
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onNavigateToSettings) {
-                Icon(Icons.Default.Settings, contentDescription = "Open settings menu")
-            }
-            OutlinedTextField(
-                value = state.searchQuery,
-                onValueChange = { viewModel.setSearchQuery(it) },
-                placeholder = { Text("Search", style = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search tracks and albums") },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.weight(1f),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
-                ),
-                textStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = 14.sp)
-            )
-            if (state.searchQuery.isNotBlank()) {
-                IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                    Icon(Icons.Default.Close, contentDescription = "Clear search query")
+        SearchTopBarFake(
+            onClick = onNavigateToSearch,
+            leading = {
+                IconButton(onClick = onNavigateToSettings) {
+                    Icon(Icons.Default.Settings, contentDescription = "Open settings menu")
                 }
             }
-        }
+        )
 
         if (state.isLoading) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
