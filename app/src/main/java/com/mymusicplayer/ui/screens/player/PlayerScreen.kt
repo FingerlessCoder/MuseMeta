@@ -1108,11 +1108,10 @@ private fun EllipsisSheetContent(
     onRemoveLyrics: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val settingsDataStore = koinInject<SettingsDataStore>()
-    val scope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
             .padding(bottom = 32.dp)
     ) {
         // Sheet handle spacer
@@ -1134,8 +1133,7 @@ private fun EllipsisSheetContent(
                         .build(),
                     contentDescription = null,
                     modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .aspectRatio(1f)
+                        .size(112.dp)
                         .clip(RoundedCornerShape(12.dp)),
                     contentScale = ContentScale.Crop
                 )
