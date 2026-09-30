@@ -104,7 +104,7 @@ fun SearchResultsScreen(
                     )
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "No results found",
+                        state.error ?: "No results found",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

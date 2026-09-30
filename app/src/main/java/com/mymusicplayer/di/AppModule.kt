@@ -47,7 +47,6 @@ val appModule = module {
     viewModel { PlayerViewModel(get(), get(), get()) }
     viewModel { SearchViewModel(get()) }
     viewModel { params -> SearchResultsViewModel(params.get(), get(), get()) }
-    viewModel { params -> SearchResultsViewModel(params.get(), get(), get()) }
     viewModel { SettingsViewModel(get(), get()) }
     viewModel { ScanViewModel(get(), get()) }
     viewModel { DirectoryPickerViewModel(get(), get()) }
