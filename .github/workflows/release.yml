@@ -1,0 +1,82 @@
+name: Release
+
+# Build + publish the signed release APK whenever a version tag is pushed.
+# The whole point of this workflow is that the APK and the tag can never
+# disagree: the build runs on the tagged commit, and the guard step below
+# refuses to publish if the artifact's versionCode does not match that
+# commit's position in history.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build signed release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '26'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # app/build.gradle.kts signs release with signingConfigs["debug"], which AGP
+      # resolves to $HOME/.android/debug.keystore. Restoring the same keystore the
+      # local machine uses keeps the signing fingerprint stable, so builds from CI
+      # can be installed over builds from a laptop without an uninstall.
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.android"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
+          test -s "$HOME/.android/debug.keystore"
+          echo "restored $HOME/.android/debug.keystore ($(stat -c %s "$HOME/.android/debug.keystore") bytes)"
+
+      - name: Build release APK
+        run: ./gradlew assembleRelease --stacktrace
+
+      # Guards against the exact failure this workflow was added to prevent:
+      # publishing an APK that was built before some commits landed.
+      - name: Verify APK versionCode matches commit count and tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          meta=app/build/outputs/apk/release/output-metadata.json
+          commits=$(git rev-list --count HEAD)
+          vc=$(jq -r '.elements[0].versionCode' "$meta")
+          vn=$(jq -r '.elements[0].versionName' "$meta")
+          echo "tag=$TAG commits=$commits versionCode=$vc versionName=$vn"
+          if [ "$vc" != "$commits" ]; then
+            echo "::error::APK versionCode ($vc) != commit count ($commits) — refusing to publish a stale build"
+            exit 1
+          fi
+          if [ "$TAG" != "v$vn" ]; then
+            echo "::error::tag $TAG does not match built versionName v$vn"
+            exit 1
+          fi
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" \
+            app/build/outputs/apk/release/app-release.apk \
+            --verify-tag \
+            --title "$TAG" \
+            --generate-notes
