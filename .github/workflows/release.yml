@@ -22,6 +22,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          # Full history is required. app/build.gradle.kts derives versionCode
+          # from `git rev-list --count HEAD`, which returns 1 in the shallow
+          # clone that checkout performs by default — and GitCommitCountSource
+          # swallows the nonsense result and falls back to 1.
+          fetch-depth: 0
 
       - name: Set up JDK
         uses: actions/setup-java@v5
@@ -30,7 +36,7 @@ jobs:
           java-version: '26'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       # app/build.gradle.kts signs release with signingConfigs["debug"], which AGP
       # resolves to $HOME/.android/debug.keystore. Restoring the same keystore the
