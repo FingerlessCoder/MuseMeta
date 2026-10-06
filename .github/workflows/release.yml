@@ -72,7 +72,8 @@ jobs:
         run: ./gradlew assembleRelease --stacktrace
 
       - name: Report resolved signing config
-        run: ./gradlew :app:signingReport --console=plain | grep -A4 -i "Variant: release"
+        run: |
+          ./gradlew :app:signingReport --console=plain | grep -A4 -i "Variant: release"
 
       - name: Verify APK signing certificate
         env:
