@@ -1,15 +1,28 @@
 name: Release
 
 # Build + publish the signed release APK whenever a version tag is pushed.
-# The whole point of this workflow is that the APK and the tag can never
-# disagree: the build runs on the tagged commit, and the guard step below
-# refuses to publish if the artifact's versionCode does not match that
-# commit's position in history.
+#
+# This workflow exists because releases used to be produced by hand: run
+# assembleRelease locally, then gh release create whatever APK happened to be
+# on disk. Nothing tied the artifact to the tag, so an APK built before some
+# commits landed could be published under a tag pointing at newer code. The
+# published v1.0.119 was exactly that: the tag pointed at ddbc4bc (commit 120)
+# while the attached APK was versionCode 119.
+#
+# Two guards below make that class of mistake impossible to publish:
+#   * the artifact's versionCode must equal the commit count and the tag
+#   * the artifact's signing certificate must equal the expected fingerprint
+#
+# The second guard matters because app/build.gradle.kts signs release with
+# signingConfigs["debug"], and AGP resolves that keystore through environment
+# specific lookup. If the restore silently misses, AGP quietly generates a
+# fresh keystore and the APK is signed by a key no existing install has.
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -25,7 +38,7 @@ jobs:
         with:
           # Full history is required. app/build.gradle.kts derives versionCode
           # from `git rev-list --count HEAD`, which returns 1 in the shallow
-          # clone that checkout performs by default — and GitCommitCountSource
+          # clone checkout performs by default — and GitCommitCountSource
           # swallows the nonsense result and falls back to 1.
           fetch-depth: 0
 
@@ -38,26 +51,52 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # app/build.gradle.kts signs release with signingConfigs["debug"], which AGP
-      # resolves to $HOME/.android/debug.keystore. Restoring the same keystore the
-      # local machine uses keeps the signing fingerprint stable, so builds from CI
-      # can be installed over builds from a laptop without an uninstall.
+      # Write the keystore everywhere AGP might look, and pin ANDROID_USER_HOME
+      # so the lookup is not left to runner-image defaults. Correctness does not
+      # depend on this step succeeding — the certificate guard below catches it.
       - name: Restore signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          mkdir -p "$HOME/.android"
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$HOME/.android/debug.keystore"
-          test -s "$HOME/.android/debug.keystore"
-          echo "restored $HOME/.android/debug.keystore ($(stat -c %s "$HOME/.android/debug.keystore") bytes)"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > /tmp/debug.keystore
+          test -s /tmp/debug.keystore
+          for dir in "$HOME/.android" "$ANDROID_SDK_ROOT/.android" "$HOME"; do
+            mkdir -p "$dir"
+            cp /tmp/debug.keystore "$dir/debug.keystore"
+            echo "wrote $dir/debug.keystore"
+          done
+          echo "ANDROID_USER_HOME=$HOME/.android" >> "$GITHUB_ENV"
 
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace
 
-      # Guards against the exact failure this workflow was added to prevent:
-      # publishing an APK that was built before some commits landed.
+      - name: Report resolved signing config
+        run: ./gradlew :app:signingReport --console=plain | grep -A4 -i "Variant: release"
+
+      - name: Verify APK signing certificate
+        env:
+          EXPECTED_CERT_SHA256: ${{ secrets.RELEASE_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          apk=app/build/outputs/apk/release/app-release.apk
+          apksigner=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
+          actual=$("$apksigner" verify --print-certs "$apk" | grep -oE '[0-9a-f]{64}' | head -1)
+          echo "expected cert: ${EXPECTED_CERT_SHA256:-<unset>}"
+          echo "actual   cert: $actual"
+          if [ -z "$EXPECTED_CERT_SHA256" ]; then
+            echo "::warning::RELEASE_CERT_SHA256 is not set; skipping certificate check"
+            exit 0
+          fi
+          if [ "$actual" != "$EXPECTED_CERT_SHA256" ]; then
+            echo "::error::APK signed by $actual, expected $EXPECTED_CERT_SHA256 — this build cannot be installed over existing installs, refusing to publish"
+            exit 1
+          fi
+          echo "signing certificate matches"
+
+      # Guards against publishing an APK that was built before some commits landed.
       - name: Verify APK versionCode matches commit count and tag
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           TAG: ${{ github.ref_name }}
         run: |
@@ -77,6 +116,7 @@ jobs:
           fi
 
       - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
