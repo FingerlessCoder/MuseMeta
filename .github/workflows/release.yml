@@ -97,14 +97,21 @@ jobs:
           apk=app/build/outputs/apk/release/app-release.apk
           apksigner=$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
           actual=$("$apksigner" verify --print-certs "$apk" | grep -oE '[0-9a-f]{64}' | head -1)
-          echo "expected cert: ${EXPECTED_CERT_SHA256:-<unset>}"
-          echo "actual   cert: $actual"
-          if [ -z "$EXPECTED_CERT_SHA256" ]; then
+          # Strip whitespace off both sides. `gh secret set` given a file with a
+          # trailing newline stores that newline as part of the secret, while
+          # $( ... ) strips it from the fingerprint, so the comparison fails
+          # forever and both values print as *** — a mismatch with no visible
+          # cause. Fingerprints are bare hex, so whitespace is never meaningful.
+          expected=$(printf '%s' "${EXPECTED_CERT_SHA256:-}" | tr -d '[:space:]')
+          actual=$(printf '%s' "$actual" | tr -d '[:space:]')
+          echo "expected cert: $expected (${#expected} chars)"
+          echo "actual   cert: $actual (${#actual} chars)"
+          if [ -z "$expected" ]; then
             echo "::warning::RELEASE_CERT_SHA256 is not set; skipping certificate check"
             exit 0
           fi
-          if [ "$actual" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "::error::APK signed by $actual, expected $EXPECTED_CERT_SHA256 — this build cannot be installed over existing installs, refusing to publish"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::APK signing certificate does not match the expected fingerprint — this build cannot be installed over existing installs, refusing to publish"
             exit 1
           fi
           echo "signing certificate matches"
