@@ -40,6 +40,23 @@ android {
         multiDexKeepProguard = file("multidex-keep.pro")
     }
 
+    signingConfigs {
+        // Explicit signing for CI, driven by environment variables. AGP's implicit
+        // debug-keystore lookup is environment dependent: on GitHub runners the
+        // store path reported by signingReport was correct and the keystore file
+        // was present and unmodified, yet the APK still came out signed by a
+        // different key. Never depend on that lookup for a published artifact.
+        create("releaseFromEnv") {
+            val storePath = providers.environmentVariable("RELEASE_STORE_FILE").orNull
+            if (storePath != null) {
+                storeFile = file(storePath)
+                storePassword = providers.environmentVariable("RELEASE_STORE_PASSWORD").get()
+                keyAlias = providers.environmentVariable("RELEASE_KEY_ALIAS").get()
+                keyPassword = providers.environmentVariable("RELEASE_KEY_PASSWORD").get()
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -47,7 +64,15 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            // Local sideloading keeps using the debug keystore. CI sets
+            // RELEASE_STORE_FILE and signs with the keystore it supplies, so the
+            // published artifact is reproducible and not at the mercy of wherever
+            // AGP happens to look for debug.keystore.
+            signingConfig = if (providers.environmentVariable("RELEASE_STORE_FILE").isPresent) {
+                signingConfigs.getByName("releaseFromEnv")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
         debug {
             isDebuggable = true

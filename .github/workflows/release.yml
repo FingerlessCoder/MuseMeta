@@ -13,10 +13,10 @@ name: Release
 #   * the artifact's versionCode must equal the commit count and the tag
 #   * the artifact's signing certificate must equal the expected fingerprint
 #
-# The second guard matters because app/build.gradle.kts signs release with
-# signingConfigs["debug"], and AGP resolves that keystore through environment
-# specific lookup. If the restore silently misses, AGP quietly generates a
-# fresh keystore and the APK is signed by a key no existing install has.
+# The second guard matters because the published APK must be signed by the same
+# key as every existing install. A different key means the user cannot upgrade —
+# they would have to uninstall first, losing the Room scan database and the
+# DataStore settings.
 
 on:
   push:
@@ -51,22 +51,36 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # Write the keystore everywhere AGP might look, and pin ANDROID_USER_HOME
-      # so the lookup is not left to runner-image defaults. Correctness does not
-      # depend on this step succeeding — the certificate guard below catches it.
+      # Hand the keystore to the build explicitly.
+      #
+      # This used to write debug.keystore into several plausible locations and let
+      # app/build.gradle.kts pick it up through signingConfigs["debug"]. That does
+      # not work: the file was restored correctly (sha256 and certificate
+      # verified on the runner), signingReport reported that exact store path for
+      # the release variant, AGP left the file untouched, and the APK still came
+      # out signed by a different key. AGP's implicit debug keystore resolution is
+      # therefore not trustworthy for a published artifact.
+      #
+      # app/build.gradle.kts now defines a "releaseFromEnv" signing config that
+      # takes RELEASE_STORE_FILE and friends, so the keystore in, the key out.
       - name: Restore signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: android
+          KEY_ALIAS: androiddebugkey
+          KEY_PASSWORD: android
         run: |
           set -euo pipefail
-          printf '%s' "$KEYSTORE_BASE64" | base64 -d > /tmp/debug.keystore
-          test -s /tmp/debug.keystore
-          for dir in "$HOME/.android" "$ANDROID_SDK_ROOT/.android" "$HOME"; do
-            mkdir -p "$dir"
-            cp /tmp/debug.keystore "$dir/debug.keystore"
-            echo "wrote $dir/debug.keystore"
-          done
-          echo "ANDROID_USER_HOME=$HOME/.android" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/keystore"
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/keystore/muse-meta.jks"
+          test -s "$RUNNER_TEMP/keystore/muse-meta.jks"
+          sha256sum "$RUNNER_TEMP/keystore/muse-meta.jks"
+          {
+            echo "RELEASE_STORE_FILE=$RUNNER_TEMP/keystore/muse-meta.jks"
+            echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
 
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace
